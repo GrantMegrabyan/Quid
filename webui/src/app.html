@@ -18,7 +18,9 @@
 					} else {
 						document.documentElement.classList.remove('dark');
 					}
-				} catch (e) {}
+				} catch (e) {
+					document.documentElement.classList.remove('dark');
+				}
 			})();
 		</script>
 		%sveltekit.head%

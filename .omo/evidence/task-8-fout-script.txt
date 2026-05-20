@@ -19,7 +19,9 @@
 					} else {
 						document.documentElement.classList.remove('dark');
 					}
-				} catch (e) {}
+				} catch (e) {
+					document.documentElement.classList.remove('dark');
+				}
 			})();
 		</script>
 		%sveltekit.head%
@@ -33,6 +35,7 @@
 10:					var stored = localStorage.getItem('theme');
 17:						document.documentElement.classList.add('dark');
 19:						document.documentElement.classList.remove('dark');
+22:					document.documentElement.classList.remove('dark');
 
-=== Built HTML contains inline script before sveltekit head ===
-/Users/grant/dev/quid/webui/.svelte-kit/output/server/chunks/internal.js:564:		app: ({ head, body, assets, nonce, env }) => "<!doctype html>\n<html lang=\"en\">\n	<head>\n		<meta charset=\"utf-8\" />\n		<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n		<meta name=\"text-scale\" content=\"scale\" />\n		<script>\n			(function () {\n				try {\n					var stored = localStorage.getItem('theme');\n					var dark =\n						stored === 'dark' ||\n						(stored !== 'light' &&\n							window.matchMedia &&\n							window.matchMedia('(prefers-color-scheme: dark)').matches);\n					if (dark) {\n						document.documentElement.classList.add('dark');\n					} else {\n						document.documentElement.classList.remove('dark');\n					}\n				} catch (e) {}\n			})();\n		<\/script>\n		" + head + "\n	</head>\n	<body data-sveltekit-preload-data=\"hover\">\n		<div style=\"display: contents\">" + body + "</div>\n	</body>\n</html>\n",
+=== Empty catch check (must be empty) ===
+clean
