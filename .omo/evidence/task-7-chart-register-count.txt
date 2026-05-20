@@ -1,0 +1,3 @@
+Command: grep "Chart.register(\" -n webui/src/lib
+Result: 1 match in 1 file
+File: webui/src/lib/chart/chartSetup.ts

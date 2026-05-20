@@ -1,0 +1,5 @@
+Command: npx tsc --noEmit
+Result: passed with no output
+
+Command: npm run build
+Result: passed

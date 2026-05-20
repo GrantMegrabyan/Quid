@@ -21,3 +21,12 @@
 
 ## 2026-05-21 Task: category-color-utility
 - Default category colors should be derived from a pure string hash across the full 360 hue range, with a fixed HSL conversion and no palette cap/modulo lookup.
+
+## 2026-05-21 Task: date-utilities
+- `monthKey`, `last12MonthKeys`, `formatMonthLabel`, and `todayIso` are implemented with native `Date`/`Intl` only; no date library imports were added.
+- `last12MonthKeys` uses local calendar month math and returned correct year-boundary windows for Jan/Dec and leap-day references in evidence.
+- `todayIso` intentionally uses local date parts, so it matches local `monthKey(new Date())` month boundaries.
+
+## 2026-05-21 Task: chart-setup-module
+- Chart.js registration is centralized in `src/lib/chart/chartSetup.ts` and calls `Chart.register(...registerables)` exactly once.
+- No SSR suppression hacks were added; chart components can import the module for side-effect registration later.
