@@ -13,3 +13,7 @@
 
 ## 2026-05-21 Task: tailwind-dark-mode-bootstrap
 - Atlas caught an empty `catch (e) {}` in the `src/app.html` pre-paint script; fixed by falling back to removing the `dark` class so storage/matchMedia errors degrade to light mode without silent swallowing.
+- Atlas LSP also flagged `noInnerDeclarations` on `var stored/dark`, `useArrowFunction` on the `function () {}` IIFE, and an unused `catch (e)` binding; refactored to an arrow IIFE with `let` declarations and bindingless `catch {}` keeping behavior identical.
+
+## 2026-05-21 Task: money-formatter
+- Atlas caught the initial implementation exporting only `formatMoney`; the plan actually needs `formatAmount` plus `parseAmountInput`, so the helper was corrected to match the checklist exactly.

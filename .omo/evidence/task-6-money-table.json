@@ -1,0 +1,124 @@
+{
+  "generatedAt": "2026-05-20T23:39:59.817Z",
+  "cases": [
+    {
+      "kind": "parse",
+      "raw": "",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "   ",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "42",
+      "parsed": 42,
+      "actual": 42,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "42.5",
+      "parsed": 42.5,
+      "actual": 42.5,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "42.50",
+      "parsed": 42.5,
+      "actual": 42.5,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "0042.50",
+      "parsed": 42.5,
+      "actual": 42.5,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "-1",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "42abc",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "NaN",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "Infinity",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "42.999",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "0",
+      "parsed": 0,
+      "actual": 0,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "  7.1  ",
+      "parsed": 7.1,
+      "actual": 7.1,
+      "pass": true
+    },
+    {
+      "kind": "parse",
+      "raw": "3.456",
+      "parsed": null,
+      "actual": null,
+      "pass": true
+    },
+    {
+      "kind": "format",
+      "amount": 42,
+      "formatted": "42.00",
+      "actual": "42.00",
+      "pass": true
+    },
+    {
+      "kind": "format",
+      "amount": 42.999,
+      "formatted": "43.00",
+      "actual": "43.00",
+      "pass": true
+    },
+    {
+      "kind": "format",
+      "amount": 0,
+      "formatted": "0.00",
+      "actual": "0.00",
+      "pass": true
+    }
+  ]
+}

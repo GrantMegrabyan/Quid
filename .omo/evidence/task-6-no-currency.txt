@@ -1,0 +1,2 @@
+No forbidden patterns found in src/lib/utils/money.ts
+OK
