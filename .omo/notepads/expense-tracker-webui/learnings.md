@@ -27,6 +27,16 @@
 - `last12MonthKeys` uses local calendar month math and returned correct year-boundary windows for Jan/Dec and leap-day references in evidence.
 - `todayIso` intentionally uses local date parts, so it matches local `monthKey(new Date())` month boundaries.
 
+## 2026-05-21 Task: money-formatter
+- `formatMoney` stays tiny and dependency-free with a single `Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })` instance.
+- Evidence for `0`, integer, and rounding cases showed fixed 2-decimal output and no scope creep keywords in the utility.
+
 ## 2026-05-21 Task: chart-setup-module
 - Chart.js registration is centralized in `src/lib/chart/chartSetup.ts` and calls `Chart.register(...registerables)` exactly once.
 - No SSR suppression hacks were added; chart components can import the module for side-effect registration later.
+
+## 2026-05-21 Task: tailwind-dark-mode-bootstrap
+- Theme storage key is exactly `theme` with values `light` or `dark`; bootstrap reads `localStorage.getItem('theme')` and falls back to `prefers-color-scheme: dark` when no value is stored.
+- Inline pre-paint script lives in `src/app.html` BEFORE `%sveltekit.head%`, wrapped in IIFE + try/catch to survive storage-disabled browsers, and toggles `.dark` on `document.documentElement`.
+- Tailwind v4 dark variant is driven by `@custom-variant dark (&:where(.dark, .dark *));` in `src/routes/layout.css`; `tailwind.config.js` `darkMode: 'class'` is kept as a no-op safety for legacy tooling.
+- Light/dark body colors are plain CSS in `layout.css` (no `@apply`, no theme abstraction) so T13 toggle just flips the class.

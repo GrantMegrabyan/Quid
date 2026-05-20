@@ -1,0 +1,50 @@
+=== npx tsc --noEmit ===
+=== exit: 0 ===
+
+=== npm run build (tail) ===
+.svelte-kit/output/server/entries/pages/_page.svelte.js                 0.28 kB │ gzip:  0.22 kB
+.svelte-kit/output/server/internal.js                                   0.40 kB │ gzip:  0.19 kB
+.svelte-kit/output/server/entries/pages/_layout.svelte.js               2.58 kB │ gzip:  1.05 kB
+.svelte-kit/output/server/entries/fallbacks/error.svelte.js             5.70 kB │ gzip:  2.09 kB
+.svelte-kit/output/server/chunks/environment.js                         5.86 kB │ gzip:  2.12 kB
+.svelte-kit/output/server/chunks/shared.js                             10.28 kB │ gzip:  3.33 kB
+.svelte-kit/output/server/chunks/exports.js                            11.22 kB │ gzip:  3.50 kB
+.svelte-kit/output/server/chunks/internal.js                           21.00 kB │ gzip:  6.52 kB
+.svelte-kit/output/server/chunks/utils.js                              30.06 kB │ gzip:  8.68 kB
+.svelte-kit/output/server/remote-entry.js                              46.07 kB │ gzip:  9.44 kB
+.svelte-kit/output/server/index.js                                    122.77 kB │ gzip: 31.08 kB
+.svelte-kit/output/server/chunks/dev.js                               125.93 kB │ gzip: 32.68 kB
+
+✓ built in 444ms
+
+Run npm run preview to preview your production build locally.
+
+> Using @sveltejs/adapter-auto
+  Could not detect a supported production environment. See https://svelte.dev/docs/kit/adapters to learn how to configure your app to run on the platform of your choosing
+  ✔ done
+=== exit: 0 ===
+
+=== tailwind.config.js ===
+export default {
+	darkMode: 'class',
+	content: ['./src/**/*.{html,js,svelte,ts}'],
+	theme: {
+		extend: {}
+	},
+	plugins: []
+};
+
+=== layout.css ===
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+body {
+	background-color: #ffffff;
+	color: #111827;
+}
+
+:where(.dark) body {
+	background-color: #0b0b0c;
+	color: #f3f4f6;
+}
