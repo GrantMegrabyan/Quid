@@ -1,0 +1,50 @@
+{
+  "generated": "2026-05-20T23:58:32.013Z",
+  "tests": {
+    "initial_seed_counts": {
+      "categories": 6,
+      "expenses": 15,
+      "expected_categories": 6,
+      "expected_expenses": 15,
+      "pass": true
+    },
+    "deep_copy_isolation": {
+      "mutated_copy_name": "MUTATED",
+      "store_name_after_mutation": "Category 0",
+      "pass": true
+    },
+    "setStore_transactional_update": {
+      "expenses_before": 15,
+      "expenses_after": 16,
+      "delta": 1,
+      "pass": true
+    },
+    "setStore_throws_leaves_state_intact": {
+      "expenses_before": 15,
+      "expenses_after": 15,
+      "pass": true
+    },
+    "reset_reseeds": {
+      "categories_after_wipe": 0,
+      "expenses_after_wipe": 0,
+      "categories_after_reset": 6,
+      "expenses_after_reset": 15,
+      "pass": true
+    },
+    "localStorage_persistence": {
+      "loaded_first_expense_note": "persisted-note",
+      "pass": true
+    },
+    "malformed_storage_reseeds": {
+      "categories": 6,
+      "expenses": 15,
+      "pass": true
+    },
+    "ssr_getStorage_returns_null": {
+      "window_defined": false,
+      "getStorage_result": null,
+      "pass": true
+    }
+  },
+  "all_pass": true
+}

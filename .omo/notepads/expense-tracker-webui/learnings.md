@@ -27,6 +27,15 @@
 - `last12MonthKeys` uses local calendar month math and returned correct year-boundary windows for Jan/Dec and leap-day references in evidence.
 - `todayIso` intentionally uses local date parts, so it matches local `monthKey(new Date())` month boundaries.
 
+## 2026-05-21 Task: mock-seed-defaults
+- `src/lib/mock/seed.ts` exports deterministic default categories and expenses.
+- `Uncategorized` uses `UNCATEGORIZED_ID` and the neutral color `#9ca3af`.
+- All seeded expenses reference existing category IDs and use ISO `YYYY-MM-DD` dates.
+
+## 2026-05-21 Task: repo-seed-defaults
+- `src/lib/repos/seed.ts` now exports factory functions, not shared mutable constants, so callers get fresh arrays/objects each call.
+- Sample expense dates are derived at runtime from the current month and stay inside `last12MonthKeys()`.
+
 ## 2026-05-21 Task: money-formatter
 - `formatMoney` stays tiny and dependency-free with a single `Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })` instance.
 - Evidence for `0`, integer, and rounding cases showed fixed 2-decimal output and no scope creep keywords in the utility.
@@ -40,3 +49,9 @@
 - Inline pre-paint script lives in `src/app.html` BEFORE `%sveltekit.head%`, wrapped in IIFE + try/catch to survive storage-disabled browsers, and toggles `.dark` on `document.documentElement`.
 - Tailwind v4 dark variant is driven by `@custom-variant dark (&:where(.dark, .dark *));` in `src/routes/layout.css`; `tailwind.config.js` `darkMode: 'class'` is kept as a no-op safety for legacy tooling.
 - Light/dark body colors are plain CSS in `layout.css` (no `@apply`, no theme abstraction) so T13 toggle just flips the class.
+
+## 2026-05-21 Task: mock-store
+- localStorage guard: `typeof window !== 'undefined'` check inside `getStorage()` (never at module top level) keeps the module SSR-safe; all callers of getStorage are also wrapped in try/catch so quota errors or security errors degrade to pure in-memory operation.
+- `setStore` works on a deep-copy draft (not the live `_store` reference) so an updater that throws mid-mutation leaves `_store` unchanged — transactional semantics without needing a separate rollback path.
+- Deep copy via `JSON.parse(JSON.stringify(...))` is sufficient for plain data (`Category`, `Expense`) and avoids `structuredClone` which is Node 17+ only and not available in all SSR contexts used by this project.
+- Lazy initialization: `_store` stays `null` until the first `getStore`/`setStore`/`resetStore` call; this avoids any side effects at module import time.

@@ -1,0 +1,41 @@
+TASK-10 SSR SAFETY EVIDENCE
+Generated: 2026-05-21
+
+=== GREP: localStorage occurrences in mockStore.ts ===
+
+Only one match found:
+  Line 24: return typeof window !== 'undefined' ? window.localStorage : null;
+
+This access is:
+  - Inside the body of function getStorage() — NOT at module top level
+  - Guarded by typeof window !== 'undefined' before accessing window.localStorage
+  - Wrapped in a try/catch in the caller (loadFromStorage / persistToStorage)
+  - No top-level localStorage access exists anywhere in the file
+
+=== NODE SSR SIMULATION ===
+
+The evidence script run-task-10-evidence.mjs tests getStorage() in a pure Node.js
+process where typeof window === 'undefined'. Result:
+
+  ssr_getStorage_returns_null:
+    window_defined: false
+    getStorage_result: null
+    pass: true
+
+This proves the module is safe to import during SSR: it produces no ReferenceError,
+no side effects, and correctly returns null from getStorage() when window is absent.
+
+=== FORBIDDEN PATTERN GREP RESULTS ===
+
+Pattern: localStorage|async |await |setTimeout|console\.|as any|@ts-ignore|@ts-nocheck|@ts-expect-error|retry|spinner|latency
+
+Result: 1 match — line 24 (window.localStorage inside guarded function body)
+All other forbidden patterns: 0 matches
+
+=== LSP DIAGNOSTICS ===
+
+Result: No diagnostics found
+
+=== tsc --noEmit ===
+
+Result: No output (zero errors)
