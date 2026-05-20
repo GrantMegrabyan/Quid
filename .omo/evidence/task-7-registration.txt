@@ -1,0 +1,5 @@
+File: /Users/grant/dev/quid/webui/src/lib/chart/chartSetup.ts
+Chart.register matches under webui/src/lib: 1
+Registration line: 8
+ensureChartJsRegistered line: 5
+Result: Chart.register is inside ensureChartJsRegistered and not top-level

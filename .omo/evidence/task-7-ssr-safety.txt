@@ -1,0 +1,4 @@
+File: /Users/grant/dev/quid/webui/src/lib/chart/chartSetup.ts
+Top-level Chart.register matches: 0
+Function-scoped Chart.register matches: 1
+Result: registration is gated behind ensureChartJsRegistered; no top-level side effect

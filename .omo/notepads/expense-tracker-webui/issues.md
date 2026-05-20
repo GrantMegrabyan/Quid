@@ -17,3 +17,6 @@
 
 ## 2026-05-21 Task: money-formatter
 - Atlas caught the initial implementation exporting only `formatMoney`; the plan actually needs `formatAmount` plus `parseAmountInput`, so the helper was corrected to match the checklist exactly.
+
+## 2026-05-21 Task: chart-setup-module
+- Atlas caught the initial top-level `Chart.register(...registerables)` mismatch; the module now defers registration to `ensureChartJsRegistered()` and keeps the call idempotent.
