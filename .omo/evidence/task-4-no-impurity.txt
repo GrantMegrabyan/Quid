@@ -1,0 +1,3 @@
+grep pattern: Math.random|window.|document.|localStorage
+file: /Users/grant/dev/quid/webui/src/lib/utils/categoryColor.ts
+result: No matches found

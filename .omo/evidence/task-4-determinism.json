@@ -1,0 +1,31 @@
+{
+  "samples": [
+    {
+      "id": "a",
+      "color": "#71d831"
+    },
+    {
+      "id": "b",
+      "color": "#6ed831"
+    },
+    {
+      "id": "foo",
+      "color": "#d8c731"
+    },
+    {
+      "id": "uncategorized",
+      "color": "#9ca3af"
+    },
+    {
+      "id": "💰",
+      "color": "#a931d8"
+    },
+    {
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "color": "#31d8cd"
+    }
+  ],
+  "uniqueCount": 6,
+  "uncategorizedColor": "#9ca3af",
+  "hslToHexCheck": "#3185d8"
+}
