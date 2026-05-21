@@ -4,11 +4,7 @@ import { colorForCategoryId } from '$lib/utils/categoryColor';
 import { getStore, setStore } from './mockStore.js';
 import { RepositoryError, type CategoryRepository } from './types.js';
 
-function generateId(): string {
-	return `cat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-class MockCategoryRepository implements CategoryRepository {
+export class MockCategoryRepository implements CategoryRepository {
 	async list(): Promise<Category[]> {
 		return getStore().categories;
 	}
@@ -28,15 +24,18 @@ class MockCategoryRepository implements CategoryRepository {
 			throw new RepositoryError('VALIDATION', `A category named "${name}" already exists.`);
 		}
 
-		const id = generateId();
+		const id = `cat-${crypto.randomUUID()}`;
 		const color = input.color || colorForCategoryId(id);
-		const category: Category = { id, name, color };
 
-		setStore((s) => {
-			s.categories.push(category);
+		const newState = setStore((s) => {
+			s.categories.push({ id, name, color });
 		});
 
-		return category;
+		const created = newState.categories.find((c) => c.id === id);
+		if (!created) {
+			throw new RepositoryError('NOT_FOUND', `Category "${id}" was not stored correctly.`);
+		}
+		return created;
 	}
 
 	async update(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<Category> {
