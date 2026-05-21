@@ -16,13 +16,11 @@
 	const CASCADE_NOTICE_MS = 5000;
 	const FALLBACK_COLOR = '#6b7280';
 
-	// --- Add form state ---
 	let newName = $state('');
 	let newColor = $state(FALLBACK_COLOR);
 	let newError = $state('');
 	let submittingNew = $state(false);
 
-	// --- Row-level edit/delete state (only one active at a time) ---
 	let editingId: string | null = $state(null);
 	let editName = $state('');
 	let editColor = $state('');
@@ -32,7 +30,6 @@
 	let confirmingDeleteId: string | null = $state(null);
 	let deleting = $state(false);
 
-	// --- Cascade notice ---
 	let cascadeMessage = $state('');
 	let cascadeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -127,7 +124,6 @@
 		}
 
 		const trimmed = editName.trim();
-		// Uncategorized name is immutable; only allow color edits.
 		if (id === UNCATEGORIZED_ID) {
 			if (trimmed !== original.name.trim()) {
 				editError = 'The Uncategorized name cannot be changed.';
@@ -295,7 +291,10 @@
 				data-category-id={category.id}
 				class="flex flex-col gap-3 bg-white px-4 py-3 sm:px-5 dark:bg-transparent"
 			>
-				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap">
+				<div
+					data-testid={isUncategorized ? 'category-uncategorized' : undefined}
+					class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-nowrap"
+				>
 					<div class="flex min-w-0 flex-1 items-center gap-3">
 						<span
 							aria-hidden="true"
@@ -309,10 +308,7 @@
 								{category.name}
 							</p>
 							{#if isUncategorized}
-								<p
-									data-testid="category-uncategorized"
-									class="text-xs text-gray-500 dark:text-gray-400"
-								>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
 									Default fallback · cannot be deleted
 								</p>
 							{/if}
