@@ -15,6 +15,8 @@ test.describe('dashboard', () => {
 
 		const rows = page.getByTestId('expense-row');
 		await expect(rows).toHaveCount(2);
+		await expect(rows.filter({ hasText: 'Whole Foods' })).toHaveCount(1);
+		await expect(rows.filter({ hasText: 'Uber' })).toHaveCount(1);
 	});
 
 	test('add expense flow appends a new row', async ({ page }) => {
@@ -23,6 +25,7 @@ test.describe('dashboard', () => {
 		await page.getByTestId('add-expense-btn').click();
 		await expect(page.getByTestId('modal-title')).toHaveText('Add expense');
 
+		await page.getByTestId('name-input').fill('Blue Bottle Coffee');
 		await page.getByTestId('amount-input').fill('19.95');
 		await page.getByTestId('category-select').selectOption('cat-groceries');
 		await page.getByTestId('note-input').fill('Coffee beans');
@@ -31,7 +34,7 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('modal-title')).toHaveCount(0);
 		await expect(page.getByTestId('expense-row')).toHaveCount(3);
 		await expect(
-			page.getByTestId('expense-row').filter({ hasText: 'Coffee beans' })
+			page.getByTestId('expense-row').filter({ hasText: 'Blue Bottle Coffee' })
 		).toHaveCount(1);
 	});
 
@@ -75,6 +78,7 @@ test.describe('dashboard', () => {
 		await page.goto('/');
 
 		await page.getByTestId('add-expense-btn').click();
+		await page.getByTestId('name-input').fill('Test Merchant');
 		await page.getByTestId('amount-input').fill('0');
 		await page.getByTestId('category-select').selectOption('cat-groceries');
 		await page.getByTestId('modal-submit').click();
@@ -88,6 +92,7 @@ test.describe('dashboard', () => {
 		await page.goto('/');
 
 		await page.getByTestId('add-expense-btn').click();
+		await page.getByTestId('name-input').fill('Test Merchant');
 		await page.getByTestId('amount-input').fill('5');
 		await page.getByTestId('modal-submit').click();
 

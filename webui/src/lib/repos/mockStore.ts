@@ -1,7 +1,7 @@
 import type { Category, Expense } from '$types';
 import { defaultCategories, sampleExpenses } from './seed.js';
 
-export const LS_KEY = 'expense-tracker:store:v1';
+export const LS_KEY = 'expense-tracker:store:v2';
 
 export interface MockStoreState {
 	categories: Category[];

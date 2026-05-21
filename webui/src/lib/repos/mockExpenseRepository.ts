@@ -34,6 +34,7 @@ export class MockExpenseRepository implements ExpenseRepository {
 			const existing = s.expenses[idx];
 			s.expenses[idx] = {
 				id: existing.id,
+				name: patch.name ?? existing.name,
 				amount: patch.amount ?? existing.amount,
 				date: patch.date ?? existing.date,
 				categoryId: patch.categoryId ?? existing.categoryId,

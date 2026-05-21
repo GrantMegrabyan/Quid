@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
  * Mirrors `src/lib/repos/mockStore.ts` LS_KEY exactly. Kept inline (not imported)
  * so the Playwright config does not need Vite alias resolution.
  */
-export const LS_KEY = 'expense-tracker:store:v1';
+export const LS_KEY = 'expense-tracker:store:v2';
 export const THEME_KEY = 'theme';
 export const UNCATEGORIZED_ID = 'uncategorized';
 
@@ -16,6 +16,7 @@ export interface SeedCategory {
 
 export interface SeedExpense {
 	id: string;
+	name: string;
 	amount: number;
 	date: string;
 	categoryId: string;
@@ -45,6 +46,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 		expenses: [
 			{
 				id: 'exp-seed-1',
+				name: 'Whole Foods',
 				amount: 42.5,
 				date: isoDaysAgo(2),
 				categoryId: 'cat-groceries',
@@ -52,6 +54,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 			},
 			{
 				id: 'exp-seed-2',
+				name: 'Uber',
 				amount: 12,
 				date: isoDaysAgo(5),
 				categoryId: 'cat-transport',

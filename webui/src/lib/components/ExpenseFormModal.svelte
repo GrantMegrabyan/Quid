@@ -15,34 +15,39 @@
 
 	const dispatch = createEventDispatcher<{ close: void }>();
 
+	let nameInput = $state('');
 	let amountInput = $state('');
 	let dateInput = $state('');
 	let categoryInput = $state('');
 	let noteInput = $state('');
 
+	let nameError = $state('');
 	let amountError = $state('');
 	let dateError = $state('');
 	let categoryError = $state('');
 
 	let submitting = $state(false);
 
-	let amountFieldEl: HTMLInputElement | null = $state(null);
+	let nameFieldEl: HTMLInputElement | null = $state(null);
 
 	const isEdit = $derived(Boolean(expense));
 	const title = $derived(isEdit ? 'Edit expense' : 'Add expense');
 
 	function resetForm() {
+		nameError = '';
 		amountError = '';
 		dateError = '';
 		categoryError = '';
 		submitting = false;
 
 		if (expense) {
+			nameInput = expense.name;
 			amountInput = expense.amount.toFixed(2);
 			dateInput = expense.date;
 			categoryInput = expense.categoryId;
 			noteInput = expense.note;
 		} else {
+			nameInput = '';
 			amountInput = '';
 			dateInput = todayIso();
 			categoryInput = '';
@@ -54,7 +59,7 @@
 		if (open) {
 			resetForm();
 			void refreshCategories();
-			queueMicrotask(() => amountFieldEl?.focus());
+			queueMicrotask(() => nameFieldEl?.focus());
 		}
 	});
 
@@ -89,9 +94,17 @@
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 
+		nameError = '';
 		amountError = '';
 		dateError = '';
 		categoryError = '';
+
+		const trimmedName = nameInput.trim();
+		if (trimmedName.length === 0) {
+			nameError = 'Enter a merchant name.';
+		} else if (trimmedName.length > 80) {
+			nameError = 'Merchant name must be 80 characters or fewer.';
+		}
 
 		const parsedAmount = parseAmountInput(amountInput);
 		if (parsedAmount === null || parsedAmount <= 0) {
@@ -113,13 +126,14 @@
 
 		const trimmedNote = noteInput.slice(0, 200);
 
-		if (amountError || dateError || categoryError) {
+		if (nameError || amountError || dateError || categoryError) {
 			return;
 		}
 
 		submitting = true;
 		try {
 			const payload = {
+				name: trimmedName,
 				amount: parsedAmount as number,
 				date: trimmedDate,
 				categoryId: categoryInput,
@@ -169,6 +183,35 @@
 			>
 				<div class="flex flex-col gap-1">
 					<label
+						for="expense-name"
+						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+					>
+						Merchant
+					</label>
+					<input
+						id="expense-name"
+						bind:this={nameFieldEl}
+						data-testid="name-input"
+						type="text"
+						maxlength="80"
+						autocomplete="off"
+						placeholder="e.g. Starbucks"
+						value={nameInput}
+						oninput={(event) => (nameInput = event.currentTarget.value)}
+						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+					/>
+					{#if nameError}
+						<p
+							data-testid="name-error"
+							class="text-sm text-red-600 dark:text-red-400"
+						>
+							{nameError}
+						</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label
 						for="expense-amount"
 						class="text-sm font-medium text-gray-700 dark:text-gray-300"
 					>
@@ -176,7 +219,6 @@
 					</label>
 					<input
 						id="expense-amount"
-						bind:this={amountFieldEl}
 						data-testid="amount-input"
 						type="number"
 						step="0.01"
