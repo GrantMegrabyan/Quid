@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
 	import { addExpense, editExpense } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { parseAmountInput } from '$utils/money';
@@ -8,10 +9,11 @@
 	type Props = {
 		open: boolean;
 		expense?: Expense;
-		onClose?: () => void;
 	};
 
-	let { open, expense, onClose }: Props = $props();
+	let { open, expense }: Props = $props();
+
+	const dispatch = createEventDispatcher<{ close: void }>();
 
 	let amountInput = $state('');
 	let dateInput = $state('');
@@ -68,7 +70,7 @@
 	}
 
 	function close() {
-		onClose?.();
+		dispatch('close');
 	}
 
 	function handleBackdropClick(event: MouseEvent) {
@@ -144,13 +146,13 @@
 		data-testid="modal-backdrop"
 		role="presentation"
 		onclick={handleBackdropClick}
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex bg-black/50 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
 	>
 		<div
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="expense-modal-title"
-			class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-800 dark:bg-[#111114]"
+			class="flex h-full w-full flex-col overflow-y-auto border-gray-200 bg-white p-6 shadow-xl sm:h-auto sm:max-w-md sm:rounded-lg sm:border dark:border-gray-800 dark:bg-[#111114]"
 		>
 			<h2
 				id="expense-modal-title"
@@ -160,7 +162,11 @@
 				{title}
 			</h2>
 
-			<form class="mt-4 flex flex-col gap-4" onsubmit={handleSubmit} novalidate>
+			<form
+				class="mt-4 flex flex-1 flex-col gap-4"
+				onsubmit={handleSubmit}
+				novalidate
+			>
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-amount"
@@ -171,12 +177,15 @@
 					<input
 						id="expense-amount"
 						bind:this={amountFieldEl}
-						bind:value={amountInput}
 						data-testid="amount-input"
-						type="text"
+						type="number"
+						step="0.01"
+						min="0"
 						inputmode="decimal"
 						autocomplete="off"
 						placeholder="0.00"
+						value={amountInput}
+						oninput={(event) => (amountInput = event.currentTarget.value)}
 						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
 					/>
 					{#if amountError}
@@ -249,23 +258,26 @@
 					>
 						Note
 					</label>
-					<textarea
+					<input
 						id="expense-note"
 						bind:value={noteInput}
 						data-testid="note-input"
+						type="text"
 						maxlength="200"
-						rows="2"
+						autocomplete="off"
 						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
-					></textarea>
+					/>
 					<p class="text-right text-xs text-gray-500 dark:text-gray-400">
 						{noteInput.length}/200
 					</p>
 				</div>
 
-				<div class="mt-2 flex items-center justify-end gap-2">
+				<div
+					class="mt-auto flex items-center justify-end gap-2 pt-2 sm:mt-2"
+				>
 					<button
 						type="button"
-						data-testid="cancel-button"
+						data-testid="modal-cancel"
 						onclick={close}
 						class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
 					>
@@ -273,7 +285,7 @@
 					</button>
 					<button
 						type="submit"
-						data-testid="submit-button"
+						data-testid="modal-submit"
 						disabled={submitting}
 						class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
 					>
