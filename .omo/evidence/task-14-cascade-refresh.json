@@ -1,0 +1,64 @@
+{
+  "description": "Delete category cascade refreshes both writable stores",
+  "targetCategoryId": "cat-groceries",
+  "before": {
+    "storeCategories": [
+      "uncategorized",
+      "cat-groceries",
+      "cat-transport",
+      "cat-housing",
+      "cat-dining",
+      "cat-bills"
+    ],
+    "storeExpenses": [
+      { "id": "exp-001", "categoryId": "cat-groceries" },
+      { "id": "exp-002", "categoryId": "cat-transport" },
+      { "id": "exp-003", "categoryId": "cat-dining" },
+      { "id": "exp-004", "categoryId": "cat-housing" },
+      { "id": "exp-005", "categoryId": "cat-bills" },
+      { "id": "exp-006", "categoryId": "cat-groceries" },
+      { "id": "exp-007", "categoryId": "cat-transport" },
+      { "id": "exp-008", "categoryId": "cat-dining" },
+      { "id": "exp-009", "categoryId": "cat-groceries" },
+      { "id": "exp-010", "categoryId": "cat-bills" },
+      { "id": "exp-011", "categoryId": "cat-transport" },
+      { "id": "exp-012", "categoryId": "cat-dining" },
+      { "id": "exp-013", "categoryId": "cat-groceries" },
+      { "id": "exp-014", "categoryId": "cat-bills" },
+      { "id": "exp-015", "categoryId": "cat-housing" }
+    ],
+    "storeCategoryCount": 6,
+    "storeExpenseCount": 15
+  },
+  "after": {
+    "storeCategories": [
+      "uncategorized",
+      "cat-transport",
+      "cat-housing",
+      "cat-dining",
+      "cat-bills"
+    ],
+    "storeExpenses": [
+      { "id": "exp-001", "categoryId": "uncategorized" },
+      { "id": "exp-002", "categoryId": "cat-transport" },
+      { "id": "exp-003", "categoryId": "cat-dining" },
+      { "id": "exp-004", "categoryId": "cat-housing" },
+      { "id": "exp-005", "categoryId": "cat-bills" },
+      { "id": "exp-006", "categoryId": "uncategorized" },
+      { "id": "exp-007", "categoryId": "cat-transport" },
+      { "id": "exp-008", "categoryId": "cat-dining" },
+      { "id": "exp-009", "categoryId": "uncategorized" },
+      { "id": "exp-010", "categoryId": "cat-bills" },
+      { "id": "exp-011", "categoryId": "cat-transport" },
+      { "id": "exp-012", "categoryId": "cat-dining" },
+      { "id": "exp-013", "categoryId": "uncategorized" },
+      { "id": "exp-014", "categoryId": "cat-bills" },
+      { "id": "exp-015", "categoryId": "cat-housing" }
+    ],
+    "storeCategoryCount": 5,
+    "storeExpenseCount": 15,
+    "deletedCategoryPresentInStore": false,
+    "allAffectedExpensesReassigned": true
+  },
+  "pass": true
+}

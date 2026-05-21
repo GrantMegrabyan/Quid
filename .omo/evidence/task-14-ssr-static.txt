@@ -1,0 +1,7 @@
+{
+  "description": "Static SSR safety scan for store modules",
+  "files": ["expenses.ts", "categories.ts"],
+  "topLevelCalls": [],
+  "forbiddenHits": [],
+  "pass": true
+}

@@ -1,0 +1,15 @@
+{
+	"task": "T18",
+	"surface": "CategoryDoughnutChart",
+	"source": "webui/src/lib/components/CategoryDoughnutChart.svelte",
+	"covered_by": [
+		"tests/expenses.e2e.ts › dashboard › renders both charts and the expense list",
+		"tests/expenses.e2e.ts › empty state › shows empty placeholder when no expenses exist"
+	],
+	"testids_asserted": ["category-chart"],
+	"behaviors_proved": [
+		"Wrapper [data-testid='category-chart'] renders on the dashboard.",
+		"Wrapper renders the 'No expenses yet' placeholder text when the expenses store is empty (containText assertion)."
+	],
+	"playwright_status": "passing — see .omo/evidence/final-f1-playwright-results.json"
+}

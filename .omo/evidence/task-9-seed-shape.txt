@@ -1,0 +1,18 @@
+Seed import check
+categoryCount=5
+expenseCount=5
+uncategorized={"id":"uncategorized","name":"Uncategorized","color":"#9ca3af"}
+invalidExpenseCategoryIds=[]
+invalidExpenseDates=[]
+defaultCategories:
+- uncategorized | Uncategorized | #9ca3af
+- cat-groceries | Groceries | #6ad62b
+- cat-transport | Transport | #d62bc3
+- cat-bills | Bills | #d62b2b
+- cat-dining | Dining Out | #2b7ad6
+defaultExpenses:
+- exp-groceries-001 -> cat-groceries | 2026-05-01
+- exp-transport-001 -> cat-transport | 2026-05-02
+- exp-bills-001 -> cat-bills | 2026-05-03
+- exp-dining-001 -> cat-dining | 2026-05-04
+- exp-uncategorized-001 -> uncategorized | 2026-05-05

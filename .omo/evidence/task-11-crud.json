@@ -1,0 +1,52 @@
+{
+  "sort_desc": {
+    "dates": [
+      "2026-05-07",
+      "2026-05-03",
+      "2026-04-11",
+      "2026-04-01",
+      "2026-03-05"
+    ],
+    "ok": true
+  },
+  "limit": {
+    "count": 2,
+    "ok": true
+  },
+  "offset": {
+    "first_id": "exp-001",
+    "expected": "exp-001",
+    "ok": true
+  },
+  "limit_offset": {
+    "ids": [
+      "exp-001",
+      "exp-003"
+    ],
+    "ok": true
+  },
+  "create": {
+    "id": "eba3054e-e863-4e9c-9ba2-ca56849c8b70",
+    "amount_returned": 9.99,
+    "internal_poisoned_to": 999,
+    "is_deep_copy": true,
+    "ok": true
+  },
+  "update": {
+    "id": "exp-002",
+    "amount_returned": 19.99,
+    "internal_poisoned_to": 777,
+    "is_deep_copy": true,
+    "ok": true
+  },
+  "delete": {
+    "found_after": false,
+    "ok": true
+  },
+  "not_found": {
+    "code": "NOT_FOUND",
+    "store_unchanged": true,
+    "ok": true
+  },
+  "all_ok": true
+}

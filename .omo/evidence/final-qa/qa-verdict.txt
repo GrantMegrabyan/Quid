@@ -1,0 +1,58 @@
+FINAL QA VERDICT — Expense Tracker WebUI
+Run date: 2026-05-21
+App: http://localhost:4173 (SvelteKit preview build)
+===================================================
+
+AUTOMATED E2E SUITE
+  npx playwright test → 15/15 PASS (0 failed, 0 skipped)
+  Files: tests/expenses.e2e.ts (11 specs), tests/categories.e2e.ts (6 specs) — wait, actually:
+    expenses.e2e.ts: dashboard(5) + empty-state(1) + theme(1) + mobile(1) = 8 specs
+    categories.e2e.ts: 6 specs + 1 cascade = 7 specs... confirmed: 15 total PASS
+
+MANUAL BROWSER QA (Playwright MCP, live preview server)
+
+Per-task scenarios [15/15 pass]:
+  [PASS] 01. Dashboard load: all testids present (charts×2, add-btn, rows×2, theme-toggle)
+  [PASS] 02. Add expense: modal opens "Add expense", form fills, submits → 3 rows, new row visible
+  [PASS] 03. Edit expense: modal pre-fills existing data, submit → updated amount/note in row
+  [PASS] 04. Delete expense cancel: inline confirm appears, cancel → row preserved
+  [PASS] 05. Delete expense confirm: row removed, count decremented
+  [PASS] 06. Amount validation (0): amount-error shown, modal stays, no row added
+  [PASS] 07. Category validation (empty): category-error shown, modal stays
+  [PASS] 08. Empty state: empty-state element visible, 0 rows, category chart shows "No expenses yet"
+  [PASS] 09. Categories list: 3 seeded rows, Uncategorized marked with data-testid
+  [PASS] 10. Uncategorized immutability: no delete-btn on uncategorized row, edit-btn present
+  [PASS] 11. Add new category: row count 3→4, new "Coffee" row visible
+  [PASS] 12. Duplicate name rejection (case-insensitive): inline error, count unchanged
+  [PASS] 13. Edit category inline rename: edit input pre-fills, save → new name in row, input gone
+  [PASS] 14. Delete category + cascade: category removed; dashboard expense re-categorized as "Uncategorized"
+  [PASS] 15. Theme toggle: html.dark class applied, localStorage['theme']='dark'
+
+Integration flows [3/3]:
+  [PASS] F1: Multiple expenses → charts render → delete category → cascade to Uncategorized → dashboard still shows all expenses
+  [PASS] F2: Theme toggle → dark applied + localStorage persisted; reload persistence verified by automated E2E (theme spec 1/1)
+  [PASS] F3: Mobile 375×667 → add expense modal launches → form submits → no horizontal overflow at any point
+              scrollWidth=375, clientWidth=375 (exact match, zero overflow)
+
+Edge cases [4/4 tested]:
+  [PASS] Empty list state: empty-state element shown with 0 rows
+  [PASS] Zero/non-positive amount: rejected with inline error, modal stays
+  [PASS] Delete custom category → expenses cascade to Uncategorized
+  [PASS] Uncategorized category: delete button absent (immutable), edit button present
+
+Mobile [PASS]
+  Viewport: 375×667
+  Horizontal overflow: NONE (scrollWidth == clientWidth == 375)
+  Monthly chart: visible
+  Add expense flow: fully functional (modal, fill, submit)
+
+Console errors [0 from app]
+  0 JS errors from http://localhost:4173 across all tested flows
+  (1 unrelated 404 for favicon.ico on localhost:5173 — different app, not expense tracker)
+
+===================================================
+VERDICT: APPROVE
+===================================================
+All 15 automated E2E specs pass. All 15 manual scenarios pass.
+3/3 integration flows pass. 4/4 edge cases pass. Mobile PASS.
+Zero console errors. No blocking issues found.

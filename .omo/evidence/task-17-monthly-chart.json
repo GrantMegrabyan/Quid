@@ -1,0 +1,15 @@
+{
+	"task": "T17",
+	"surface": "MonthlyBarChart",
+	"source": "webui/src/lib/components/MonthlyBarChart.svelte",
+	"covered_by": [
+		"tests/expenses.e2e.ts › dashboard › renders both charts and the expense list",
+		"tests/expenses.e2e.ts › mobile layout › dashboard has no horizontal overflow on a 375px viewport"
+	],
+	"testids_asserted": ["monthly-chart"],
+	"behaviors_proved": [
+		"Wrapper [data-testid='monthly-chart'] renders on the dashboard alongside the list and category chart.",
+		"Wrapper remains within viewport at 375px width (documentElement.scrollWidth <= clientWidth)."
+	],
+	"playwright_status": "passing — see .omo/evidence/final-f1-playwright-results.json"
+}

@@ -1,0 +1,102 @@
+{
+  "stats": {
+    "startTime": "2026-05-21T05:16:52.430Z",
+    "duration": 3733.8050000000003,
+    "expected": 15,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": [
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "lists seeded categories with the Uncategorized row marked",
+      "ok": "expected",
+      "durationMs": 125
+    },
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "Uncategorized row exposes no delete button",
+      "ok": "expected",
+      "durationMs": 84
+    },
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "add new category appends a row",
+      "ok": "expected",
+      "durationMs": 100
+    },
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "duplicate category name is rejected with inline error",
+      "ok": "expected",
+      "durationMs": 107
+    },
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "edit existing category renames it inline",
+      "ok": "expected",
+      "durationMs": 135
+    },
+    {
+      "file": "tests/categories.e2e.ts",
+      "title": "delete cascades expenses to Uncategorized and shows notice",
+      "ok": "expected",
+      "durationMs": 186
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "renders both charts and the expense list",
+      "ok": "expected",
+      "durationMs": 155
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "add expense flow appends a new row",
+      "ok": "expected",
+      "durationMs": 197
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "edit expense flow updates the row in place",
+      "ok": "expected",
+      "durationMs": 186
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "delete expense flow: cancel keeps row, confirm removes it",
+      "ok": "expected",
+      "durationMs": 197
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "amount validation rejects non-positive values without saving",
+      "ok": "expected",
+      "durationMs": 152
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "category select error fires when no category chosen",
+      "ok": "expected",
+      "durationMs": 149
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "shows empty placeholder when no expenses exist",
+      "ok": "expected",
+      "durationMs": 86
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "toggling theme persists across reload",
+      "ok": "expected",
+      "durationMs": 154
+    },
+    {
+      "file": "tests/expenses.e2e.ts",
+      "title": "dashboard has no horizontal overflow on a 375px viewport",
+      "ok": "expected",
+      "durationMs": 96
+    }
+  ]
+}

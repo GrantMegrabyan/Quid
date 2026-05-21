@@ -1,0 +1,11 @@
+{
+  "scenario": "Cancel delete confirm — negative path (static contract review)",
+  "component": "src/lib/components/ExpenseList.svelte",
+  "steps": [
+    "Click [data-testid=\"expense-delete-btn\"] on row #1 -> confirmingId === row #1 id",
+    "Click [data-testid=\"expense-delete-cancel-btn\"] -> confirmingId === null",
+    "Row count unchanged (no deleteExpense call)"
+  ],
+  "single_confirming_row_invariant": "confirmingId is a single string|null; selecting a different row's delete button overwrites the previous confirming row, so only one row is ever in confirm state at a time.",
+  "store_calls": []
+}

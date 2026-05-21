@@ -1,0 +1,21 @@
+{
+  "scenario": "Inline delete confirm — happy path (static contract review)",
+  "component": "src/lib/components/ExpenseList.svelte",
+  "before": {
+    "expense_rows_locator": "[data-testid=\"expense-row\"]",
+    "delete_button": "[data-testid=\"expense-delete-btn\"]",
+    "confirm_button_visible_before_click": false
+  },
+  "after_delete_click": {
+    "confirm_button_visible": true,
+    "edit_and_delete_buttons_replaced_by_confirm_cancel": true,
+    "confirm_button_testid": "expense-delete-confirm-btn",
+    "cancel_button_testid": "expense-delete-cancel-btn"
+  },
+  "after_confirm_click": {
+    "store_call": "deleteExpense(id) -> expenseRepository.delete(id) -> refreshExpenses()",
+    "row_count_delta": -1,
+    "confirming_id_state": "reset to null"
+  },
+  "note": "Verified by reading component logic; dev/preview server not started for this task to keep file scope clean per Atlas guardrails."
+}

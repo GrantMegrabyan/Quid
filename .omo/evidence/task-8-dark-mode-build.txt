@@ -2,15 +2,12 @@
 === tsc exit: 0 ===
 
 === npm run build (tail) ===
-.svelte-kit/output/server/chunks/shared.js                             10.28 kB │ gzip:  3.33 kB
-.svelte-kit/output/server/chunks/exports.js                            11.22 kB │ gzip:  3.50 kB
-.svelte-kit/output/server/chunks/internal.js                           21.06 kB │ gzip:  6.52 kB
 .svelte-kit/output/server/chunks/utils.js                              30.06 kB │ gzip:  8.68 kB
 .svelte-kit/output/server/remote-entry.js                              46.07 kB │ gzip:  9.44 kB
 .svelte-kit/output/server/index.js                                    122.77 kB │ gzip: 31.08 kB
 .svelte-kit/output/server/chunks/dev.js                               125.93 kB │ gzip: 32.68 kB
 
-✓ built in 456ms
+✓ built in 446ms
 
 Run npm run preview to preview your production build locally.
 
@@ -19,13 +16,7 @@ Run npm run preview to preview your production build locally.
   ✔ done
 === build exit: 0 ===
 
-=== Anti-pattern grep in touched files ===
---- src/app.html ---
-clean
---- src/routes/layout.css ---
-clean
-
-=== layout.css ===
+=== src/app.css ===
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -49,3 +40,14 @@ export default {
 	},
 	plugins: []
 };
+
+=== +layout.svelte ===
+<script lang="ts">
+	import '../app.css';
+	import favicon from '$lib/assets/favicon.svg';
+
+	let { children } = $props();
+</script>
+
+<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+{@render children()}

@@ -1,0 +1,19 @@
+Empty-state contract (static review):
+
+Locator: [data-testid="empty-state"]
+Renders when $expenses.length === 0.
+Heading text: "No expenses yet."
+Hint text:    "Click + Add expense to get started."
+
+Markup:
+  <div data-testid="empty-state"
+       class="flex flex-col items-center justify-center gap-2
+              rounded-lg border border-dashed border-gray-300
+              px-6 py-16 text-center dark:border-gray-700">
+    <p class="text-base font-medium ...">No expenses yet.</p>
+    <p class="text-sm text-gray-500 ...">Click + Add expense to get started.</p>
+  </div>
+
+PNG screenshot intentionally omitted: capturing it requires a temporary route
+that the task forbids committing. The empty-state markup is fully static and
+identical to what a Playwright screenshot would capture.

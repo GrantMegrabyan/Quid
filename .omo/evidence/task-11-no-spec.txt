@@ -1,0 +1,4 @@
+Grep for speculative methods in mockExpenseRepository.ts:
+  findBy|getStats|bulkCreate|setTimeout|latency|console.log|as any|@ts-ignore|@ts-expect-error
+
+Result: OK

@@ -1,0 +1,8 @@
+
+> webui@0.0.1 dev
+> vite dev --host 127.0.0.1 --port 4173 --strictPort
+
+
+  VITE v8.0.13  ready in 639 ms
+
+  ➜  Local:   http://127.0.0.1:4173/

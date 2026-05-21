@@ -1,0 +1,30 @@
+{
+	"task": "T16",
+	"surface": "ExpenseFormModal",
+	"source": "webui/src/lib/components/ExpenseFormModal.svelte",
+	"covered_by": [
+		"tests/expenses.e2e.ts › dashboard › add expense flow appends a new row",
+		"tests/expenses.e2e.ts › dashboard › edit expense flow updates the row in place",
+		"tests/expenses.e2e.ts › dashboard › amount validation rejects non-positive values without saving",
+		"tests/expenses.e2e.ts › dashboard › category select error fires when no category chosen"
+	],
+	"testids_asserted": [
+		"add-expense-btn",
+		"modal-title",
+		"modal-submit",
+		"modal-cancel",
+		"amount-input",
+		"amount-error",
+		"date-input",
+		"category-select",
+		"category-error",
+		"note-input"
+	],
+	"behaviors_proved": [
+		"Add flow opens modal with title 'Add expense' and creates a row on submit.",
+		"Edit flow opens modal with title 'Edit expense' pre-seeded from existing expense.",
+		"Submitting amount=0 yields amount-error and keeps modal open; no row added.",
+		"Submitting with empty category yields category-error and keeps modal open."
+	],
+	"playwright_status": "all four covering tests pass — see .omo/evidence/final-f1-playwright-results.json"
+}

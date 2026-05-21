@@ -1,0 +1,31 @@
+{
+  "description": "Name uniqueness enforced case-insensitively after trim; create returns store deep-copy",
+  "duplicateExact": {
+    "label": "duplicate exact \"Groceries\"",
+    "ok": false,
+    "code": "VALIDATION"
+  },
+  "duplicateUppercase": {
+    "label": "duplicate uppercase \"GROCERIES\"",
+    "ok": false,
+    "code": "VALIDATION"
+  },
+  "duplicateWhitespace": {
+    "label": "duplicate whitespace \"  groceries  \"",
+    "ok": false,
+    "code": "VALIDATION"
+  },
+  "blankName": {
+    "label": "blank name \"\"",
+    "ok": false,
+    "code": "VALIDATION"
+  },
+  "uniqueCreation": {
+    "label": "unique new \"Entertainment\"",
+    "ok": true,
+    "id": "cat-34922cd2-e1b1-40e6-afc0-2828ec04ce89",
+    "usesUUID": true
+  },
+  "returnedObjectIsolatedFromStore": true,
+  "pass": true
+}

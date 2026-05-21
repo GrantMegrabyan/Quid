@@ -1,0 +1,35 @@
+{
+	"task": "T20",
+	"surface": "Categories route (/categories)",
+	"source": "webui/src/routes/categories/+page.svelte",
+	"covered_by": [
+		"tests/categories.e2e.ts › categories page › lists seeded categories with the Uncategorized row marked",
+		"tests/categories.e2e.ts › categories page › Uncategorized row exposes no delete button",
+		"tests/categories.e2e.ts › categories page › add new category appends a row",
+		"tests/categories.e2e.ts › categories page › duplicate category name is rejected with inline error",
+		"tests/categories.e2e.ts › categories page › edit existing category renames it inline",
+		"tests/categories.e2e.ts › categories page › delete cascades expenses to Uncategorized and shows notice"
+	],
+	"testids_asserted": [
+		"category-row",
+		"category-uncategorized",
+		"category-edit-btn",
+		"category-edit-name",
+		"category-edit-save-btn",
+		"category-delete-btn",
+		"category-delete-confirm-btn",
+		"new-category-name",
+		"new-category-submit",
+		"new-category-error",
+		"cascade-notice"
+	],
+	"behaviors_proved": [
+		"Initial render shows all seeded categories including a row tagged data-testid='category-uncategorized'.",
+		"Uncategorized row has zero category-delete-btn descendants (cannot be deleted) while still exposing edit.",
+		"Add category form appends a new row on successful submit.",
+		"Duplicate name (case-insensitive) surfaces new-category-error and does not add a row.",
+		"Inline edit renames a category in place and dismisses the edit form on save.",
+		"Delete cascades reassign expenses to Uncategorized, surface cascade-notice with 'moved to Uncategorized' text, and the affected expense row reflects the new category on the dashboard after navigation."
+	],
+	"playwright_status": "all 6 covering tests pass — see .omo/evidence/final-f1-playwright-results.json"
+}

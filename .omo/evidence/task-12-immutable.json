@@ -1,0 +1,26 @@
+{
+  "description": "Uncategorized: delete and rename throw IMMUTABLE; color update succeeds",
+  "deleteAttempt": {
+    "label": "delete UNCATEGORIZED_ID",
+    "ok": false,
+    "code": "IMMUTABLE",
+    "message": "The Uncategorized category cannot be deleted."
+  },
+  "renameAttempt": {
+    "label": "rename Uncategorized → Something Else",
+    "ok": false,
+    "code": "IMMUTABLE",
+    "message": "The Uncategorized category name cannot be changed."
+  },
+  "recolorAttempt": {
+    "label": "recolor Uncategorized (allowed)",
+    "ok": true,
+    "result": {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "color": "#ff0000"
+    }
+  },
+  "uncategorizedColorAfterRecolor": "#ff0000",
+  "pass": true
+}

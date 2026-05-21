@@ -1,0 +1,27 @@
+{
+  "description": "Deleting cat-groceries cascades expenses to UNCATEGORIZED_ID atomically",
+  "idGeneratorUsed": "crypto.randomUUID()",
+  "expensesAffectedBefore": [
+    {
+      "id": "exp-001",
+      "categoryId": "cat-groceries"
+    },
+    {
+      "id": "exp-006",
+      "categoryId": "cat-groceries"
+    }
+  ],
+  "categoryGoneAfterDelete": true,
+  "expensesAfterDelete": [
+    {
+      "id": "exp-001",
+      "categoryId": "uncategorized"
+    },
+    {
+      "id": "exp-006",
+      "categoryId": "uncategorized"
+    }
+  ],
+  "allReassigned": true,
+  "pass": true
+}

@@ -1,4 +1,4 @@
-=== app.html inline pre-paint script ===
+=== src/app.html (inline pre-paint script before %sveltekit.head%) ===
 <!doctype html>
 <html lang="en">
 	<head>
@@ -6,20 +6,22 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<script>
-			(function () {
+			(() => {
+				let stored = null;
+				let dark = false;
 				try {
-					var stored = localStorage.getItem('theme');
-					var dark =
+					stored = localStorage.getItem('theme');
+					dark =
 						stored === 'dark' ||
 						(stored !== 'light' &&
 							window.matchMedia &&
 							window.matchMedia('(prefers-color-scheme: dark)').matches);
-					if (dark) {
-						document.documentElement.classList.add('dark');
-					} else {
-						document.documentElement.classList.remove('dark');
-					}
-				} catch (e) {
+				} catch {
+					dark = false;
+				}
+				if (dark) {
+					document.documentElement.classList.add('dark');
+				} else {
 					document.documentElement.classList.remove('dark');
 				}
 			})();
@@ -31,11 +33,29 @@
 	</body>
 </html>
 
-=== Storage key/value greps ===
-10:					var stored = localStorage.getItem('theme');
-17:						document.documentElement.classList.add('dark');
-19:						document.documentElement.classList.remove('dark');
-22:					document.documentElement.classList.remove('dark');
+=== Grep proofs ===
+-- tailwind.config.js darkMode --
+2:	darkMode: 'class',
+-- app.html localStorage key --
+12:					stored = localStorage.getItem('theme');
+-- app.html classList toggles --
+22:					document.documentElement.classList.add('dark');
+24:					document.documentElement.classList.remove('dark');
+-- +layout.svelte imports ../app.css --
+2:	import '../app.css';
+-- app.css darkmode + body --
+3:@custom-variant dark (&:where(.dark, .dark *));
+5:body {
+10::where(.dark) body {
 
-=== Empty catch check (must be empty) ===
+=== No ThemeProvider / no /settings / no extra routes ===
+none
+-- routes contents --
++layout.svelte
++page.svelte
+
+=== Lint anti-patterns in app.html ===
 clean
+
+=== Old layout.css removed ===
+removed

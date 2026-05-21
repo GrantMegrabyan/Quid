@@ -1,0 +1,140 @@
+{
+  "runDate": "2026-05-21",
+  "appUrl": "http://localhost:4173",
+  "e2eSuite": {
+    "runner": "npx playwright test",
+    "total": 15,
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "verdict": "PASS"
+  },
+  "manualQA": {
+    "dashboard": {
+      "testids_present": {"monthly-chart":1,"category-chart":1,"add-expense-btn":1,"expense-row":2,"theme-toggle":1},
+      "result": "PASS"
+    },
+    "addExpense": {
+      "modalTitle": "Add expense",
+      "afterSubmit_modalGone": true,
+      "afterSubmit_rowCount": 3,
+      "afterSubmit_newRowPresent": true,
+      "result": "PASS"
+    },
+    "editExpense": {
+      "modalTitle": "Edit expense",
+      "prefilled_amount": "42.50",
+      "afterSubmit_modalGone": true,
+      "afterSubmit_rowHasNewAmount": true,
+      "afterSubmit_rowHasNewNote": true,
+      "result": "PASS"
+    },
+    "deleteExpense_cancel": {
+      "cancelBtnVisible": true,
+      "confirmBtnVisible": true,
+      "afterCancel_rowStillExists": true,
+      "afterCancel_cancelGone": true,
+      "result": "PASS"
+    },
+    "deleteExpense_confirm": {
+      "afterConfirm_rowGone": true,
+      "afterConfirm_totalRows": 2,
+      "result": "PASS"
+    },
+    "amountValidation_zero": {
+      "amountErrorVisible": true,
+      "modalStillOpen": true,
+      "rowCountUnchanged": true,
+      "result": "PASS"
+    },
+    "categoryValidation_empty": {
+      "categoryErrorVisible": true,
+      "modalStillOpen": true,
+      "result": "PASS"
+    },
+    "emptyState": {
+      "emptyStateVisible": true,
+      "expenseRows": 0,
+      "categoryChartText": "No expenses yet — chart will populate as you add them.",
+      "result": "PASS"
+    },
+    "categoriesPage": {
+      "rowCount": 3,
+      "uncategorized_marked": true,
+      "uncategorized_noDeleteBtn": true,
+      "uncategorized_hasEditBtn": true,
+      "result": "PASS"
+    },
+    "addCategory": {
+      "afterAdd_rowCount": 4,
+      "afterAdd_newRowPresent": true,
+      "result": "PASS"
+    },
+    "duplicateCategoryRejection": {
+      "errorVisible": true,
+      "rowCountUnchanged": true,
+      "result": "PASS"
+    },
+    "editCategory_rename": {
+      "editInput_visible": true,
+      "editInput_prefilled": "Groceries",
+      "afterSave_newNameInRow": true,
+      "afterSave_editUIGone": true,
+      "result": "PASS"
+    },
+    "deleteCategory_cascade": {
+      "categoryDeleted": true,
+      "remainingCategories": 2,
+      "note": "cascade-notice auto-dismissed before JS eval; automated E2E test verified notice text 'moved to Uncategorized'",
+      "expense_seed1_categoryAfterCascade": "Uncategorized",
+      "totalExpensesPreserved": 2,
+      "result": "PASS"
+    },
+    "themeToggle": {
+      "beforeToggle_isDark": false,
+      "afterToggle_isDark": true,
+      "afterToggle_localStorage": "dark",
+      "reloadPersistence": "verified by automated E2E (theme test 1/1 passed)",
+      "result": "PASS"
+    },
+    "charts": {
+      "monthly_chart_visible": true,
+      "category_chart_visible": true,
+      "result": "PASS"
+    }
+  },
+  "integrationFlows": {
+    "flow1_multipleExpenses_charts_categorysCascade": {
+      "description": "Add multiple expenses, verify charts render, delete category, verify cascade to Uncategorized",
+      "result": "PASS"
+    },
+    "flow2_themeToggle_chartColors_reloadPersistence": {
+      "description": "Toggle to dark, localStorage persisted, automated E2E verified reload persistence",
+      "result": "PASS"
+    },
+    "flow3_mobileAddExpense_noHorizontalOverflow": {
+      "description": "375x667 viewport, add expense modal functional, no horizontal scroll",
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "noHorizontalOverflow": true,
+      "addExpense_modalFunctional": true,
+      "result": "PASS"
+    }
+  },
+  "edgeCases": {
+    "emptyListState": "PASS",
+    "zeroAmountRejection": "PASS",
+    "deleteCustomCategoryToUncategorized": "PASS",
+    "uncategorizedCannotBeDeleted": "PASS"
+  },
+  "consoleErrors": {
+    "errorsFromApp_port4173": 0,
+    "note": "One 404 for favicon.ico at localhost:5173 (different unrelated app, not expense tracker)"
+  },
+  "screenshots": [
+    ".omo/evidence/final-qa/01-dashboard-load.png",
+    ".omo/evidence/final-qa/02-categories-after-delete.png",
+    ".omo/evidence/final-qa/03-dark-mode.png",
+    ".omo/evidence/final-qa/04-mobile-375.png"
+  ]
+}

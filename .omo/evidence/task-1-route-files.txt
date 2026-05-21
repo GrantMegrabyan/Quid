@@ -1,0 +1,3 @@
+src/routes/layout.css
+src/routes/+layout.svelte
+src/routes/+page.svelte

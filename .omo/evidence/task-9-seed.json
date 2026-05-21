@@ -1,0 +1,15 @@
+{
+	"catCount": 6,
+	"expCount": 15,
+	"monthsCovered": [
+		"2025-12",
+		"2026-01",
+		"2026-02",
+		"2026-03",
+		"2026-04",
+		"2026-05"
+	],
+	"uncategorizedInSample": false,
+	"duplicateIds": [],
+	"assertionsPass": true
+}

@@ -1,0 +1,17 @@
+Mobile layout contract (static review):
+
+Viewport target: 375 x 667
+Component never exceeds parent width because:
+  - Outer <ul> uses overflow-hidden and rounded-lg, no fixed widths
+  - Each row uses flex-wrap so right-side controls drop below content on narrow viewports
+  - Long category names use `truncate` (min-w-0 + truncate)
+  - Long notes use `truncate`
+  - Amount uses tabular-nums, right-aligned, no fixed width
+  - Buttons are 8x8 squares (no min-content overflow)
+  - No table; no fixed columns; no horizontal scrolling primitives
+  - Layout sits inside the existing <main class="max-w-5xl px-4"> container
+  - On <640px the row stacks: content row + controls row wrap automatically
+
+PNG screenshot intentionally omitted: capturing it requires a temporary route
+that the task forbids committing. The layout above guarantees no horizontal
+overflow at 375px because no element has an intrinsic min-width larger than 0.

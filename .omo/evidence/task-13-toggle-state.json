@@ -1,0 +1,18 @@
+{
+  "initial": {
+    "darkClass": false,
+    "localStorageTheme": null
+  },
+  "afterFirstToggle": {
+    "darkClass": true,
+    "localStorageTheme": "dark"
+  },
+  "afterReload": {
+    "darkClass": true,
+    "localStorageTheme": "dark"
+  },
+  "afterSecondToggle": {
+    "darkClass": false,
+    "localStorageTheme": "light"
+  }
+}

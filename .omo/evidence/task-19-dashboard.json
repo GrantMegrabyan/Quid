@@ -1,0 +1,37 @@
+{
+	"task": "T19",
+	"surface": "Dashboard route (/)",
+	"source": "webui/src/routes/+page.svelte",
+	"covered_by": [
+		"tests/expenses.e2e.ts › dashboard › renders both charts and the expense list",
+		"tests/expenses.e2e.ts › dashboard › add expense flow appends a new row",
+		"tests/expenses.e2e.ts › dashboard › edit expense flow updates the row in place",
+		"tests/expenses.e2e.ts › dashboard › delete expense flow: cancel keeps row, confirm removes it",
+		"tests/expenses.e2e.ts › empty state › shows empty placeholder when no expenses exist",
+		"tests/expenses.e2e.ts › theme toggle › toggling theme persists across reload",
+		"tests/expenses.e2e.ts › mobile layout › dashboard has no horizontal overflow on a 375px viewport"
+	],
+	"testids_asserted": [
+		"add-expense-btn",
+		"monthly-chart",
+		"category-chart",
+		"expense-row",
+		"expense-edit-btn",
+		"expense-delete-btn",
+		"expense-delete-confirm-btn",
+		"expense-delete-cancel-btn",
+		"empty-state",
+		"theme-toggle",
+		"modal-title",
+		"modal-submit"
+	],
+	"behaviors_proved": [
+		"Dashboard composes header (+ Add expense), monthly chart, category chart, and expense list in one view.",
+		"Add modal wiring: clicking + Add expense opens the modal in Add mode; submit appends a row.",
+		"Edit modal wiring: clicking row edit opens the modal in Edit mode pre-seeded from the row.",
+		"Inline delete confirm/cancel flow round-trips correctly on the dashboard.",
+		"Empty-state placeholder renders inside the list slot when expenses are cleared.",
+		"Theme toggle in the layout persists across full reload (localStorage.theme key contract)."
+	],
+	"playwright_status": "all 7 covering tests pass — see .omo/evidence/final-f1-playwright-results.json"
+}
