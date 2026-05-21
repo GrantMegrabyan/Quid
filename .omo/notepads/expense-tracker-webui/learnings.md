@@ -55,3 +55,79 @@
 - `setStore` works on a deep-copy draft (not the live `_store` reference) so an updater that throws mid-mutation leaves `_store` unchanged — transactional semantics without needing a separate rollback path.
 - Deep copy via `JSON.parse(JSON.stringify(...))` is sufficient for plain data (`Category`, `Expense`) and avoids `structuredClone` which is Node 17+ only and not available in all SSR contexts used by this project.
 - Lazy initialization: `_store` stays `null` until the first `getStore`/`setStore`/`resetStore` call; this avoids any side effects at module import time.
+
+## 2026-05-21 Task: mock-category-repository
+- Cascade delete (remove category + reassign expenses to UNCATEGORIZED_ID) must happen in a single `setStore` updater — both mutations are applied to the same draft so they commit atomically.
+- IMMUTABLE guard for Uncategorized name uses `patch.name.trim() !== existing.name.trim()` comparison; passing the same name as a no-op is allowed, only actual renames throw.
+- Color update for Uncategorized is explicitly allowed; the IMMUTABLE guard only targets `patch.name`.
+- Name uniqueness is checked case-insensitively after trimming in both `create` and `update`; the `create` path reads from `getStore()` before calling `setStore`, which is safe in single-threaded JS.
+- `setStore` returns a deep copy of the new state; use that return value to retrieve the updated category in `update` rather than doing a second `getStore` call.
+- `colorForCategoryId(id)` is used as the deterministic fallback when `input.color` is falsy in `create`.
+
+## 2026-05-21 Task: writable-stores-cascade
+- Writable store modules stay SSR-safe when they only declare `writable([])` at module top level and keep all repository calls inside exported async wrappers.
+- `deleteCategoryWithCascade` should refresh categories first, then refresh expenses, so category removal and expense reassignment are both reflected in store subscribers.
+
+## 2026-05-21 Task: root-layout-nav-theme-toggle
+- T13 layout uses Svelte 5 `let { children } = $props()` + `$state` for `isDark`; no `onMount` needed because T8 pre-paint script in `src/app.html` sets `<html>.dark` before first render.
+- Active link derivation is local (`isActive(pathname, href)`) reading `$page.url.pathname` from `$app/stores`; no helper store added. Root link matches only `/`; non-root links match exact + child segments so `/categories/whatever` later still highlights.
+- Theme toggle reads truth from `document.documentElement.classList.contains('dark')` on click, flips it, and writes `localStorage.theme` as exactly `light`/`dark` (matches T8 storage key contract). `isDark` is a UI-only mirror used to swap the glyph; it is re-synced on focus/mouseenter so the icon stays correct if another tab toggled the theme.
+- Used Unicode `☀`/`🌙` glyphs per guardrails (no icon library). Toggle button has `data-testid="theme-toggle"`, `aria-pressed`, and `aria-label="Toggle color theme"`.
+- Header is sticky with `bg-white/80 backdrop-blur` (and `dark:bg-[#0b0b0c]/80`) to match the dark body color in `src/app.css`; nav lives inside the same `max-w-5xl` container as `<main>` so content and nav share gutters.
+- Playwright evidence required installing chromium-headless-shell once (`npx playwright install chromium`); after that, dev server on `--port 4173 --strictPort` worked the same as T1/T8.
+
+## 2026-05-21 Task: expense-form-modal (T16)
+- Svelte 5 runes mode: used callback prop `onClose` instead of `createEventDispatcher` to dispatch close (idiomatic for runes); parent wires `onClose={() => (open = false)}`.
+- Backdrop click vs dialog click: gating on `event.target === event.currentTarget` on the backdrop avoids needing `event.stopPropagation()` on the dialog content, so child clicks never bubble up as closes.
+- Edit-mode amount seed uses `expense.amount.toFixed(2)` rather than `formatAmount(...)` because `formatAmount` inserts a thousands separator that `parseAmountInput` then rejects.
+- `$effect` keyed on `open` re-runs whenever `expense` changes too (effect tracks all reads inside it), which is the desired behavior for swapping between Add and Edit while the modal is mounted.
+- Focus the amount input via `queueMicrotask` so the `<input bind:this>` binding has settled by the time `.focus()` is called inside the same effect.
+- Tailwind v4 only — kept colors aligned with the layout (`bg-white`/`dark:bg-[#0b0b0c]` body, `dark:bg-[#111114]` for raised dialog surface) so the modal feels native to the rest of the shell.
+
+## 2026-05-21 Task: expense-list-component
+- T15 used the Svelte 5 callback-prop pattern (`onedit?: (expense) => void`) instead of `createEventDispatcher`; svelte-check passes cleanly with no deprecation noise and the parent dashboard (T19) will pass an `onedit` callback. The task explicitly allowed either pattern.
+- Single `confirmingId: string | null` `$state` is enough to enforce the "only one row in confirm state at a time" invariant — clicking another row's 🗑 just overwrites the id; no per-row state map needed.
+- Date format uses `Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' })` plus a `new Date(year, month-1, day)` constructor from parsed ISO parts, so local-time formatting cannot drift the day backward in negative-UTC timezones (which `new Date('2026-05-15')` would do).
+- `categoryById` is a `$derived.by` `Map<string, Category>` rebuilt whenever `$categories` changes; lookup is O(1) per row and Svelte 5 invalidates it correctly when the store mutates.
+- Row layout uses `flex-wrap` + `min-w-0` + `truncate` instead of a real table so the 375px viewport gets stacking-without-overflow for free; right-side controls drop below content when the row is too narrow.
+- Evidence captured as JSON contract notes + `.png.txt` static-review files instead of real screenshots; the task forbade adding routes and forbade committing harness files, so contract-level evidence is the strongest signal without violating the commit-scope guardrail.
+
+## 2026-05-21 Task: monthly-bar-chart (T17)
+- `svelte-chartjs@4` `Bar.svelte` already calls `ChartJS.register(BarController)` itself and the underlying `Chart.svelte` snapshots `data`/`options` inside an `$effect`, so passing `$derived` props from a parent automatically drives Chart.js `update()` calls without manual `chart.update()` wiring.
+- SSR safety for chart components: a single `if (browser) { ensureChartJsRegistered(); }` at the top of `<script>` plus `{#if browser}<Bar ... />{/if}` around the render is sufficient; no `export const ssr = false` is needed and the registration stays idempotent across HMR.
+- Dark-mode tracking uses a `MutationObserver` on `document.documentElement` filtered to `attributeFilter: ['class']` and is disconnected in `onDestroy`; initializing `isDark` via `browser && document.documentElement.classList.contains('dark')` keeps SSR output stable (always `false`) and avoids hydration mismatch because the chart canvas itself is gated on `browser`.
+- Bucketing trailing-12-month totals: precompute `monthKeys = last12MonthKeys()` once per instance and seed a `Map` with all 12 keys set to `0`; only mutate buckets whose key is already present, so out-of-window expenses are silently dropped and missing months stay zero-filled in stable left-to-right calendar order.
+
+## 2026-05-21 Task: category-doughnut-chart (T18)
+- Reused the T17 SSR-safe chart pattern verbatim: top-level `if (browser) { ensureChartJsRegistered(); }`, `MutationObserver` on `<html>.class` for dark mode, `$derived` data/options to let `svelte-chartjs@4` `Doughnut` propagate prop changes via its internal `$effect`.
+- Empty-state UX: render the placeholder text inside the same `[data-testid="category-chart"]` wrapper (not as a sibling) so QA selectors and `h-64 w-full` layout stay stable whether or not the chart canvas mounts.
+- Responsive legend uses a single `window.matchMedia('(min-width: 768px)')` listener kept in `$state` and disposed in `onDestroy`; no extra layout-effect wiring needed because `$derived` options recompute when `isWide` flips.
+- Aggregation is a one-pass `Map<categoryId, total>` plus a category lookup `Map`; zero-total entries are skipped at the filter step so Chart.js never sees empty slices. Fallback label (`Uncategorized`) and color (`UNCATEGORIZED_COLOR` `#9ca3af`) only kick in if an expense references a missing/deleted category id that somehow escaped the cascade — defensive but kept minimal per guardrails.
+- Color comes from the category store's `color` field (set by the category repo via `colorForCategoryId` on create), so themes/customization flow through the store with no hardcoded category→color mapping in the chart.
+
+## 2026-05-21 Task: categories-route (T20)
+- The Uncategorized row needs BOTH `data-testid="category-row"` (every row) and `data-testid="category-uncategorized"`. The `category-uncategorized` testid must wrap both the content area AND the action area so QA can assert `getByTestId('category-uncategorized').locator('[data-testid="category-delete-btn"]').toHaveCount(0)` is meaningful (not trivially true). Placing it on the inner explanatory `<p>` (sibling of the action buttons) makes the assertion vacuous and was rejected by review.
+- Default new-category color is computed in `onMount` (not at module top) via `colorForCategoryId(crypto.randomUUID())`, then reset after each successful add — keeps the page SSR-safe (no `crypto` access during render) and gives every new category a fresh hue.
+- Inline edit reuses the existing form pattern but with a `disabled` name input for Uncategorized (color is still editable per `mockCategoryRepository.update` which only IMMUTABLE-guards `patch.name`); UI-level guard in `saveEdit` also returns an inline error if the user somehow submits a renamed Uncategorized, avoiding a raw `RepositoryError.message` leaking through.
+- Cascade count is captured BEFORE calling `deleteCategoryWithCascade` (which refreshes `$expenses`), via `$expenses.filter((e) => e.categoryId === id).length` — after the await, those expenses have already moved to `UNCATEGORIZED_ID` and the count would be 0.
+- Cascade notice timer is a single `setTimeout` handle stored in module-scoped `let`, cleared on next notice and on component destroy (`onMount` returns a cleanup) so rapid successive deletes don't leak overlapping timers; the message itself uses `aria-live="polite"` + `role="status"` so screen readers announce it without stealing focus.
+- Mobile layout uses `flex-col` rows that switch to `sm:flex-row` for the add form and edit panel; the row body already wraps with `flex-wrap` + `min-w-0` + `truncate`, so 375px viewport stays overflow-free without a media-query stylesheet.
+- Validation is intentionally duplicated client-side (`validateName`) on top of the repo's case-insensitive uniqueness check; this gives the user a friendly inline error before the async call and avoids relying on `RepositoryError.message` strings as UI copy. The repo still acts as the source of truth — try/catch around `addCategory`/`editCategory` falls back to `error.message` if anything slips past the client guard.
+
+## 2026-05-21 Task: dashboard-route (T19)
+- Two distinct event-wiring patterns coexist cleanly under Svelte 5 runes: `ExpenseList` uses the callback-prop pattern (`onedit={openEdit}`) while `ExpenseFormModal` still uses `createEventDispatcher` and is wired with legacy `on:close={closeModal}` syntax. Both pass `svelte-check` 4.4.6 with zero warnings in this project — no migration needed for T19 to land.
+- Dashboard `onMount` calls `refreshExpenses()` AND `refreshCategories()` even though `ExpenseList` and `ExpenseFormModal` also refresh on mount/open; the redundancy is intentional because `MonthlyBarChart` and `CategoryDoughnutChart` subscribe to the stores directly and would render empty on the first paint without a parent-level refresh.
+- `editingExpense` is reset to `undefined` both when opening Add mode AND inside `closeModal` so a subsequent Add doesn't accidentally inherit the last-edited expense if the user opens → cancels edit → opens add.
+- Charts are wrapped in matching card surfaces (`rounded-lg border ... bg-white dark:bg-[#111114]`) identical to the categories page form card; this keeps the dashboard visually consistent with the rest of the shell without introducing any new design tokens.
+- `grid grid-cols-1 lg:grid-cols-2 gap-4` per the task spec stacks both charts on mobile/tablet and goes side-by-side only at `lg:` (1024px+); the list below uses the existing `ExpenseList` styling and needs no wrapper — placing it inside a card would double-border with the list's own border.
+- The modal is rendered as a sibling AFTER the section, not nested inside `ExpenseList` and not inside the section, so the fixed-position backdrop never inherits any layout/stacking context from the dashboard grid.
+
+## 2026-05-21 Task: e2e-playwright-suite (Final F1 fix)
+- `playwright.config.ts` uses `webServer: { command: 'npm run build && npm run preview', port: 4173 }` with no `reuseExistingServer`; if the SvelteKit preview server is already bound to 4173 from a previous run, Playwright aborts with `http://localhost:4173 is already used`. Kill the lingering `node` PID on that port before re-running.
+- `page.addInitScript` runs on EVERY navigation (including `page.reload()` and follow-up `page.goto`), so a naive `localStorage.setItem(LS_KEY, seed)` will silently wipe any test mutations made between navigations. Wrapping the setItem calls in `if (localStorage.getItem(key) === null)` keeps per-test isolation while preserving in-test state across reloads/navigations.
+- Same applies to the `theme` key — the cascade test and the theme-persistence test both reload/navigate, so the seed helper must conditionally set theme as well.
+- The mock store key `expense-tracker:store:v1` and the theme key `theme` are duplicated inline in `tests/helpers.ts` instead of imported from `$lib`, because Playwright spec files compile through `tsc` (not Vite) and don't get SvelteKit alias resolution; importing across the kit boundary would break the `webServer: build && preview` cycle.
+- `seedLocalStorage` builds expenses with `isoDaysAgo()` (current-month dates) so the monthly bar chart's `last12MonthKeys()` window always contains the seed — date-based seeds with hardcoded ISO strings drift out of the chart's window over time and silently produce empty bars.
+- Amount validation is best exercised by submitting `"0"` (or empty) rather than a non-numeric string: `<input type="number">` filters non-numeric keystrokes at the browser layer, so `fill('abc')` resolves to `""` and the assertion becomes ambiguous between "empty" and "rejected". `parseAmountInput('0')` returns `0` which the modal then rejects via the `parsedAmount <= 0` guard — unambiguous failure.
+- For data-testid-only assertions, `page.getByTestId('expense-row').filter({ hasText: 'Coffee beans' })` is the idiomatic substitute for `page.getByText('Coffee beans')`: it scopes the text match to a known testid wrapper instead of leaking into role/label/text selectors that the plan guardrail forbids.
+- `tests/` directory is picked up automatically by Playwright's default `testDir` (cwd) combined with the config's `testMatch: '**/*.e2e.{ts,js}'` glob; no `testDir` override needed.
