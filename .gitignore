@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright MCP capture directory
+.playwright-mcp/
+
+# Ad-hoc debug screenshots dropped at repo root
+/*.png
+
+# OMO orchestration runtime state (not authored artifacts)
+.omo/boulder.json
+.omo/run-continuation/
+.omo/drafts/
