@@ -18,6 +18,7 @@ export interface Category {
 	id: string;
 	name: string;
 	color: string;
+	icon: string;
 }
 
 export const UNCATEGORIZED_ID = 'uncategorized' as const;

@@ -4,6 +4,7 @@ import { colorForCategoryId, UNCATEGORIZED_COLOR } from '$lib/utils/categoryColo
 type CategorySeed = {
 	id: string;
 	name: string;
+	icon: string;
 };
 
 type ExpenseSeed = {
@@ -17,12 +18,12 @@ type ExpenseSeed = {
 };
 
 const CATEGORY_SEEDS: readonly CategorySeed[] = [
-	{ id: UNCATEGORIZED_ID, name: 'Uncategorized' },
-	{ id: 'cat-groceries', name: 'Groceries' },
-	{ id: 'cat-transport', name: 'Transport' },
-	{ id: 'cat-housing', name: 'Housing' },
-	{ id: 'cat-dining', name: 'Dining Out' },
-	{ id: 'cat-bills', name: 'Bills' },
+	{ id: UNCATEGORIZED_ID, name: 'Uncategorized', icon: 'circle-help' },
+	{ id: 'cat-groceries', name: 'Groceries', icon: 'shopping-cart' },
+	{ id: 'cat-transport', name: 'Transport', icon: 'train-front' },
+	{ id: 'cat-housing', name: 'Housing', icon: 'house' },
+	{ id: 'cat-dining', name: 'Dining Out', icon: 'utensils' },
+	{ id: 'cat-bills', name: 'Bills', icon: 'receipt' },
 ];
 
 const EXPENSE_SEEDS: readonly ExpenseSeed[] = [
@@ -59,6 +60,7 @@ export function defaultCategories(): Category[] {
 		id: seed.id,
 		name: seed.name,
 		color: seed.id === UNCATEGORIZED_ID ? UNCATEGORIZED_COLOR : colorForCategoryId(seed.id),
+		icon: seed.icon,
 	}));
 }
 

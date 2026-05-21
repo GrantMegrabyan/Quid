@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import { expenses, deleteExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
+	import { selectedMonth } from '$lib/stores/ui';
+	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
 	import { formatAmount } from '$lib/utils/money';
 	import type { Category, Expense } from '$lib/types';
 
@@ -24,6 +27,11 @@
 		}
 		return map;
 	});
+
+	const visibleExpenses = $derived(
+		$expenses.filter((expense) => monthKey(expense.date) === $selectedMonth)
+	);
+	const emptyMessage = $derived(`No expenses for ${formatMonthLabel($selectedMonth)}.`);
 
 	function formatDate(iso: string): string {
 		const [yearPart, monthPart, dayPart] = iso.split('-');
@@ -64,57 +72,55 @@
 	});
 </script>
 
-{#if $expenses.length === 0}
+{#if visibleExpenses.length === 0}
 	<div
 		data-testid="empty-state"
 		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-6 py-16 text-center dark:border-gray-700"
 	>
-		<p class="text-base font-medium text-gray-900 dark:text-gray-100">No expenses yet.</p>
+		<p class="text-base font-medium text-gray-900 dark:text-gray-100">{emptyMessage}</p>
 		<p class="text-sm text-gray-500 dark:text-gray-400">
-			Click + Add expense to get started.
+			Click + Add expense to add one for this month.
 		</p>
 	</div>
 {:else}
-	<ul class="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-		{#each $expenses as expense (expense.id)}
+	<ul class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
+		{#each visibleExpenses as expense (expense.id)}
 			{@const category = categoryById.get(expense.categoryId)}
 			{@const color = category?.color ?? '#9ca3af'}
 			{@const categoryName = category?.name ?? 'Uncategorized'}
+			{@const categoryIcon = category?.icon ?? '•'}
 			{@const isConfirming = confirmingId === expense.id}
 			<li
 				data-testid="expense-row"
 				data-expense-id={expense.id}
-				class="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white px-4 py-3 sm:flex-nowrap sm:px-5 dark:bg-transparent"
+				class="flex items-center gap-3 border-b border-gray-100 px-3 py-3 last:border-b-0 sm:px-4 dark:border-gray-900"
 			>
-				<div class="min-w-0 flex-1 sm:basis-auto">
-					<div class="flex items-baseline gap-2">
-						<p class="truncate text-base font-semibold text-gray-900 dark:text-gray-100">
-							{expense.name}
-						</p>
-						<p class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-							{formatDate(expense.date)}
-						</p>
-					</div>
-					<div class="mt-0.5 flex items-center gap-1.5">
-						<span
-							aria-hidden="true"
-							class="h-2 w-2 shrink-0 rounded-full"
-							style="background-color: {color};"
-						></span>
-						<p class="truncate text-xs text-gray-500 dark:text-gray-400">
-							{categoryName}
-						</p>
-					</div>
+				<div
+					data-testid="expense-category-icon"
+					data-icon={categoryIcon}
+					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white shadow-sm sm:h-11 sm:w-11"
+					style="background-color: {color};"
+					aria-label={categoryName}
+				>
+					<CategoryIcon name={categoryIcon} size={18} />
+				</div>
+
+				<div class="min-w-0 flex-1">
+					<p class="truncate text-base font-semibold leading-tight text-gray-900 sm:text-lg dark:text-gray-100">
+						{expense.name}
+					</p>
+					<p class="mt-0.5 truncate text-xs text-gray-500 sm:text-sm dark:text-gray-400">
+						{formatDate(expense.date)}
+					</p>
+					<span class="sr-only">{categoryName}</span>
 					{#if expense.note}
-						<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-							{expense.note}
-						</p>
+						<span class="sr-only">{expense.note}</span>
 					{/if}
 				</div>
 
-				<div class="ml-auto flex items-center gap-3 sm:gap-4">
+				<div class="ml-auto flex shrink-0 flex-col items-end gap-1.5">
 					<span
-						class="text-right text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100"
+						class="text-right text-base font-semibold tabular-nums text-gray-900 sm:text-lg dark:text-gray-100"
 					>
 						{formatAmount(expense.amount)}
 					</span>
@@ -145,7 +151,7 @@
 								data-testid="expense-edit-btn"
 								aria-label="Edit expense"
 								onclick={() => handleEdit(expense)}
-								class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+								class="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 							>
 								✎
 							</button>
@@ -154,7 +160,7 @@
 								data-testid="expense-delete-btn"
 								aria-label="Delete expense"
 								onclick={() => requestDelete(expense.id)}
-								class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+								class="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
 							>
 								🗑
 							</button>

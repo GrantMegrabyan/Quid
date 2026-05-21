@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import {
 		categories,
 		refreshCategories,
@@ -10,6 +11,7 @@
 	import { expenses, refreshExpenses } from '$lib/stores/expenses';
 	import { UNCATEGORIZED_ID } from '$lib/types';
 	import { colorForCategoryId, UNCATEGORIZED_COLOR } from '$lib/utils/categoryColor';
+	import { CATEGORY_ICON_OPTIONS, FALLBACK_CATEGORY_ICON, normalizeCategoryIcon } from '$utils/categoryIcons';
 	import type { Category } from '$lib/types';
 
 	const NAME_MAX = 50;
@@ -18,12 +20,14 @@
 
 	let newName = $state('');
 	let newColor = $state(FALLBACK_COLOR);
+	let newIcon = $state(FALLBACK_CATEGORY_ICON);
 	let newError = $state('');
 	let submittingNew = $state(false);
 
 	let editingId: string | null = $state(null);
 	let editName = $state('');
 	let editColor = $state('');
+	let editIcon = $state(FALLBACK_CATEGORY_ICON);
 	let editError = $state('');
 	let savingEdit = $state(false);
 
@@ -90,9 +94,10 @@
 		submittingNew = true;
 		newError = '';
 		try {
-			await addCategory({ name: newName.trim(), color: newColor });
+			await addCategory({ name: newName.trim(), color: newColor, icon: newIcon });
 			newName = '';
 			newColor = pickRandomDefaultColor();
+			newIcon = FALLBACK_CATEGORY_ICON;
 		} catch (error) {
 			newError = error instanceof Error ? error.message : 'Could not add category.';
 		} finally {
@@ -104,6 +109,7 @@
 		editingId = cat.id;
 		editName = cat.name;
 		editColor = cat.color || (cat.id === UNCATEGORIZED_ID ? UNCATEGORIZED_COLOR : FALLBACK_COLOR);
+		editIcon = normalizeCategoryIcon(cat.icon);
 		editError = '';
 		confirmingDeleteId = null;
 	}
@@ -112,6 +118,7 @@
 		editingId = null;
 		editName = '';
 		editColor = '';
+		editIcon = FALLBACK_CATEGORY_ICON;
 		editError = '';
 	}
 
@@ -140,7 +147,10 @@
 		savingEdit = true;
 		editError = '';
 		try {
-			const patch: Partial<Omit<Category, 'id'>> = { color: editColor };
+			const patch: Partial<Omit<Category, 'id'>> = {
+				color: editColor,
+				icon: editIcon
+			};
 			if (id !== UNCATEGORIZED_ID) {
 				patch.name = trimmed;
 			}
@@ -202,7 +212,7 @@
 			Categories
 		</h1>
 		<p class="text-sm text-gray-500 dark:text-gray-400">
-			Add, rename, recolor. Deleting a category moves its expenses to Uncategorized.
+			Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.
 		</p>
 	</header>
 
@@ -212,6 +222,33 @@
 		class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-[#111114]"
 	>
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+			<div class="flex flex-col gap-1">
+				<label
+					for="new-category-icon"
+					class="text-sm font-medium text-gray-700 dark:text-gray-300"
+				>
+					Icon
+				</label>
+				<div class="flex items-center gap-2">
+					<span
+						data-testid="new-category-icon-preview"
+						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+					>
+						<CategoryIcon name={newIcon} />
+					</span>
+				<select
+					id="new-category-icon"
+					data-testid="new-category-icon"
+					bind:value={newIcon}
+					class="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+				>
+					{#each CATEGORY_ICON_OPTIONS as option (option.key)}
+						<option value={option.key}>{option.label}</option>
+					{/each}
+				</select>
+				</div>
+			</div>
+
 			<div class="flex min-w-0 flex-1 flex-col gap-1">
 				<label
 					for="new-category-name"
@@ -298,9 +335,11 @@
 					<div class="flex min-w-0 flex-1 items-center gap-3">
 						<span
 							aria-hidden="true"
-							class="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/5 dark:ring-white/10"
+							data-testid="category-icon"
+							data-icon={normalizeCategoryIcon(category.icon)}
+							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/5 dark:ring-white/10"
 							style="background-color: {category.color || FALLBACK_COLOR};"
-						></span>
+						><CategoryIcon name={category.icon} size={16} /></span>
 						<div class="min-w-0 flex-1">
 							<p
 								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100"
@@ -362,8 +401,32 @@
 				</div>
 
 				{#if isEditing}
-					<div class="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-[#0b0b0c]">
+						<div class="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-[#0b0b0c]">
 						<div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+							<div class="flex flex-col gap-1">
+								<label
+									for={`edit-icon-${category.id}`}
+									class="text-xs font-medium text-gray-700 dark:text-gray-300"
+								>
+									Icon
+								</label>
+								<div class="flex items-center gap-2">
+									<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
+										<CategoryIcon name={editIcon} />
+									</span>
+								<select
+									id={`edit-icon-${category.id}`}
+									data-testid="category-edit-icon"
+									bind:value={editIcon}
+									class="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:focus:border-gray-100"
+								>
+									{#each CATEGORY_ICON_OPTIONS as option (option.key)}
+										<option value={option.key}>{option.label}</option>
+									{/each}
+								</select>
+								</div>
+							</div>
+
 							<div class="flex min-w-0 flex-1 flex-col gap-1">
 								<label
 									for={`edit-name-${category.id}`}

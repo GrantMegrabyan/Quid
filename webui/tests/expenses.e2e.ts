@@ -1,22 +1,128 @@
 import { expect, test } from '@playwright/test';
-import { buildSeed, seedLocalStorage, THEME_KEY } from './helpers.js';
+import {
+	buildSeed,
+	isoMonthOffset,
+	monthLabelOffset,
+	seedLocalStorage,
+	THEME_KEY
+} from './helpers.js';
 
 test.describe('dashboard', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedLocalStorage(page, buildSeed());
 	});
 
-	test('renders both charts and the expense list', async ({ page }) => {
+	test('renders cumulative chart and hides optional charts by default', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page.getByTestId('monthly-chart')).toBeVisible();
-		await expect(page.getByTestId('category-chart')).toBeVisible();
+		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
+		await expect(page.getByTestId('monthly-chart')).toHaveCount(0);
+		await expect(page.getByTestId('category-chart')).toHaveCount(0);
 		await expect(page.getByTestId('add-expense-btn')).toBeVisible();
+		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByTestId('selected-month-total')).toHaveText('£54.50');
+		await expect(page.getByText('Track spending by month.')).toHaveCount(0);
+		await expect(page.getByText('Cumulative monthly expenses')).toHaveCount(0);
 
 		const rows = page.getByTestId('expense-row');
 		await expect(rows).toHaveCount(2);
 		await expect(rows.filter({ hasText: 'Whole Foods' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: 'Uber' })).toHaveCount(1);
+		await expect(rows.filter({ hasText: '£42.50' })).toHaveCount(1);
+	});
+
+	test('repairs persisted seed expenses that are missing merchant names', async ({ page }) => {
+		await page.addInitScript((date) => {
+			window.localStorage.setItem(
+				'expense-tracker:store:v2',
+				JSON.stringify({
+					categories: [
+						{ id: 'uncategorized', name: 'Uncategorized', color: '#9ca3af' },
+						{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e' }
+					],
+					expenses: [
+						{
+							id: 'exp-013',
+							amount: 27.6,
+							date,
+							categoryId: 'cat-groceries',
+							note: ''
+						}
+					]
+				})
+			);
+		}, isoMonthOffset(0, 21));
+
+		await page.goto('/');
+
+		await expect(page.getByTestId('expense-row')).toHaveCount(1);
+		await expect(page.getByText('Amazon Prime')).toBeVisible();
+		await expect(page.getByTestId('expense-category-icon')).toHaveAttribute('data-icon', 'shopping-cart');
+	});
+
+	test('month selector scopes the list and cumulative chart', async ({ page }) => {
+		await seedLocalStorage(
+			page,
+			buildSeed({
+				expenses: [
+					{
+						id: 'exp-current',
+						name: 'Current Coffee',
+						amount: 10,
+						date: isoMonthOffset(0, 2),
+						categoryId: 'cat-groceries',
+						note: ''
+					},
+					{
+						id: 'exp-previous',
+						name: 'Previous Train',
+						amount: 20,
+						date: isoMonthOffset(-1, 2),
+						categoryId: 'cat-transport',
+						note: ''
+					}
+				]
+			}),
+			undefined,
+			true
+		);
+
+		await page.goto('/');
+
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByTestId('selected-month-total')).toHaveText('£10.00');
+		await expect(page.getByText('Current Coffee')).toBeVisible();
+		await expect(page.getByText('Previous Train')).toHaveCount(0);
+		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
+
+		await page.getByTestId('month-prev').click();
+
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-1));
+		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(-1));
+		await expect(page.getByTestId('selected-month-total')).toHaveText('£20.00');
+		await expect(page.getByText('Previous Train')).toBeVisible();
+		await expect(page.getByText('Current Coffee')).toHaveCount(0);
+	});
+
+	test('optional charts can be enabled and stay enabled after reload', async ({ page }) => {
+		await page.goto('/');
+
+		await expect(page.getByTestId('monthly-chart')).toHaveCount(0);
+		await expect(page.getByTestId('category-chart')).toHaveCount(0);
+
+		await page.getByTestId('toggle-monthly-chart').check();
+		await page.getByTestId('toggle-category-chart').check();
+
+		await expect(page.getByTestId('monthly-chart')).toBeVisible();
+		await expect(page.getByTestId('category-chart')).toBeVisible();
+
+		await page.reload();
+
+		await expect(page.getByTestId('monthly-chart')).toBeVisible();
+		await expect(page.getByTestId('category-chart')).toBeVisible();
+		await expect(page.getByTestId('toggle-monthly-chart')).toBeChecked();
+		await expect(page.getByTestId('toggle-category-chart')).toBeChecked();
 	});
 
 	test('add expense flow appends a new row', async ({ page }) => {
@@ -50,7 +156,7 @@ test.describe('dashboard', () => {
 		await page.getByTestId('modal-submit').click();
 
 		await expect(page.getByTestId('modal-title')).toHaveCount(0);
-		await expect(targetRow).toContainText('77.77');
+		await expect(targetRow).toContainText('£77.77');
 		await expect(targetRow).toContainText('Updated note');
 	});
 
@@ -111,7 +217,8 @@ test.describe('empty state', () => {
 
 		await expect(page.getByTestId('empty-state')).toBeVisible();
 		await expect(page.getByTestId('expense-row')).toHaveCount(0);
-		await expect(page.getByTestId('category-chart')).toContainText('No expenses yet');
+		await page.getByTestId('toggle-category-chart').check();
+		await expect(page.getByTestId('category-chart')).toContainText('No expenses for this month');
 	});
 });
 
@@ -145,7 +252,14 @@ test.describe('mobile layout', () => {
 
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {
 		await page.goto('/');
+		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
+		await page.getByTestId('toggle-monthly-chart').check();
+		await page.getByTestId('toggle-category-chart').check();
 		await expect(page.getByTestId('monthly-chart')).toBeVisible();
+		await expect(page.getByTestId('category-chart')).toBeVisible();
+		await page.waitForFunction(
+			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+		);
 
 		const overflow = await page.evaluate(() => ({
 			scroll: document.documentElement.scrollWidth,

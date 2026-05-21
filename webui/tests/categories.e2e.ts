@@ -12,6 +12,7 @@ test.describe('categories page', () => {
 		const rows = page.getByTestId('category-row');
 		await expect(rows).toHaveCount(3);
 		await expect(page.getByTestId('category-uncategorized')).toBeVisible();
+		await expect(page.locator('[data-testid="category-icon"][data-icon="shopping-cart"]')).toHaveCount(1);
 	});
 
 	test('Uncategorized row exposes no delete button', async ({ page }) => {
@@ -27,6 +28,7 @@ test.describe('categories page', () => {
 	test('add new category appends a row', async ({ page }) => {
 		await page.goto('/categories');
 
+		await page.getByTestId('new-category-icon').selectOption('coffee');
 		await page.getByTestId('new-category-name').fill('Coffee');
 		await page.getByTestId('new-category-submit').click();
 
@@ -34,6 +36,7 @@ test.describe('categories page', () => {
 		await expect(
 			page.locator('[data-testid="category-row"]').filter({ hasText: 'Coffee' })
 		).toBeVisible();
+		await expect(page.locator('[data-testid="category-icon"][data-icon="coffee"]')).toHaveCount(1);
 	});
 
 	test('duplicate category name is rejected with inline error', async ({ page }) => {
@@ -53,10 +56,12 @@ test.describe('categories page', () => {
 			'[data-testid="category-row"][data-category-id="cat-groceries"]'
 		);
 		await targetRow.getByTestId('category-edit-btn').click();
+		await targetRow.getByTestId('category-edit-icon').selectOption('wallet');
 		await page.getByTestId('category-edit-name').fill('Food');
 		await page.getByTestId('category-edit-save-btn').click();
 
 		await expect(targetRow).toContainText('Food');
+		await expect(targetRow.getByTestId('category-icon')).toHaveAttribute('data-icon', 'wallet');
 		await expect(targetRow.getByTestId('category-edit-save-btn')).toHaveCount(0);
 	});
 

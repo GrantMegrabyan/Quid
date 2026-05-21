@@ -1,4 +1,5 @@
 import type { Category, Expense } from '$types';
+import { normalizeCategoryIcon } from '$utils/categoryIcons';
 import { defaultCategories, sampleExpenses } from './seed.js';
 
 export const LS_KEY = 'expense-tracker:store:v2';
@@ -6,6 +7,14 @@ export const LS_KEY = 'expense-tracker:store:v2';
 export interface MockStoreState {
 	categories: Category[];
 	expenses: Expense[];
+}
+
+type StoredExpense = Omit<Expense, 'name'> & { name?: unknown };
+type StoredCategory = Omit<Category, 'icon'> & { icon?: unknown };
+
+interface NormalizeResult {
+	state: MockStoreState;
+	changed: boolean;
 }
 
 function deepCopy<T>(value: T): T {
@@ -16,6 +25,41 @@ function freshSeed(): MockStoreState {
 	return {
 		categories: defaultCategories(),
 		expenses: sampleExpenses(),
+	};
+}
+
+function normalizeStoredState(state: MockStoreState): NormalizeResult {
+	let changed = false;
+	const seedIconById = new Map(defaultCategories().map((category) => [category.id, category.icon]));
+	const categories = (state.categories as StoredCategory[]).map((category) => {
+		const icon = normalizeCategoryIcon(category.icon, seedIconById.get(category.id));
+		if (category.icon === icon) {
+			return category as Category;
+		}
+
+		changed = true;
+		return {
+			...category,
+			icon
+		} as Category;
+	});
+
+	const seedNameById = new Map(sampleExpenses().map((expense) => [expense.id, expense.name]));
+	const expenses = (state.expenses as StoredExpense[]).map((expense) => {
+		if (typeof expense.name === 'string' && expense.name.trim().length > 0) {
+			return expense as Expense;
+		}
+
+		changed = true;
+		return {
+			...expense,
+			name: seedNameById.get(expense.id) ?? 'Unknown merchant'
+		} as Expense;
+	});
+
+	return {
+		state: { ...state, categories, expenses },
+		changed
 	};
 }
 
@@ -64,8 +108,11 @@ let _store: MockStoreState | null = null;
 function internalStore(): MockStoreState {
 	if (_store === null) {
 		const persisted = loadFromStorage();
-		_store = persisted ?? freshSeed();
+		const normalized = persisted === null ? null : normalizeStoredState(persisted);
+		_store = normalized?.state ?? freshSeed();
 		if (persisted === null) {
+			persistToStorage(_store);
+		} else if (normalized?.changed) {
 			persistToStorage(_store);
 		}
 	}

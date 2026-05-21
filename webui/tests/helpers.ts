@@ -12,6 +12,7 @@ export interface SeedCategory {
 	id: string;
 	name: string;
 	color: string;
+	icon: string;
 }
 
 export interface SeedExpense {
@@ -35,13 +36,26 @@ function isoDaysAgo(days: number): string {
 	return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
 }
 
+export function isoMonthOffset(offset: number, day = 1): string {
+	const now = new Date();
+	const date = new Date(now.getFullYear(), now.getMonth() + offset, day);
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function monthLabelOffset(offset: number): string {
+	const now = new Date();
+	const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+	return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
+}
+
 /** Deterministic minimal seed that always contains current-month data so charts populate. */
 export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 	const base: SeedState = {
 		categories: [
-			{ id: UNCATEGORIZED_ID, name: 'Uncategorized', color: '#9ca3af' },
-			{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e' },
-			{ id: 'cat-transport', name: 'Transport', color: '#3b82f6' }
+			{ id: UNCATEGORIZED_ID, name: 'Uncategorized', color: '#9ca3af', icon: 'circle-help' },
+			{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e', icon: 'shopping-cart' },
+			{ id: 'cat-transport', name: 'Transport', color: '#3b82f6', icon: 'train-front' }
 		],
 		expenses: [
 			{
@@ -73,12 +87,13 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 export async function seedLocalStorage(
 	page: Page,
 	state: SeedState,
-	theme?: 'light' | 'dark'
+	theme?: 'light' | 'dark',
+	overwrite = false
 ): Promise<void> {
 	await page.addInitScript(
-		({ key, value, themeKey, themeValue }) => {
+		({ key, value, themeKey, themeValue, shouldOverwrite }) => {
 			try {
-				if (window.localStorage.getItem(key) === null) {
+				if (shouldOverwrite || window.localStorage.getItem(key) === null) {
 					window.localStorage.setItem(key, value);
 				}
 				if (themeValue !== null && window.localStorage.getItem(themeKey) === null) {
@@ -92,7 +107,8 @@ export async function seedLocalStorage(
 			key: LS_KEY,
 			value: JSON.stringify(state),
 			themeKey: THEME_KEY,
-			themeValue: theme ?? null
+			themeValue: theme ?? null,
+			shouldOverwrite: overwrite
 		}
 	);
 }

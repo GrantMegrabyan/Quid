@@ -1,6 +1,7 @@
 import type { Category } from '$lib/types';
 import { UNCATEGORIZED_ID } from '$lib/types';
 import { colorForCategoryId } from '$lib/utils/categoryColor';
+import { normalizeCategoryIcon } from '$lib/utils/categoryIcons';
 import { getStore, setStore } from './mockStore.js';
 import { RepositoryError, type CategoryRepository } from './types.js';
 
@@ -26,9 +27,10 @@ export class MockCategoryRepository implements CategoryRepository {
 
 		const id = `cat-${crypto.randomUUID()}`;
 		const color = input.color || colorForCategoryId(id);
+		const icon = normalizeCategoryIcon(input.icon);
 
 		const newState = setStore((s) => {
-			s.categories.push({ id, name, color });
+			s.categories.push({ id, name, color, icon });
 		});
 
 		const created = newState.categories.find((c) => c.id === id);
@@ -73,6 +75,10 @@ export class MockCategoryRepository implements CategoryRepository {
 
 			if (patch.color !== undefined) {
 				s.categories[idx].color = patch.color;
+			}
+
+			if (patch.icon !== undefined) {
+				s.categories[idx].icon = normalizeCategoryIcon(patch.icon);
 			}
 		});
 
