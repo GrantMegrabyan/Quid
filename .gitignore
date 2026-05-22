@@ -8,7 +8,45 @@ Thumbs.db
 # Ad-hoc debug screenshots dropped at repo root
 /*.png
 
+# Local sample data / CSV exports (not for source control)
+samples/
+
 # OMO orchestration runtime state (not authored artifacts)
 .omo/boulder.json
 .omo/run-continuation/
 .omo/drafts/
+
+# --- webui (SvelteKit) ---
+webui/node_modules/
+webui/.output/
+webui/.vercel/
+webui/.netlify/
+webui/.wrangler/
+webui/.svelte-kit/
+webui/build/
+webui/playwright-report/
+webui/test-results/
+webui/.env
+webui/.env.*
+!webui/.env.example
+!webui/.env.test
+webui/vite.config.js.timestamp-*
+webui/vite.config.ts.timestamp-*
+
+# webui OMO evidence
+webui/.omo/evidence/
+
+# --- api (Python / uv) ---
+api/.venv/
+api/.data/
+api/__pycache__/
+api/**/__pycache__/
+api/.pytest_cache/
+api/.mypy_cache/
+api/.ruff_cache/
+api/htmlcov/
+api/.coverage
+api/.coverage.*
+api/*.egg-info/
+api/dist/
+api/build/
