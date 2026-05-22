@@ -1,0 +1,10 @@
+[1A[2K[9/17] tests/expenses.e2e.ts:77:2 › dashboard › optional charts can be enabled and stay enabled after reload
+[1A[2K[10/17] tests/expenses.e2e.ts:97:2 › dashboard › add expense flow appends a new row
+[1A[2K[11/17] tests/expenses.e2e.ts:116:2 › dashboard › edit expense flow updates the row in place
+[1A[2K[12/17] tests/expenses.e2e.ts:132:2 › dashboard › delete expense flow: cancel keeps row, confirm removes it
+[1A[2K[13/17] tests/expenses.e2e.ts:152:2 › dashboard › amount validation rejects non-positive values without saving
+[1A[2K[14/17] tests/expenses.e2e.ts:166:2 › dashboard › category select error fires when no category chosen
+[1A[2K[15/17] tests/expenses.e2e.ts:184:2 › empty state › shows empty placeholder when no expenses exist
+[1A[2K[16/17] tests/expenses.e2e.ts:199:2 › theme toggle › toggling theme persists across reload
+[1A[2K[17/17] tests/expenses.e2e.ts:222:2 › mobile layout › dashboard has no horizontal overflow on a 375px viewport
+[1A[2K  17 passed (7.7s)

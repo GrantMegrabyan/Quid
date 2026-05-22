@@ -3,13 +3,13 @@ import {
 	buildSeed,
 	isoMonthOffset,
 	monthLabelOffset,
-	seedLocalStorage,
+	seedApiState,
 	THEME_KEY
 } from './helpers.js';
 
 test.describe('dashboard', () => {
 	test.beforeEach(async ({ page }) => {
-		await seedLocalStorage(page, buildSeed());
+		await seedApiState(page, buildSeed());
 	});
 
 	test('renders cumulative chart and hides optional charts by default', async ({ page }) => {
@@ -31,37 +31,8 @@ test.describe('dashboard', () => {
 		await expect(rows.filter({ hasText: '£42.50' })).toHaveCount(1);
 	});
 
-	test('repairs persisted seed expenses that are missing merchant names', async ({ page }) => {
-		await page.addInitScript((date) => {
-			window.localStorage.setItem(
-				'expense-tracker:store:v2',
-				JSON.stringify({
-					categories: [
-						{ id: 'uncategorized', name: 'Uncategorized', color: '#9ca3af' },
-						{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e' }
-					],
-					expenses: [
-						{
-							id: 'exp-013',
-							amount: 27.6,
-							date,
-							categoryId: 'cat-groceries',
-							note: ''
-						}
-					]
-				})
-			);
-		}, isoMonthOffset(0, 21));
-
-		await page.goto('/');
-
-		await expect(page.getByTestId('expense-row')).toHaveCount(1);
-		await expect(page.getByText('Amazon Prime')).toBeVisible();
-		await expect(page.getByTestId('expense-category-icon')).toHaveAttribute('data-icon', 'shopping-cart');
-	});
-
 	test('month selector scopes the list and cumulative chart', async ({ page }) => {
-		await seedLocalStorage(
+		await seedApiState(
 			page,
 			buildSeed({
 				expenses: [
@@ -82,9 +53,7 @@ test.describe('dashboard', () => {
 						note: ''
 					}
 				]
-			}),
-			undefined,
-			true
+			})
 		);
 
 		await page.goto('/');
@@ -209,7 +178,7 @@ test.describe('dashboard', () => {
 
 test.describe('empty state', () => {
 	test.beforeEach(async ({ page }) => {
-		await seedLocalStorage(page, buildSeed({ expenses: [] }));
+		await seedApiState(page, buildSeed({ expenses: [] }));
 	});
 
 	test('shows empty placeholder when no expenses exist', async ({ page }) => {
@@ -224,7 +193,7 @@ test.describe('empty state', () => {
 
 test.describe('theme toggle', () => {
 	test.beforeEach(async ({ page }) => {
-		await seedLocalStorage(page, buildSeed(), 'light');
+		await seedApiState(page, buildSeed(), 'light');
 	});
 
 	test('toggling theme persists across reload', async ({ page }) => {
@@ -247,7 +216,7 @@ test.describe('mobile layout', () => {
 	test.use({ viewport: { width: 375, height: 720 } });
 
 	test.beforeEach(async ({ page }) => {
-		await seedLocalStorage(page, buildSeed());
+		await seedApiState(page, buildSeed());
 	});
 
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {

@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { buildSeed, seedLocalStorage } from './helpers.js';
+import { buildSeed, seedApiState } from './helpers.js';
 
 test.describe('categories page', () => {
 	test.beforeEach(async ({ page }) => {
-		await seedLocalStorage(page, buildSeed());
+		await seedApiState(page, buildSeed());
 	});
 
 	test('lists seeded categories with the Uncategorized row marked', async ({ page }) => {
