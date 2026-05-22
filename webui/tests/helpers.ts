@@ -1,12 +1,9 @@
 import type { Page } from '@playwright/test';
 
-/**
- * Mirrors `src/lib/repos/mockStore.ts` LS_KEY exactly. Kept inline (not imported)
- * so the Playwright config does not need Vite alias resolution.
- */
-export const LS_KEY = 'expense-tracker:store:v2';
 export const THEME_KEY = 'theme';
 export const UNCATEGORIZED_ID = 'uncategorized';
+
+export const API_BASE_URL = process.env.QUID_API_URL ?? 'http://localhost:8001';
 
 export interface SeedCategory {
 	id: string;
@@ -49,7 +46,6 @@ export function monthLabelOffset(offset: number): string {
 	return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
 }
 
-/** Deterministic minimal seed that always contains current-month data so charts populate. */
 export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 	const base: SeedState = {
 		categories: [
@@ -79,36 +75,41 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 	return { ...base, ...overrides };
 }
 
-/**
- * Install an init script + theme preference for every page in the context BEFORE
- * any app script runs, so `mockStore.loadFromStorage()` picks up the seed on first
- * read. Always call this in `beforeEach` so tests start from a known state.
- */
-export async function seedLocalStorage(
+async function postSeedState(state: SeedState): Promise<void> {
+	const response = await fetch(`${API_BASE_URL}/api/v1/testing/seed-state`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			categories: state.categories,
+			expenses: state.expenses
+		})
+	});
+	if (!response.ok) {
+		const text = await response.text();
+		throw new Error(
+			`seed-state POST failed: ${response.status} ${response.statusText}\n${text}`
+		);
+	}
+}
+
+export async function seedApiState(
 	page: Page,
 	state: SeedState,
-	theme?: 'light' | 'dark',
-	overwrite = false
+	theme?: 'light' | 'dark'
 ): Promise<void> {
-	await page.addInitScript(
-		({ key, value, themeKey, themeValue, shouldOverwrite }) => {
-			try {
-				if (shouldOverwrite || window.localStorage.getItem(key) === null) {
-					window.localStorage.setItem(key, value);
+	await postSeedState(state);
+	if (theme !== undefined) {
+		await page.addInitScript(
+			({ key, value }) => {
+				try {
+					if (window.localStorage.getItem(key) === null) {
+						window.localStorage.setItem(key, value);
+					}
+				} catch {
+					/* storage unavailable */
 				}
-				if (themeValue !== null && window.localStorage.getItem(themeKey) === null) {
-					window.localStorage.setItem(themeKey, themeValue);
-				}
-			} catch {
-				// Storage unavailable; tests that depend on seed will surface the failure.
-			}
-		},
-		{
-			key: LS_KEY,
-			value: JSON.stringify(state),
-			themeKey: THEME_KEY,
-			themeValue: theme ?? null,
-			shouldOverwrite: overwrite
-		}
-	);
+			},
+			{ key: THEME_KEY, value: theme }
+		);
+	}
 }
