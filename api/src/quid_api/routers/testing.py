@@ -29,8 +29,7 @@ async def _wipe(session: AsyncSession) -> None:
     )
     await session.execute(
         text(
-            "UPDATE categories SET name='Uncategorized', color=:c, icon='circle-help' "
-            "WHERE id=:uid"
+            "UPDATE categories SET name='Uncategorized', color=:c, icon='circle-help' WHERE id=:uid"
         ),
         {"c": UNCATEGORIZED_COLOR, "uid": UNCATEGORIZED_ID},
     )
@@ -87,15 +86,11 @@ async def seed_state(payload: _SeedState, session: SessionDep) -> _SeedResponse:
     for cat in payload.categories:
         if cat.id == UNCATEGORIZED_ID:
             await session.execute(
-                text(
-                    "UPDATE categories SET name=:n, color=:c, icon=:i WHERE id=:uid"
-                ),
+                text("UPDATE categories SET name=:n, color=:c, icon=:i WHERE id=:uid"),
                 {"n": cat.name, "c": cat.color, "i": cat.icon, "uid": UNCATEGORIZED_ID},
             )
             continue
-        session.add(
-            Category(id=cat.id, name=cat.name, color=cat.color, icon=cat.icon)
-        )
+        session.add(Category(id=cat.id, name=cat.name, color=cat.color, icon=cat.icon))
     await session.flush()
 
     for exp in payload.expenses:
