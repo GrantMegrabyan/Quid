@@ -63,3 +63,26 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     async with sm() as sess:
         yield sess
         await sess.rollback()
+
+
+@pytest_asyncio.fixture
+async def app_client(engine: AsyncEngine, database_url: str):
+    from httpx import ASGITransport, AsyncClient
+
+    from quid_api.db import get_session
+    from quid_api.main import create_app
+    from quid_api.settings import Settings
+
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def override_get_session() -> AsyncIterator[AsyncSession]:
+        async with sm() as sess:
+            yield sess
+
+    settings = Settings(database_url=database_url, testing=True)
+    app = create_app(settings=settings)
+    app.dependency_overrides[get_session] = override_get_session
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client

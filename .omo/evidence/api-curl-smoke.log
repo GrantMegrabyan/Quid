@@ -1,0 +1,18 @@
+## /health
+{"status":"ok"}
+## list categories (initial)
+[{"id":"uncategorized","name":"Uncategorized","color":"#9CA3AF","icon":"circle-help"}]
+## create category
+{"id":"cat-7f3b9799-fef7-45ab-bea6-d15a5c86df22","name":"Groceries","color":"#c2d831","icon":"shopping-cart"}
+## create expense
+{"id":"907f5264-7438-430c-b6a1-00e59c24e48d","name":"Whole Foods","amount":58.24,"date":"2026-05-22","categoryId":"cat-7f3b9799-fef7-45ab-bea6-d15a5c86df22","note":"weekly"}
+## list expenses
+[{"id":"907f5264-7438-430c-b6a1-00e59c24e48d","name":"Whole Foods","amount":58.24,"date":"2026-05-22","categoryId":"cat-7f3b9799-fef7-45ab-bea6-d15a5c86df22","note":"weekly"}]
+## bulk import
+{"created":2,"categoriesCreated":[{"id":"cat-eating-out","name":"Eating Out","color":"#c7d831","icon":"circle-help"}],"expenses":[{"id":"1d9e6c56-7dbe-489a-8662-008dfc7b47bc","name":"X","amount":12.3,"date":"2026-04-01","categoryId":"cat-7f3b9799-fef7-45ab-bea6-d15a5c86df22","note":""},{"id":"6208ca4a-78ae-4f5b-986b-be70f07d8712","name":"Y","amount":7.5,"date":"2026-04-02","categoryId":"cat-eating-out","note":""}]}
+## 404 shape
+{"code":"NOT_FOUND","message":"Category \"cat-missing\" not found."}
+## 422 shape (duplicate)
+{"code":"VALIDATION","message":"A category named \"groceries\" already exists."}
+## 409 shape (delete uncat)
+{"code":"IMMUTABLE","message":"The Uncategorized category cannot be deleted."}
