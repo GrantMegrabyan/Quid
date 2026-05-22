@@ -42,19 +42,43 @@ uv run quid-api serve            # run uvicorn on 127.0.0.1:8000
 
 ## CSV import
 
-The repository includes April 2026 bank exports under `../cvs/`. Start the API first, then import:
+Two transports import CSVs:
+
+1. **HTTP, multipart** — `POST /api/v1/expenses/import-csv` accepts one or many `files` parts. This is what the web UI uses (dashboard → **Import CSV**).
+2. **CLI shim** — `uv run quid-api import-csv` posts JSON rows to `/api/v1/expenses/bulk`.
 
 ```sh
 QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api migrate
 QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serve --port 8000
 
-QUID_API_URL="http://localhost:8000" uv run quid-api import-csv \
-  ../cvs/april-2026-grant-monzo.csv \
-  ../cvs/april-2026-grant-revolut.csv \
-  ../cvs/april-2026-grant-monzo-shared.csv
+# Multipart, idempotent, multiple files in one request:
+curl -X POST http://localhost:8000/api/v1/expenses/import-csv \
+  -F "files=@../samples/april-2026-grant-monzo-shared.csv" \
+  -F "files=@../samples/april-2026-grant-revolut.csv"
 ```
 
-The import endpoint accepts `POST /api/v1/expenses/bulk` with rows shaped as `name`, `category`, `amount`, `date`, and optional `note`. Amounts are stored as positive expense magnitudes and unknown categories are created deterministically, except `other`, which maps to `uncategorized`.
+### Accepted column shapes
+
+The CSV parser matches headers case-insensitively and tolerates extra columns.
+Required logical fields: `name`, `amount`, `date`. Optional: `category`, `note`.
+
+| Logical field | Accepted header aliases |
+| --- | --- |
+| name | `name`, `description`, `merchant`, `payee` |
+| amount | `amount`, `value` |
+| date | `date`, `completed date`, `started date`, `transaction date`, `posting date` |
+| category | `category`, `type`, `tag` (defaults to `uncategorized`) |
+| note | `note`, `notes`, `memo`, `reference` |
+
+Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates accept `YYYY-MM-DD` and `YYYY-MM-DD HH:MM:SS` (the time portion is dropped). If a `state` / `status` column is present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
+
+### Idempotency
+
+The endpoint deduplicates by the tuple `(date, name, amount, category_id, note)`.
+For each unique tuple, the server inserts `max(0, rows_in_file − rows_already_in_db)`,
+so re-uploading the same file is a no-op while legitimate identical transactions
+can still accumulate over time. The response reports `imported`, `skippedDuplicates`,
+and `skippedInvalidRows`, plus a per-file breakdown.
 
 ## Verification
 

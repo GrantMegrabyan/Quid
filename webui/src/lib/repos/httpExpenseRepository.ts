@@ -1,4 +1,4 @@
-import type { Expense } from '$types';
+import type { Expense, ImportCsvResult } from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
 import type { ExpenseRepository, ListExpensesQuery } from './types.js';
 
@@ -28,6 +28,17 @@ export class HttpExpenseRepository implements ExpenseRepository {
 	async delete(id: string): Promise<void> {
 		await this.client.request<void>(`api/v1/expenses/${encodeURIComponent(id)}`, {
 			method: 'DELETE'
+		});
+	}
+
+	async importCsv(files: File[]): Promise<ImportCsvResult> {
+		const form = new FormData();
+		for (const file of files) {
+			form.append('files', file, file.name);
+		}
+		return this.client.request<ImportCsvResult>('api/v1/expenses/import-csv', {
+			method: 'POST',
+			formData: form
 		});
 	}
 }

@@ -1,4 +1,4 @@
-import type { Expense } from '$types';
+import type { Expense, ImportCsvResult } from '$types';
 import { getStore, setStore } from './mockStore.js';
 import { RepositoryError } from './types.js';
 import type { ExpenseRepository, ListExpensesQuery } from './types.js';
@@ -51,6 +51,13 @@ export class MockExpenseRepository implements ExpenseRepository {
 				s.expenses.splice(idx, 1);
 			}
 		});
+	}
+
+	async importCsv(files: File[]): Promise<ImportCsvResult> {
+		throw new RepositoryError(
+			'VALIDATION',
+			`CSV import is only supported by the HTTP backend (received ${files.length} file(s)).`
+		);
 	}
 }
 

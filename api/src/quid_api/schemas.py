@@ -106,6 +106,23 @@ class BulkExpenseResponse(_Camel):
     expenses: list[ExpenseOut]
 
 
+class ImportCsvFileReport(_Camel):
+    filename: str
+    rows: int
+    imported: int
+    skipped_duplicates: int
+    skipped_invalid_rows: int
+
+
+class ImportCsvResponse(_Camel):
+    imported: int
+    skipped_duplicates: int
+    skipped_invalid_rows: int
+    categories_created: list[CategoryOut]
+    expenses: list[ExpenseOut]
+    files: list[ImportCsvFileReport]
+
+
 class ErrorBody(_Camel):
     code: str
     message: str

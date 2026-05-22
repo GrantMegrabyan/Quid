@@ -1,4 +1,4 @@
-import type { Category, Expense } from '$types';
+import type { Category, Expense, ImportCsvResult } from '$types';
 
 /**
  * Repository contracts stay HTTP-shaped so callers can swap transports later.
@@ -16,6 +16,7 @@ export interface ExpenseRepository {
 	create(input: Omit<Expense, 'id'>): Promise<Expense>;
 	update(id: string, patch: Partial<Omit<Expense, 'id'>>): Promise<Expense>;
 	delete(id: string): Promise<void>;
+	importCsv(files: File[]): Promise<ImportCsvResult>;
 }
 
 /**

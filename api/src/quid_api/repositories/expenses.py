@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from quid_api.category_helpers import (
     UNCATEGORIZED_ID,
@@ -93,6 +94,14 @@ class BulkItem:
 class BulkResult:
     expenses: list[Expense]
     categories_created: list[Category]
+
+
+@dataclass(frozen=True)
+class ImportResult:
+    expenses: list[Expense]
+    categories_created: list[Category]
+    skipped_duplicates: int
+    decisions: list[bool]
 
 
 class ExpenseRepository:
@@ -272,4 +281,85 @@ class ExpenseRepository:
         return BulkResult(
             expenses=created_expenses,
             categories_created=list(created_categories.values()),
+        )
+
+    async def bulk_import(self, items: list[BulkItem]) -> ImportResult:
+        """Idempotent bulk insert.
+
+        Dedup key: (date, name, amount, category_id, note). For each unique
+        key, inserts ``max(0, in_file_count - existing_in_db)`` rows so that
+        re-uploading the same CSV is a no-op, while still allowing several
+        identical transactions to accumulate across uploads.
+        """
+        if not items:
+            return ImportResult(
+                expenses=[],
+                categories_created=[],
+                skipped_duplicates=0,
+                decisions=[],
+            )
+
+        created_categories: dict[str, Category] = {}
+        prepared: list[tuple[Category, Decimal, str, str, str]] = []
+        for idx, item in enumerate(items):
+            try:
+                clean_name = _validate_name(item.name)
+                clean_amount = _validate_amount(abs(_coerce_amount(item.amount)))
+                clean_date = _validate_date(item.date)
+            except RepositoryError as exc:
+                raise RepositoryError(
+                    RepositoryErrorCode.VALIDATION,
+                    f"row {idx}: {exc.message}",
+                ) from exc
+            category = await self._resolve_or_create_category(item.category, created_categories)
+            prepared.append((category, clean_amount, clean_date, clean_name, item.note or ""))
+
+        in_file_counts: Counter[tuple[str, str, Decimal, str, str]] = Counter()
+        for cat, amount, date, name, note in prepared:
+            in_file_counts[(date, name, amount, cat.id, note)] += 1
+
+        quotas: dict[tuple[str, str, Decimal, str, str], int] = {}
+        for key, in_file in in_file_counts.items():
+            date, name, amount, category_id, note = key
+            existing = await self.session.scalar(
+                select(func.count())
+                .select_from(Expense)
+                .where(
+                    Expense.date == date,
+                    Expense.name == name,
+                    Expense.amount == amount,
+                    Expense.category_id == category_id,
+                    Expense.note == note,
+                )
+            )
+            quotas[key] = max(0, in_file - int(existing or 0))
+
+        created_expenses: list[Expense] = []
+        decisions: list[bool] = []
+        skipped = 0
+        for cat, amount, date, name, note in prepared:
+            key = (date, name, amount, cat.id, note)
+            if quotas[key] > 0:
+                quotas[key] -= 1
+                row = Expense(
+                    id=str(uuid4()),
+                    name=name,
+                    amount=amount,
+                    date=date,
+                    category_id=cat.id,
+                    note=note,
+                )
+                self.session.add(row)
+                created_expenses.append(row)
+                decisions.append(True)
+            else:
+                skipped += 1
+                decisions.append(False)
+
+        await self.session.flush()
+        return ImportResult(
+            expenses=created_expenses,
+            categories_created=list(created_categories.values()),
+            skipped_duplicates=skipped,
+            decisions=decisions,
         )

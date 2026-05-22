@@ -22,3 +22,20 @@ export interface Category {
 }
 
 export const UNCATEGORIZED_ID = 'uncategorized' as const;
+
+export interface ImportCsvFileReport {
+	filename: string;
+	rows: number;
+	imported: number;
+	skippedDuplicates: number;
+	skippedInvalidRows: number;
+}
+
+export interface ImportCsvResult {
+	imported: number;
+	skippedDuplicates: number;
+	skippedInvalidRows: number;
+	categoriesCreated: Category[];
+	expenses: Expense[];
+	files: ImportCsvFileReport[];
+}

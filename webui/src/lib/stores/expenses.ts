@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { expenseRepository } from '$lib/repos';
-import type { Expense } from '$lib/types';
+import type { Expense, ImportCsvResult } from '$lib/types';
 
 export const expenses = writable<Expense[]>([]);
 
@@ -25,4 +25,10 @@ export async function editExpense(id: string, patch: ExpenseUpdatePatch): Promis
 export async function deleteExpense(id: string): Promise<void> {
 	await expenseRepository.delete(id);
 	await refreshExpenses();
+}
+
+export async function importCsvFiles(files: File[]): Promise<ImportCsvResult> {
+	const result = await expenseRepository.importCsv(files);
+	await refreshExpenses();
+	return result;
 }

@@ -39,6 +39,7 @@ function toRepositoryError(status: number, body: unknown): RepositoryError {
 interface RequestOptions {
 	method?: string;
 	body?: unknown;
+	formData?: FormData;
 	query?: Record<string, string | number | undefined>;
 }
 
@@ -55,10 +56,19 @@ export class HttpClient {
 			}
 		}
 
+		let headers: Record<string, string> | undefined;
+		let body: BodyInit | undefined;
+		if (options.formData !== undefined) {
+			body = options.formData;
+		} else if (options.body !== undefined) {
+			headers = { 'Content-Type': 'application/json' };
+			body = JSON.stringify(options.body);
+		}
+
 		const init: RequestInit = {
 			method: options.method ?? 'GET',
-			headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-			body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+			headers,
+			body
 		};
 
 		let response: Response;

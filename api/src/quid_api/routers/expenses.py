@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
+from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
+from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.repositories.expenses import BulkItem, ExpenseRepository
 from quid_api.schemas import (
     BulkExpenseRequest,
@@ -13,6 +15,8 @@ from quid_api.schemas import (
     ExpenseCreate,
     ExpenseOut,
     ExpenseUpdate,
+    ImportCsvFileReport,
+    ImportCsvResponse,
 )
 
 if TYPE_CHECKING:
@@ -80,6 +84,61 @@ async def bulk_create_expenses(
         created=len(result.expenses),
         categories_created=[CategoryOut.model_validate(c) for c in result.categories_created],
         expenses=[ExpenseOut.model_validate(e) for e in result.expenses],
+    )
+
+
+@router.post(
+    "/import-csv",
+    response_model=ImportCsvResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_csv(
+    session: SessionDep,
+    files: Annotated[list[UploadFile], File(description="One or more CSV files to import.")],
+) -> ImportCsvResponse:
+    if not files:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "At least one CSV file is required.",
+        )
+
+    parsed_files = []
+    item_ranges: list[tuple[int, int]] = []
+    all_items: list[BulkItem] = []
+    for upload in files:
+        content = await upload.read()
+        filename = upload.filename or "upload.csv"
+        parsed = parse_csv(CsvFile(filename=filename, content=content))
+        parsed_files.append(parsed)
+        start = len(all_items)
+        all_items.extend(parsed.items)
+        item_ranges.append((start, len(parsed.items)))
+
+    repo = ExpenseRepository(session)
+    result = await repo.bulk_import(all_items)
+    await session.commit()
+
+    reports = []
+    for parsed, (start, count) in zip(parsed_files, item_ranges, strict=True):
+        decisions_slice = result.decisions[start : start + count]
+        imported = sum(1 for d in decisions_slice if d)
+        reports.append(
+            ImportCsvFileReport(
+                filename=parsed.filename,
+                rows=count + parsed.skipped_rows,
+                imported=imported,
+                skipped_duplicates=count - imported,
+                skipped_invalid_rows=parsed.skipped_rows,
+            )
+        )
+
+    return ImportCsvResponse(
+        imported=len(result.expenses),
+        skipped_duplicates=result.skipped_duplicates,
+        skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
+        categories_created=[CategoryOut.model_validate(c) for c in result.categories_created],
+        expenses=[ExpenseOut.model_validate(e) for e in result.expenses],
+        files=reports,
     )
 
 
