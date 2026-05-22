@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { expenseRepository } from '$lib/repos/mockExpenseRepository.js';
+import { expenseRepository } from '$lib/repos';
 import type { Expense } from '$lib/types';
 
 export const expenses = writable<Expense[]>([]);

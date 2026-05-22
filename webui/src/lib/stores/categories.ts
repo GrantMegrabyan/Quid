@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { categoryRepository } from '$lib/repos/mockCategoryRepository.js';
+import { categoryRepository } from '$lib/repos';
 import type { Category } from '$lib/types';
 import { refreshExpenses } from './expenses.js';
 
