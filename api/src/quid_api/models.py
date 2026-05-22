@@ -18,7 +18,11 @@ class Category(Base):
     color: Mapped[str] = mapped_column(String, nullable=False)
     icon: Mapped[str] = mapped_column(String, nullable=False)
 
-    expenses: Mapped[list[Expense]] = relationship(back_populates="category")
+    expenses: Mapped[list[Expense]] = relationship(
+        back_populates="category",
+        passive_deletes=True,
+        lazy="raise_on_sql",
+    )
 
     __table_args__ = (
         Index(
@@ -43,7 +47,10 @@ class Expense(Base):
     )
     note: Mapped[str] = mapped_column(String, nullable=False, default="")
 
-    category: Mapped[Category] = relationship(back_populates="expenses")
+    category: Mapped[Category] = relationship(
+        back_populates="expenses",
+        lazy="raise_on_sql",
+    )
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positive"),
