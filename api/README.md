@@ -20,7 +20,7 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `QUID_DATABASE_URL` | `sqlite+aiosqlite:///./.data/quid.db` | Async SQLAlchemy database URL. |
-| `QUID_CORS_ORIGINS` | `["http://localhost:5173","http://localhost:4173"]` | Allowed webui origins. |
+| `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins. Defaults to any `http://localhost` port. |
 | `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. |
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
 
