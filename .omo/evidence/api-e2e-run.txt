@@ -1,10 +1,20 @@
-[1A[2K[9/17] tests/expenses.e2e.ts:77:2 › dashboard › optional charts can be enabled and stay enabled after reload
-[1A[2K[10/17] tests/expenses.e2e.ts:97:2 › dashboard › add expense flow appends a new row
-[1A[2K[11/17] tests/expenses.e2e.ts:116:2 › dashboard › edit expense flow updates the row in place
-[1A[2K[12/17] tests/expenses.e2e.ts:132:2 › dashboard › delete expense flow: cancel keeps row, confirm removes it
-[1A[2K[13/17] tests/expenses.e2e.ts:152:2 › dashboard › amount validation rejects non-positive values without saving
-[1A[2K[14/17] tests/expenses.e2e.ts:166:2 › dashboard › category select error fires when no category chosen
-[1A[2K[15/17] tests/expenses.e2e.ts:184:2 › empty state › shows empty placeholder when no expenses exist
-[1A[2K[16/17] tests/expenses.e2e.ts:199:2 › theme toggle › toggling theme persists across reload
-[1A[2K[17/17] tests/expenses.e2e.ts:222:2 › mobile layout › dashboard has no horizontal overflow on a 375px viewport
-[1A[2K  17 passed (7.7s)
+Running 17 tests using 1 worker
+
+[1/17] tests/categories.e2e.ts:9:2 › categories page › lists seeded categories with the Uncategorized row marked
+[2/17] tests/categories.e2e.ts:18:2 › categories page › Uncategorized row exposes no delete button
+[3/17] tests/categories.e2e.ts:28:2 › categories page › add new category appends a row
+[4/17] tests/categories.e2e.ts:42:2 › categories page › duplicate category name is rejected with inline error
+[5/17] tests/categories.e2e.ts:52:2 › categories page › edit existing category renames it inline
+[6/17] tests/categories.e2e.ts:68:2 › categories page › delete cascades expenses to Uncategorized and shows notice
+[7/17] tests/expenses.e2e.ts:15:2 › dashboard › renders cumulative chart and hides optional charts by default
+[8/17] tests/expenses.e2e.ts:34:2 › dashboard › month selector scopes the list and cumulative chart
+[9/17] tests/expenses.e2e.ts:77:2 › dashboard › optional charts can be enabled and stay enabled after reload
+[10/17] tests/expenses.e2e.ts:97:2 › dashboard › add expense flow appends a new row
+[11/17] tests/expenses.e2e.ts:116:2 › dashboard › edit expense flow updates the row in place
+[12/17] tests/expenses.e2e.ts:132:2 › dashboard › delete expense flow: cancel keeps row, confirm removes it
+[13/17] tests/expenses.e2e.ts:152:2 › dashboard › amount validation rejects non-positive values without saving
+[14/17] tests/expenses.e2e.ts:166:2 › dashboard › category select error fires when no category chosen
+[15/17] tests/expenses.e2e.ts:184:2 › empty state › shows empty placeholder when no expenses exist
+[16/17] tests/expenses.e2e.ts:199:2 › theme toggle › toggling theme persists across reload
+[17/17] tests/expenses.e2e.ts:222:2 › mobile layout › dashboard has no horizontal overflow on a 375px viewport
+17 passed (8.1s)
