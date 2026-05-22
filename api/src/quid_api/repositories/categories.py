@@ -88,39 +88,6 @@ class CategoryRepository:
         await self.session.flush()
         return row
 
-    async def create_with_id(
-        self,
-        category_id: str,
-        name: str,
-        color: str | None = None,
-        icon: str | None = None,
-    ) -> Category:
-        clean_name = _normalize_name(name)
-        if clean_name == "":
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Category name cannot be blank.",
-            )
-        existing = await _find_duplicate(self.session, clean_name)
-        if existing is not None:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                f'A category named "{clean_name}" already exists.',
-            )
-
-        resolved_color = color if color else color_for_category_id(category_id)
-        resolved_icon = normalize_icon(icon)
-
-        row = Category(
-            id=category_id,
-            name=clean_name,
-            color=resolved_color,
-            icon=resolved_icon,
-        )
-        self.session.add(row)
-        await self.session.flush()
-        return row
-
     async def update(
         self,
         category_id: str,

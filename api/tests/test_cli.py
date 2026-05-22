@@ -82,8 +82,20 @@ def test_read_csv_parses_bank_export_format(tmp_path: Path) -> None:
     )
     rows = _read_csv(csv_path)
     assert rows == [
-        {"name": "Coffee", "category": "eating_out", "amount": "-3.50", "date": "2026-04-01", "note": ""},
-        {"name": "Bus fare", "category": "transport", "amount": "-1.75", "date": "2026-04-02", "note": "morning"},
+        {
+            "name": "Coffee",
+            "category": "eating_out",
+            "amount": "-3.50",
+            "date": "2026-04-01",
+            "note": "",
+        },
+        {
+            "name": "Bus fare",
+            "category": "transport",
+            "amount": "-1.75",
+            "date": "2026-04-02",
+            "note": "morning",
+        },
     ]
 
 
@@ -92,8 +104,7 @@ def test_read_csv_handles_missing_trailing_newline(tmp_path: Path) -> None:
 
     csv_path = tmp_path / "bank.csv"
     csv_path.write_text(
-        "name,category,amount,date,note\n"
-        "Coffee,eating_out,-3.50,2026-04-01,",
+        "name,category,amount,date,note\nCoffee,eating_out,-3.50,2026-04-01,",
         encoding="utf-8",
     )
     rows = _read_csv(csv_path)

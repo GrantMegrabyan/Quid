@@ -33,7 +33,13 @@ async def test_bulk_create_uses_existing_category_by_name(app_client):
         "/api/v1/expenses/bulk",
         json={
             "items": [
-                {"name": "Whole Foods", "category": "groceries", "amount": 1.0, "date": "2026-04-01", "note": ""}
+                {
+                    "name": "Whole Foods",
+                    "category": "groceries",
+                    "amount": 1.0,
+                    "date": "2026-04-01",
+                    "note": "",
+                }
             ]
         },
     )
@@ -63,8 +69,20 @@ async def test_bulk_create_rolls_back_on_bad_row(app_client):
         "/api/v1/expenses/bulk",
         json={
             "items": [
-                {"name": "ok", "category": "groceries", "amount": 1.0, "date": "2026-04-01", "note": ""},
-                {"name": "bad", "category": "groceries", "amount": 0, "date": "2026-04-01", "note": ""},
+                {
+                    "name": "ok",
+                    "category": "groceries",
+                    "amount": 1.0,
+                    "date": "2026-04-01",
+                    "note": "",
+                },
+                {
+                    "name": "bad",
+                    "category": "groceries",
+                    "amount": 0,
+                    "date": "2026-04-01",
+                    "note": "",
+                },
             ]
         },
     )
@@ -82,7 +100,13 @@ async def test_bulk_create_abs_negative_amount(app_client):
         "/api/v1/expenses/bulk",
         json={
             "items": [
-                {"name": "X", "category": "bills", "amount": -42.42, "date": "2026-04-01", "note": ""}
+                {
+                    "name": "X",
+                    "category": "bills",
+                    "amount": -42.42,
+                    "date": "2026-04-01",
+                    "note": "",
+                }
             ]
         },
     )
@@ -106,15 +130,45 @@ async def test_bulk_create_rejects_oversize_payload(app_client):
 
 async def test_bulk_create_full_csv_shape_three_files(app_client):
     monzo = [
-        {"name": "Transport for London", "category": "transport", "amount": -1.75, "date": "2026-04-01", "note": ""},
-        {"name": "Tesco", "category": "groceries", "amount": -42.31, "date": "2026-04-02", "note": ""},
+        {
+            "name": "Transport for London",
+            "category": "transport",
+            "amount": -1.75,
+            "date": "2026-04-01",
+            "note": "",
+        },
+        {
+            "name": "Tesco",
+            "category": "groceries",
+            "amount": -42.31,
+            "date": "2026-04-02",
+            "note": "",
+        },
     ]
     revolut = [
-        {"name": "Starbucks", "category": "eating_out", "amount": 10.00, "date": "2026-04-01", "note": ""},
-        {"name": "Uber", "category": "transport", "amount": 19.98, "date": "2026-04-01", "note": ""},
+        {
+            "name": "Starbucks",
+            "category": "eating_out",
+            "amount": 10.00,
+            "date": "2026-04-01",
+            "note": "",
+        },
+        {
+            "name": "Uber",
+            "category": "transport",
+            "amount": 19.98,
+            "date": "2026-04-01",
+            "note": "",
+        },
     ]
     shared = [
-        {"name": "One Utility Bill", "category": "bills", "amount": -269.23, "date": "2026-04-01", "note": ""},
+        {
+            "name": "One Utility Bill",
+            "category": "bills",
+            "amount": -269.23,
+            "date": "2026-04-01",
+            "note": "",
+        },
     ]
     total = monzo + revolut + shared
     res = await app_client.post("/api/v1/expenses/bulk", json={"items": total})

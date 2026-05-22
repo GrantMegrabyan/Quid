@@ -61,9 +61,7 @@ def seed(
     ] = False,
 ) -> None:
     counts = asyncio.run(_seed_runner(reset=reset))
-    typer.echo(
-        f"Seeded: +{counts['categories']} categories, +{counts['expenses']} expenses"
-    )
+    typer.echo(f"Seeded: +{counts['categories']} categories, +{counts['expenses']} expenses")
 
 
 async def _seed_runner(*, reset: bool) -> dict[str, int]:
@@ -148,8 +146,7 @@ def import_csv(
             for cat in body["categoriesCreated"]:
                 total_categories.add(cat["id"])
     typer.echo(
-        f"Imported {total_created} expenses; "
-        f"new categories created: {len(total_categories)}"
+        f"Imported {total_created} expenses; new categories created: {len(total_categories)}"
     )
 
 
