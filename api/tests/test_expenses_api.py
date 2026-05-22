@@ -176,10 +176,10 @@ async def test_cors_preflight(app_client):
     res = await app_client.options(
         "/api/v1/categories",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": "http://localhost:61234",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
     )
     assert res.status_code == 200
-    assert res.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert res.headers["access-control-allow-origin"] == "http://localhost:61234"
