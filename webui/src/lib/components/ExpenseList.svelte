@@ -9,8 +9,17 @@
 	import type { Category, Expense } from '$lib/types';
 
 	type EditCallback = (expense: Expense) => void;
+	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category';
+	type ExpenseGroup = {
+		id: string;
+		name: string;
+		count: number;
+		amount: number;
+		category?: Category;
+	};
 
-	let { onedit }: { onedit?: EditCallback } = $props();
+	let { groupBy = 'transaction', onedit }: { groupBy?: ExpenseGroupBy; onedit?: EditCallback } =
+		$props();
 
 	const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 		year: 'numeric',
@@ -31,7 +40,22 @@
 	const visibleExpenses = $derived(
 		$expenses.filter((expense) => monthKey(expense.date) === $selectedMonth)
 	);
+	const groupedExpenses = $derived.by(() => {
+		if (groupBy === 'transaction') return [];
+		const groups = new Map<string, ExpenseGroup>();
+		for (const expense of visibleExpenses) {
+			const category = categoryById.get(expense.categoryId);
+			const id = groupBy === 'merchant' ? expense.name : expense.categoryId;
+			const name = groupBy === 'merchant' ? expense.name : (category?.name ?? 'Uncategorized');
+			const current = groups.get(id) ?? { id, name, count: 0, amount: 0, category };
+			current.count += 1;
+			current.amount += expense.amount;
+			groups.set(id, current);
+		}
+		return Array.from(groups.values()).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+	});
 	const emptyMessage = $derived(`No expenses for ${formatMonthLabel($selectedMonth)}.`);
+	const rows = $derived(groupBy === 'transaction' ? visibleExpenses : groupedExpenses);
 
 	function formatDate(iso: string): string {
 		const [yearPart, monthPart, dayPart] = iso.split('-');
@@ -72,7 +96,7 @@
 	});
 </script>
 
-{#if visibleExpenses.length === 0}
+{#if rows.length === 0}
 	<div
 		data-testid="empty-state"
 		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-6 py-16 text-center dark:border-gray-700"
@@ -84,6 +108,7 @@
 	</div>
 {:else}
 	<ul class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
+		{#if groupBy === 'transaction'}
 		{#each visibleExpenses as expense (expense.id)}
 			{@const category = categoryById.get(expense.categoryId)}
 			{@const color = category?.color ?? '#9ca3af'}
@@ -93,23 +118,23 @@
 			<li
 				data-testid="expense-row"
 				data-expense-id={expense.id}
-				class="flex items-center gap-3 border-b border-gray-100 px-3 py-3 last:border-b-0 sm:px-4 dark:border-gray-900"
+				class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-2 last:border-b-0 sm:px-3.5 dark:border-gray-900"
 			>
 				<div
 					data-testid="expense-category-icon"
 					data-icon={categoryIcon}
-					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white shadow-sm sm:h-11 sm:w-11"
+					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm sm:h-9 sm:w-9"
 					style="background-color: {color};"
 					aria-label={categoryName}
 				>
-					<CategoryIcon name={categoryIcon} size={18} />
+					<CategoryIcon name={categoryIcon} size={15} />
 				</div>
 
 				<div class="min-w-0 flex-1">
-					<p class="truncate text-base font-semibold leading-tight text-gray-900 sm:text-lg dark:text-gray-100">
+					<p class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100">
 						{expense.name}
 					</p>
-					<p class="mt-0.5 truncate text-xs text-gray-500 sm:text-sm dark:text-gray-400">
+					<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
 						{formatDate(expense.date)}
 					</p>
 					<span class="sr-only">{categoryName}</span>
@@ -118,9 +143,9 @@
 					{/if}
 				</div>
 
-				<div class="ml-auto flex shrink-0 flex-col items-end gap-1.5">
+				<div class="ml-auto flex shrink-0 items-center gap-2">
 					<span
-						class="text-right text-base font-semibold tabular-nums text-gray-900 sm:text-lg dark:text-gray-100"
+						class="text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100"
 					>
 						{formatAmount(expense.amount)}
 					</span>
@@ -151,7 +176,7 @@
 								data-testid="expense-edit-btn"
 								aria-label="Edit expense"
 								onclick={() => handleEdit(expense)}
-								class="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+								class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 							>
 								✎
 							</button>
@@ -160,7 +185,7 @@
 								data-testid="expense-delete-btn"
 								aria-label="Delete expense"
 								onclick={() => requestDelete(expense.id)}
-								class="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+								class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
 							>
 								🗑
 							</button>
@@ -169,5 +194,38 @@
 				</div>
 			</li>
 		{/each}
+		{:else}
+			{#each groupedExpenses as group (group.id)}
+				{@const color = group.category?.color ?? '#64748b'}
+				{@const categoryIcon = group.category?.icon ?? (groupBy === 'merchant' ? '🏬' : '•')}
+				<li
+					data-testid="expense-row"
+					data-group-id={group.id}
+					class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-2 last:border-b-0 sm:px-3.5 dark:border-gray-900"
+				>
+					<div
+						data-testid="expense-category-icon"
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm sm:h-9 sm:w-9"
+						style="background-color: {color};"
+						aria-label={group.name}
+					>
+						<CategoryIcon name={categoryIcon} size={15} />
+					</div>
+
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100">
+							{group.name}
+						</p>
+						<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+							{group.count} {group.count === 1 ? 'transaction' : 'transactions'}
+						</p>
+					</div>
+
+					<span class="ml-auto text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100">
+						{formatAmount(group.amount)}
+					</span>
+				</li>
+			{/each}
+		{/if}
 	</ul>
 {/if}

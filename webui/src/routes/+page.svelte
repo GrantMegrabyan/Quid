@@ -19,6 +19,8 @@
 	let editingExpense: Expense | undefined = $state(undefined);
 	let showMonthlyChart = $state(false);
 	let showCategoryChart = $state(false);
+	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category';
+	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let importing = $state(false);
@@ -239,17 +241,31 @@
 			class="grid gap-2 rounded-md border border-gray-200 bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#111114] sm:grid-cols-4"
 		>
 			{#each importSteps as step (step.id)}
-				<li class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-					<span
-						class="h-2.5 w-2.5 rounded-full {step.status === 'complete'
+				<li
+					class="relative overflow-hidden rounded-md px-2 py-2 text-gray-700 dark:text-gray-300 {step.status ===
+					'active'
+						? 'bg-blue-50 ring-1 ring-blue-200 dark:bg-blue-950/30 dark:ring-blue-900/60'
+						: ''}"
+				>
+					{#if step.status === 'active'}
+						<span class="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-blue-100 dark:bg-blue-950">
+							<span class="block h-full w-1/2 animate-pulse rounded-full bg-blue-500"></span>
+						</span>
+					{/if}
+					<div class="relative flex items-center gap-2">
+						<span
+							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold {step.status === 'complete'
 							? 'bg-emerald-500'
 							: step.status === 'active'
-								? 'bg-blue-500 animate-pulse'
-								: step.status === 'skipped'
-									? 'bg-gray-300 dark:bg-gray-600'
-									: 'bg-gray-200 dark:bg-gray-700'}"
-					></span>
-					<span>{step.label}</span>
+								? 'animate-pulse bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+							: step.status === 'skipped'
+								? 'bg-gray-300 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
+								: 'bg-gray-200 text-gray-500 dark:bg-gray-700'}"
+						>
+							{#if step.status === 'complete'}✓{:else if step.status === 'active'}…{:else}·{/if}
+						</span>
+						<span>{step.label}</span>
+					</div>
 				</li>
 			{/each}
 		</ol>
@@ -312,7 +328,22 @@
 	</div>
 	{/if}
 
-	<ExpenseList onedit={openEdit} />
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<h2 class="text-sm font-medium text-gray-700 dark:text-gray-300">Transactions</h2>
+		<label class="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+			Group by
+			<select
+				bind:value={expenseGroupBy}
+				class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 dark:border-gray-800 dark:bg-[#111114] dark:text-gray-100"
+			>
+				<option value="transaction">Transaction</option>
+				<option value="merchant">Merchant</option>
+				<option value="category">Category</option>
+			</select>
+		</label>
+	</div>
+
+	<ExpenseList groupBy={expenseGroupBy} onedit={openEdit} />
 </section>
 
 <ExpenseFormModal open={modalOpen} expense={editingExpense} on:close={closeModal} />
