@@ -2,6 +2,9 @@ import type {
 	Category,
 	Expense,
 	ImportCsvResult,
+	AiRule,
+	AiRuleCreate,
+	AiRuleUpdate,
 	ImportRule,
 	ImportRuleApplyResult,
 	ImportRuleCreate,
@@ -43,6 +46,13 @@ export interface ImportRuleRepository {
 	update(id: string, patch: ImportRuleUpdate): Promise<ImportRule>;
 	delete(id: string): Promise<void>;
 	apply(id: string): Promise<ImportRuleApplyResult>;
+}
+
+export interface AiRuleRepository {
+	list(): Promise<AiRule[]>;
+	create(input: AiRuleCreate): Promise<AiRule>;
+	update(id: string, patch: AiRuleUpdate): Promise<AiRule>;
+	delete(id: string): Promise<void>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

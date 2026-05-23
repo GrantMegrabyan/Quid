@@ -73,3 +73,14 @@ export interface ImportRuleApplyResult {
 	updated: number;
 	deleted: number;
 }
+
+export interface AiRule {
+	id: string;
+	text: string;
+	enabled: boolean;
+	priority: number;
+	createdAt: string;
+}
+
+export type AiRuleCreate = Omit<AiRule, 'id' | 'createdAt'>;
+export type AiRuleUpdate = Partial<AiRuleCreate>;

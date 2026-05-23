@@ -11,4 +11,5 @@ export {
 	httpImportRuleRepository as importRuleRepository,
 	HttpImportRuleRepository
 } from './httpImportRuleRepository.js';
+export { httpAiRuleRepository as aiRuleRepository, HttpAiRuleRepository } from './httpAiRuleRepository.js';
 export { httpClient, HttpClient } from './httpClient.js';

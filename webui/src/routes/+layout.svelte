@@ -8,7 +8,8 @@
 	const navLinks = [
 		{ href: '/', label: 'Dashboard' },
 		{ href: '/categories', label: 'Categories' },
-		{ href: '/rules', label: 'Rules' }
+		{ href: '/rules', label: 'Rules' },
+		{ href: '/ai-rules', label: 'AI Rules' }
 	];
 
 	let isDark = $state(false);
