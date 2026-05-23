@@ -20,6 +20,7 @@ _DATE_ALIASES = (
 _CATEGORY_ALIASES = ("category", "type", "tag")
 _NOTE_ALIASES = ("note", "notes", "memo", "reference")
 _STATE_ALIASES = ("state", "status")
+_TYPE_ALIASES = ("type", "transaction type")
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ def parse_csv(file: CsvFile) -> CsvParsed:
     category_col = _pick_column(header_map, _CATEGORY_ALIASES)
     note_col = _pick_column(header_map, _NOTE_ALIASES)
     state_col = _pick_column(header_map, _STATE_ALIASES)
+    type_col = _pick_column(header_map, _TYPE_ALIASES)
 
     missing = [
         label
@@ -123,6 +125,9 @@ def parse_csv(file: CsvFile) -> CsvParsed:
                 continue
 
         name = (raw.get(name_col) or "").strip()
+        source_type = (raw.get(type_col) or "").strip() if type_col else ""
+        if source_type.lower() == "transfer" and name:
+            name = f"Transfer · {name}"
         amount_raw = _coerce_amount_string(raw.get(amount_col) or "")
         date_raw = _normalize_date(raw.get(date_col) or "")
         category = (raw.get(category_col) or "").strip() if category_col else ""

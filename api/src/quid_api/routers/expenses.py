@@ -121,13 +121,15 @@ async def import_csv(
     reports = []
     for parsed, (start, count) in zip(parsed_files, item_ranges, strict=True):
         decisions_slice = result.decisions[start : start + count]
-        imported = sum(1 for d in decisions_slice if d)
+        imported = sum(1 for d in decisions_slice if d == "created")
+        excluded = sum(1 for d in decisions_slice if d == "excluded")
         reports.append(
             ImportCsvFileReport(
                 filename=parsed.filename,
                 rows=count + parsed.skipped_rows,
                 imported=imported,
-                skipped_duplicates=count - imported,
+                skipped_duplicates=sum(1 for d in decisions_slice if d == "duplicate"),
+                skipped_excluded=excluded,
                 skipped_invalid_rows=parsed.skipped_rows,
             )
         )
@@ -135,6 +137,7 @@ async def import_csv(
     return ImportCsvResponse(
         imported=len(result.expenses),
         skipped_duplicates=result.skipped_duplicates,
+        skipped_excluded=result.skipped_excluded,
         skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
         categories_created=[CategoryOut.model_validate(c) for c in result.categories_created],
         expenses=[ExpenseOut.model_validate(e) for e in result.expenses],

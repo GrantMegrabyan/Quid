@@ -18,6 +18,7 @@ from quid_api.category_helpers import (
 )
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
+from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -101,7 +102,8 @@ class ImportResult:
     expenses: list[Expense]
     categories_created: list[Category]
     skipped_duplicates: int
-    decisions: list[bool]
+    skipped_excluded: int
+    decisions: list[str]
 
 
 class ExpenseRepository:
@@ -296,11 +298,14 @@ class ExpenseRepository:
                 expenses=[],
                 categories_created=[],
                 skipped_duplicates=0,
+                skipped_excluded=0,
                 decisions=[],
             )
 
         created_categories: dict[str, Category] = {}
-        prepared: list[tuple[Category, Decimal, str, str, str]] = []
+        rule_repo = ImportRuleRepository(self.session)
+        prepared: list[tuple[int, Category, Decimal, str, str, str]] = []
+        decisions = ["pending" for _ in items]
         for idx, item in enumerate(items):
             try:
                 clean_name = _validate_name(item.name)
@@ -311,11 +316,22 @@ class ExpenseRepository:
                     RepositoryErrorCode.VALIDATION,
                     f"row {idx}: {exc.message}",
                 ) from exc
-            category = await self._resolve_or_create_category(item.category, created_categories)
-            prepared.append((category, clean_amount, clean_date, clean_name, item.note or ""))
+            rule = await rule_repo.first_match(
+                RuleMatchItem(name=clean_name, amount=clean_amount, date=clean_date)
+            )
+            if rule is not None and rule.action == "exclude":
+                decisions[idx] = "excluded"
+                continue
+            if rule is not None and rule.action == "categorize":
+                assert rule.target_category_id is not None
+                category = await self.session.get(Category, rule.target_category_id)
+                assert category is not None
+            else:
+                category = await self._resolve_or_create_category(item.category, created_categories)
+            prepared.append((idx, category, clean_amount, clean_date, clean_name, item.note or ""))
 
         in_file_counts: Counter[tuple[str, str, Decimal, str, str]] = Counter()
-        for cat, amount, date, name, note in prepared:
+        for _, cat, amount, date, name, note in prepared:
             in_file_counts[(date, name, amount, cat.id, note)] += 1
 
         quotas: dict[tuple[str, str, Decimal, str, str], int] = {}
@@ -335,9 +351,8 @@ class ExpenseRepository:
             quotas[key] = max(0, in_file - int(existing or 0))
 
         created_expenses: list[Expense] = []
-        decisions: list[bool] = []
         skipped = 0
-        for cat, amount, date, name, note in prepared:
+        for item_idx, cat, amount, date, name, note in prepared:
             key = (date, name, amount, cat.id, note)
             if quotas[key] > 0:
                 quotas[key] -= 1
@@ -351,15 +366,16 @@ class ExpenseRepository:
                 )
                 self.session.add(row)
                 created_expenses.append(row)
-                decisions.append(True)
+                decisions[item_idx] = "created"
             else:
                 skipped += 1
-                decisions.append(False)
+                decisions[item_idx] = "duplicate"
 
         await self.session.flush()
         return ImportResult(
             expenses=created_expenses,
             categories_created=list(created_categories.values()),
             skipped_duplicates=skipped,
+            skipped_excluded=sum(1 for d in decisions if d == "excluded"),
             decisions=decisions,
         )
