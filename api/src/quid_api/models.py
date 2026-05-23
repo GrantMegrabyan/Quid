@@ -137,3 +137,18 @@ class ImportRule(Base):
         ),
         Index("ix_import_rules_priority", "priority"),
     )
+
+
+class AiRule(Base):
+    __tablename__ = "ai_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    enabled: Mapped[bool] = mapped_column(nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(nullable=False, default=100)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("length(trim(text)) > 0", name="ck_ai_rules_text_not_blank"),
+        Index("ix_ai_rules_priority", "priority"),
+    )

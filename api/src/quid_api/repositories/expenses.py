@@ -299,7 +299,9 @@ class ExpenseRepository:
             categories_created=list(created_categories.values()),
         )
 
-    async def bulk_import(self, items: list[BulkItem]) -> ImportResult:
+    async def bulk_import(
+        self, items: list[BulkItem], *, ai_excluded_indices: frozenset[int] = frozenset()
+    ) -> ImportResult:
         """Idempotent bulk insert.
 
         Dedup key: ``(date, lower(trim(name)), amount, lower(trim(note)))``.
@@ -334,6 +336,11 @@ class ExpenseRepository:
         rule_excluded = 0
         rule_categorised = 0
         for idx, item in enumerate(items):
+            if idx in ai_excluded_indices:
+                decisions[idx] = "excluded"
+                rule_excluded += 1
+                logger.debug("import.bulk.ai_excluded row=%d name=%r", idx, item.name)
+                continue
             try:
                 clean_name = _validate_name(item.name)
                 clean_amount = _validate_amount(abs(_coerce_amount(item.amount)))

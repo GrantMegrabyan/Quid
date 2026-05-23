@@ -195,7 +195,7 @@ async def test_import_skips_invalid_rows_within_file(app_client):
 async def test_import_dedupes_across_uploads_with_category_drift(app_client, monkeypatch):
     drift = {"category": "travel"}
 
-    async def fake_categorize(items, *, existing_categories, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
         return CategorizedBulkItems(
             items=[replace(item, category=drift["category"]) for item in items],
             categorized=len(items),
@@ -244,8 +244,9 @@ async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
 
 
 async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
-    async def fake_categorize(items, *, existing_categories, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
         assert existing_categories
+        assert ai_rules
         assert api_key is None
         assert model == "openai/gpt-5.4-mini"
         updated = [replace(item, category="coffee") for item in items]
@@ -265,3 +266,26 @@ async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
     assert body["aiCategorized"] == 1
     expenses = (await app_client.get("/api/v1/expenses")).json()
     assert expenses[0]["categoryId"] == "cat-coffee"
+
+
+async def test_import_can_ai_exclude_transactions(app_client, monkeypatch):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+        assert "Exclude transfers from categorisation/imports." in ai_rules
+        updated = [replace(item, category="other") for item in items]
+        return CategorizedBulkItems(
+            items=updated, categorized=len(updated), excluded_indices=frozenset({0})
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        data={"ai_categorize": "true"},
+        files=[_upload("monzo.csv", "name,amount,date\nBank Transfer,-3.50,2026-04-01\n")],
+    )
+
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["imported"] == 0
+    assert body["skippedExcluded"] == 1
+    assert (await app_client.get("/api/v1/expenses")).json() == []

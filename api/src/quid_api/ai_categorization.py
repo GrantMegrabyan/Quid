@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import httpx
@@ -24,6 +24,7 @@ OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions
 class CategorizedBulkItems:
     items: list[BulkItem]
     categorized: int
+    excluded_indices: frozenset[int] = field(default_factory=frozenset)
 
 
 class _TransactionInput(BaseModel):
@@ -40,6 +41,7 @@ class _TransactionInput(BaseModel):
 class _CategorySuggestion(BaseModel):
     index: int = Field(description="The input transaction index.")
     category: str = Field(description="Short spending category name.")
+    exclude: bool = Field(description="True when AI rules say this transaction should be excluded.")
     confidence: float = Field(ge=0, le=1, description="Confidence from 0 to 1.")
 
 
@@ -51,7 +53,9 @@ def _serialise_amount(amount: Decimal) -> str:
     return format(abs(amount), "f")
 
 
-def _build_prompt(items: list[BulkItem], existing_categories: list[str]) -> str:
+def _build_prompt(
+    items: list[BulkItem], existing_categories: list[str], ai_rules: list[str]
+) -> str:
     transactions = [
         _TransactionInput(
             index=idx,
@@ -64,8 +68,12 @@ def _build_prompt(items: list[BulkItem], existing_categories: list[str]) -> str:
         for idx, item in enumerate(items)
     ]
     categories = ", ".join(existing_categories) if existing_categories else "none"
+    rules = "\n".join(f"- {rule}" for rule in ai_rules) if ai_rules else "- none"
     return (
         "Categorise these personal finance transactions.\n"
+        "Before categorising, apply the AI rules below. If a transaction should be "
+        "excluded, set exclude=true and still provide the best category.\n\n"
+        f"AI rules:\n{rules}\n\n"
         "STRONGLY prefer an existing category from the list below. Reuse the exact "
         "spelling and casing of an existing category whenever it fits, even if it is "
         "a loose fit. Only invent a new category when no existing category could "
@@ -78,7 +86,7 @@ def _build_prompt(items: list[BulkItem], existing_categories: list[str]) -> str:
 
 
 def _request_body(
-    model: str, items: list[BulkItem], existing_categories: list[str]
+    model: str, items: list[BulkItem], existing_categories: list[str], ai_rules: list[str]
 ) -> dict[str, object]:
     return {
         "model": model,
@@ -88,7 +96,7 @@ def _request_body(
                 "role": "system",
                 "content": "You categorise expense transactions and respond only with valid JSON.",
             },
-            {"role": "user", "content": _build_prompt(items, existing_categories)},
+            {"role": "user", "content": _build_prompt(items, existing_categories, ai_rules)},
         ],
         "response_format": {
             "type": "json_schema",
@@ -111,12 +119,16 @@ def _request_body(
                                         "type": "string",
                                         "description": "Short spending category name.",
                                     },
+                                    "exclude": {
+                                        "type": "boolean",
+                                        "description": "Whether AI rules say to exclude this transaction.",
+                                    },
                                     "confidence": {
                                         "type": "number",
                                         "description": "Confidence from 0 to 1.",
                                     },
                                 },
-                                "required": ["index", "category", "confidence"],
+                                "required": ["index", "category", "exclude", "confidence"],
                                 "additionalProperties": False,
                             },
                         }
@@ -176,6 +188,7 @@ async def categorize_transactions(
     items: list[BulkItem],
     *,
     existing_categories: list[str],
+    ai_rules: list[str] | None = None,
     api_key: str | None,
     model: str,
     client: httpx.AsyncClient | None = None,
@@ -206,7 +219,7 @@ async def categorize_transactions(
                 "HTTP-Referer": "https://github.com/grant/quid",
                 "X-OpenRouter-Title": "Quid",
             },
-            json=_request_body(model, items, existing_categories),
+            json=_request_body(model, items, existing_categories, ai_rules or []),
         )
     except httpx.HTTPError as exc:
         logger.warning("ai.categorize.http_error err=%s", exc)
@@ -231,10 +244,13 @@ async def categorize_transactions(
 
     parsed = _parse_response(response.json())
     updates: dict[int, str] = {}
+    excluded: set[int] = set()
     snapped = 0
     for suggestion in parsed.categories:
         category = suggestion.category.strip()
         if 0 <= suggestion.index < len(items) and category:
+            if suggestion.exclude:
+                excluded.add(suggestion.index)
             snapped_category = _snap_to_existing(category, existing_categories)
             if snapped_category != category:
                 snapped += 1
@@ -258,4 +274,5 @@ async def categorize_transactions(
             for idx, item in enumerate(items)
         ],
         categorized=len(updates),
+        excluded_indices=frozenset(excluded),
     )

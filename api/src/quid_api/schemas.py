@@ -189,6 +189,26 @@ class ImportRuleApplyResponse(_Camel):
     deleted: int
 
 
+class AiRuleOut(_Camel):
+    id: str
+    text: str
+    enabled: bool
+    priority: int
+    created_at: str
+
+
+class AiRuleCreate(_Camel):
+    text: Annotated[str, Field(min_length=1, max_length=2000)]
+    enabled: bool = True
+    priority: int = 100
+
+
+class AiRuleUpdate(_Camel):
+    text: Annotated[str | None, Field(min_length=1, max_length=2000)] = None
+    enabled: bool | None = None
+    priority: int | None = None
+
+
 class ErrorBody(_Camel):
     code: str
     message: str

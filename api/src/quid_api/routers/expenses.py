@@ -11,6 +11,7 @@ from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category
+from quid_api.repositories.ai_rules import AiRuleRepository
 from quid_api.repositories.expenses import BulkItem, ExpenseRepository
 from quid_api.schemas import (
     BulkExpenseRequest,
@@ -141,17 +142,24 @@ async def import_csv(
     ai_categorized = 0
     if ai_categorize and all_items:
         category_names = list(await session.scalars(select(Category.name).order_by(Category.name)))
+        ai_rules = [
+            rule.text for rule in await AiRuleRepository(session).list_all(enabled_only=True)
+        ]
         categorized = await categorize_transactions(
             all_items,
             existing_categories=category_names,
+            ai_rules=ai_rules,
             api_key=settings.openrouter_api_key,
             model=settings.openrouter_model,
         )
         all_items = categorized.items
         ai_categorized = categorized.categorized
+        ai_excluded_indices = categorized.excluded_indices
+    else:
+        ai_excluded_indices = frozenset()
 
     repo = ExpenseRepository(session)
-    result = await repo.bulk_import(all_items)
+    result = await repo.bulk_import(all_items, ai_excluded_indices=ai_excluded_indices)
     await session.commit()
     logger.info(
         "import.csv.done imported=%d duplicates=%d excluded=%d invalid=%d ai_categorized=%d",
