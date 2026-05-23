@@ -28,14 +28,46 @@ export interface ImportCsvFileReport {
 	rows: number;
 	imported: number;
 	skippedDuplicates: number;
+	skippedExcluded: number;
 	skippedInvalidRows: number;
 }
 
 export interface ImportCsvResult {
 	imported: number;
 	skippedDuplicates: number;
+	skippedExcluded: number;
 	skippedInvalidRows: number;
 	categoriesCreated: Category[];
 	expenses: Expense[];
 	files: ImportCsvFileReport[];
+}
+
+export type RuleAction = 'exclude' | 'categorize';
+export type NameMatchOp = 'contains' | 'equals' | 'starts_with' | 'ends_with';
+export type AmountMatchOp = 'gte' | 'lte' | 'eq' | 'between';
+
+export interface ImportRule {
+	id: string;
+	name: string;
+	enabled: boolean;
+	priority: number;
+	action: RuleAction;
+	targetCategoryId: string | null;
+	matchNameOp: NameMatchOp | null;
+	matchNameValue: string | null;
+	matchAmountOp: AmountMatchOp | null;
+	matchAmountValue: number | null;
+	matchAmountValue2: number | null;
+	matchDateFrom: string | null;
+	matchDateTo: string | null;
+	createdAt: string;
+}
+
+export type ImportRuleCreate = Omit<ImportRule, 'id' | 'createdAt'>;
+export type ImportRuleUpdate = Partial<ImportRuleCreate>;
+
+export interface ImportRuleApplyResult {
+	matched: number;
+	updated: number;
+	deleted: number;
 }

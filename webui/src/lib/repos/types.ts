@@ -1,4 +1,12 @@
-import type { Category, Expense, ImportCsvResult } from '$types';
+import type {
+	Category,
+	Expense,
+	ImportCsvResult,
+	ImportRule,
+	ImportRuleApplyResult,
+	ImportRuleCreate,
+	ImportRuleUpdate
+} from '$types';
 
 /**
  * Repository contracts stay HTTP-shaped so callers can swap transports later.
@@ -27,6 +35,14 @@ export interface CategoryRepository {
 	create(input: Omit<Category, 'id'>): Promise<Category>;
 	update(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<Category>;
 	delete(id: string): Promise<void>;
+}
+
+export interface ImportRuleRepository {
+	list(): Promise<ImportRule[]>;
+	create(input: ImportRuleCreate): Promise<ImportRule>;
+	update(id: string, patch: ImportRuleUpdate): Promise<ImportRule>;
+	delete(id: string): Promise<void>;
+	apply(id: string): Promise<ImportRuleApplyResult>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

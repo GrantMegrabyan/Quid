@@ -7,4 +7,8 @@ export {
 	httpExpenseRepository as expenseRepository,
 	HttpExpenseRepository
 } from './httpExpenseRepository.js';
+export {
+	httpImportRuleRepository as importRuleRepository,
+	HttpImportRuleRepository
+} from './httpImportRuleRepository.js';
 export { httpClient, HttpClient } from './httpClient.js';
