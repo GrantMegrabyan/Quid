@@ -71,7 +71,7 @@ async def app_client(engine: AsyncEngine, database_url: str):
 
     from quid_api.db import get_session
     from quid_api.main import create_app
-    from quid_api.settings import Settings
+    from quid_api.settings import Settings, get_settings
 
     sm = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -79,9 +79,14 @@ async def app_client(engine: AsyncEngine, database_url: str):
         async with sm() as sess:
             yield sess
 
-    settings = Settings(database_url=database_url, testing=True)
+    settings = Settings(
+        database_url=database_url,
+        testing=True,
+        openrouter_api_key=None,
+    )
     app = create_app(settings=settings)
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_settings] = lambda: settings
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

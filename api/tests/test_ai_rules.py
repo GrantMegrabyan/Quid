@@ -36,3 +36,12 @@ async def test_ai_rules_seeded_and_crud(app_client):
 async def test_ai_rules_reject_blank_text(app_client):
     res = await app_client.post("/api/v1/ai-rules", json={"text": "   "})
     assert res.status_code == 422
+
+
+async def test_ai_rules_reject_null_text_update(app_client):
+    listed = await app_client.get("/api/v1/ai-rules")
+    rule_id = listed.json()[0]["id"]
+
+    res = await app_client.patch(f"/api/v1/ai-rules/{rule_id}", json={"text": None})
+    assert res.status_code == 422
+    assert res.json()["message"] == "AI rule text cannot be blank."

@@ -68,8 +68,8 @@ class AiRuleRepository:
     async def update(self, rule_id: str, **patch: object) -> AiRule:
         row = await self.get(rule_id)
         for key, value in patch.items():
-            if key == "text" and value is not None:
-                value = _clean_text(str(value))
+            if key == "text":
+                value = _clean_text(str(value) if value is not None else None)
             setattr(row, key, value)
         await self.session.flush()
         return row

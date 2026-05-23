@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from quid_api.category_helpers import (
     UNCATEGORIZED_ID,
@@ -387,24 +387,31 @@ class ExpenseRepository:
         quotas: dict[DedupKey, int] = {}
         for key, in_file in in_file_counts.items():
             date, name_norm, amount, note_norm = key
-            existing = await self.session.scalar(
-                select(func.count())
-                .select_from(Expense)
-                .where(
-                    Expense.date == date,
-                    func.lower(func.trim(Expense.name)) == name_norm,
-                    Expense.amount == amount,
-                    func.lower(func.trim(Expense.note)) == note_norm,
-                )
+            existing_candidates = list(
+                (
+                    await self.session.scalars(
+                        select(Expense)
+                        .where(Expense.date == date, Expense.amount == amount)
+                        .order_by(Expense.id)
+                    )
+                ).all()
             )
-            quotas[key] = max(0, in_file - int(existing or 0))
+            existing = sum(
+                1
+                for expense in existing_candidates
+                if _normalize_text(expense.name) == name_norm
+                and _normalize_text(expense.note) == note_norm
+            )
+            quotas[key] = max(0, in_file - existing)
             logger.debug(
-                "import.bulk.dedup date=%s name=%r amount=%s in_file=%d existing=%d quota=%d",
+                "import.bulk.dedup date=%s name=%r amount=%s in_file=%d candidates=%d "
+                "existing=%d quota=%d",
                 date,
                 name_norm,
                 amount,
                 in_file,
-                int(existing or 0),
+                len(existing_candidates),
+                existing,
                 quotas[key],
             )
 

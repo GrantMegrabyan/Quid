@@ -243,6 +243,23 @@ async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
     assert len(expenses) == 1
 
 
+async def test_import_dedupes_across_uploads_with_internal_whitespace_drift(app_client):
+    spaced = "name,category,amount,date,note\nGg   Platform,travel,-4.31,2026-04-25,car   park\n"
+    normal = "name,category,amount,date,note\nGg Platform,travel,-4.31,2026-04-25,car park\n"
+
+    first = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("a.csv", spaced)])
+    assert first.status_code == 201, first.text
+    assert first.json()["imported"] == 1
+
+    second = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("b.csv", normal)])
+    assert second.status_code == 201, second.text
+    assert second.json()["imported"] == 0
+    assert second.json()["skippedDuplicates"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+
+
 async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
     async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
         assert existing_categories
