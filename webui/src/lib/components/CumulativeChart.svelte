@@ -6,7 +6,7 @@
 	import { chartThemeColors, ensureChartJsRegistered } from '$lib/chart/chartSetup';
 	import { expenses } from '$lib/stores/expenses';
 	import { selectedMonth } from '$lib/stores/ui';
-	import { daysInMonth, monthKey } from '$utils/dates';
+	import { currentMonthKey, daysInMonth, monthKey, todayIso } from '$utils/dates';
 
 	if (browser) {
 		ensureChartJsRegistered();
@@ -46,14 +46,19 @@
 			}
 		}
 
+		const isCurrentMonth = $selectedMonth === currentMonthKey();
+		const cutoffDay = isCurrentMonth ? Number(todayIso().slice(8, 10)) : days;
+
 		let runningTotal = 0;
-		return totals.map((amount) => {
+		return totals.map((amount, index) => {
 			runningTotal += amount;
-			return runningTotal;
+			return index + 1 <= cutoffDay ? runningTotal : null;
 		});
 	});
 
-	const total = $derived(dailyTotals.at(-1) ?? 0);
+	const total = $derived(
+		dailyTotals.reduce<number>((acc, value) => (value === null ? acc : value), 0)
+	);
 	const labels = $derived(
 		Array.from({ length: daysInMonth($selectedMonth) }, (_, index) => String(index + 1))
 	);
@@ -70,7 +75,8 @@
 				tension: 0.28,
 				pointRadius: 0,
 				pointHitRadius: 8,
-				borderWidth: 2
+				borderWidth: 2,
+				spanGaps: false
 			}
 		]
 	});
