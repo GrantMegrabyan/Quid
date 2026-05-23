@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_for
-from quid_api.routers import categories, expenses, health, testing
+from quid_api.routers import categories, expenses, health, import_rules, testing
 from quid_api.settings import Settings, get_settings
 
 
@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(categories.router)
+    app.include_router(import_rules.router)
     app.include_router(expenses.router)
 
     if cfg.testing:
