@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+from quid_api.ai_categorization import CategorizedBulkItems
+
 CANONICAL = (
     "name,category,amount,date,note\n"
     "Pret,eating_out,-3.50,2026-04-01,morning coffee\n"
@@ -186,3 +190,27 @@ async def test_import_skips_invalid_rows_within_file(app_client):
     body = res.json()
     assert body["imported"] == 2
     assert body["skippedInvalidRows"] == 2
+
+
+async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
+    async def fake_categorize(items, *, existing_categories, api_key, model):
+        assert existing_categories
+        assert api_key is None
+        assert model == "openai/gpt-5.4-mini"
+        updated = [replace(item, category="coffee") for item in items]
+        return CategorizedBulkItems(items=updated, categorized=len(updated))
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        data={"ai_categorize": "true"},
+        files=[_upload("monzo.csv", "name,amount,date\nPret,-3.50,2026-04-01\n")],
+    )
+
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["transactionsFound"] == 1
+    assert body["aiCategorized"] == 1
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert expenses[0]["categoryId"] == "cat-coffee"

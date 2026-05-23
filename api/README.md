@@ -23,6 +23,8 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins. Defaults to any `http://localhost` port. |
 | `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. |
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
+| `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for optional AI categorisation during CSV import. |
+| `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for CSV import categorisation. |
 
 Example dev database:
 
@@ -37,6 +39,7 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serv
 uv run quid-api migrate          # upgrade SQLite schema to head
 uv run quid-api migrate --down 1 # downgrade one Alembic revision
 uv run quid-api seed --reset     # reset to deterministic sample data
+uv run quid-api clear-transactions # delete expenses and orphaned categories
 uv run quid-api serve            # run uvicorn on 127.0.0.1:8000
 ```
 
@@ -53,9 +56,13 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serv
 
 # Multipart, idempotent, multiple files in one request:
 curl -X POST http://localhost:8000/api/v1/expenses/import-csv \
+  -F "ai_categorize=false" \
   -F "files=@../samples/april-2026-grant-monzo-shared.csv" \
   -F "files=@../samples/april-2026-grant-revolut.csv"
 ```
+
+Set `ai_categorize=true` to categorise parsed transactions with OpenRouter before saving.
+When enabled, the API requires `QUID_OPENROUTER_API_KEY`.
 
 ### Accepted column shapes
 

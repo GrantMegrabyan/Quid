@@ -120,6 +120,8 @@ class ImportCsvResponse(_Camel):
     skipped_duplicates: int
     skipped_excluded: int = 0
     skipped_invalid_rows: int
+    transactions_found: int = 0
+    ai_categorized: int = 0
     categories_created: list[CategoryOut]
     expenses: list[ExpenseOut]
     files: list[ImportCsvFileReport]

@@ -22,7 +22,11 @@
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let importing = $state(false);
+	let aiCategorize = $state(true);
 	let importBanner: { kind: 'success' | 'error'; message: string } | null = $state(null);
+	type ImportStepStatus = 'pending' | 'active' | 'complete' | 'skipped';
+	type ImportStep = { id: string; label: string; status: ImportStepStatus };
+	let importSteps: ImportStep[] = $state([]);
 
 	const CHART_PREFS_KEY = 'expense-tracker:dashboard-charts:v1';
 	const selectedMonthLabel = $derived(formatMonthLabel($selectedMonth));
@@ -60,6 +64,8 @@
 	function summarize(result: ImportCsvResult): string {
 		const parts: string[] = [];
 		parts.push(`Imported ${result.imported}`);
+		parts.push(`${result.transactionsFound} transactions found`);
+		if (result.aiCategorized > 0) parts.push(`${result.aiCategorized} AI categorised`);
 		if (result.skippedDuplicates > 0) parts.push(`${result.skippedDuplicates} duplicates skipped`);
 		if (result.skippedExcluded > 0) parts.push(`${result.skippedExcluded} excluded by rules`);
 		if (result.skippedInvalidRows > 0)
@@ -68,6 +74,20 @@
 			parts.push(`${result.categoriesCreated.length} new categories`);
 		const fileList = result.files.map((f) => `${f.filename} (+${f.imported})`).join(', ');
 		return `${parts.join(', ')}. Files: ${fileList}`;
+	}
+
+	function setImportSteps(steps: ImportStep[]): void {
+		importSteps = steps;
+	}
+
+	async function estimateTransactions(files: File[]): Promise<number> {
+		let rows = 0;
+		for (const file of files) {
+			const text = await file.text();
+			const nonEmptyLines = text.split(/\r?\n/).filter((line) => line.trim() !== '').length;
+			rows += Math.max(0, nonEmptyLines - 1);
+		}
+		return rows;
 	}
 
 	async function handleFilesSelected(event: Event): Promise<void> {
@@ -79,10 +99,30 @@
 		importing = true;
 		importBanner = null;
 		try {
-			const result = await importCsvFiles(picked);
+			setImportSteps([
+				{ id: 'uploaded', label: `${picked.length} file${picked.length === 1 ? '' : 's'} uploaded`, status: 'complete' },
+				{ id: 'found', label: 'Counting transactions…', status: 'active' },
+				{ id: 'ai', label: 'AI categorisation pending', status: aiCategorize ? 'pending' : 'skipped' },
+				{ id: 'saved', label: 'Saving transactions pending', status: 'pending' }
+			]);
+			const estimatedRows = await estimateTransactions(picked);
+			setImportSteps([
+				{ id: 'uploaded', label: `${picked.length} file${picked.length === 1 ? '' : 's'} uploaded`, status: 'complete' },
+				{ id: 'found', label: `${estimatedRows} transaction${estimatedRows === 1 ? '' : 's'} found`, status: 'complete' },
+				{ id: 'ai', label: aiCategorize ? 'AI categorisation started' : 'AI categorisation skipped', status: aiCategorize ? 'active' : 'skipped' },
+				{ id: 'saved', label: 'Saving transactions pending', status: 'pending' }
+			]);
+
+			const result = await importCsvFiles(picked, { aiCategorize });
 			if (result.categoriesCreated.length > 0) {
 				await refreshCategories();
 			}
+			setImportSteps([
+				{ id: 'uploaded', label: `${picked.length} file${picked.length === 1 ? '' : 's'} uploaded`, status: 'complete' },
+				{ id: 'found', label: `${result.transactionsFound} transaction${result.transactionsFound === 1 ? '' : 's'} found`, status: 'complete' },
+				{ id: 'ai', label: aiCategorize ? `${result.aiCategorized} transaction${result.aiCategorized === 1 ? '' : 's'} AI categorised` : 'AI categorisation skipped', status: aiCategorize ? 'complete' : 'skipped' },
+				{ id: 'saved', label: `${result.imported} transaction${result.imported === 1 ? '' : 's'} saved`, status: 'complete' }
+			]);
 			importBanner = { kind: 'success', message: summarize(result) };
 		} catch (err) {
 			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
@@ -133,6 +173,16 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
+			<label class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-[#111114] dark:text-gray-300">
+				<input
+					type="checkbox"
+					data-testid="ai-categorize-toggle"
+					bind:checked={aiCategorize}
+					disabled={importing}
+					class="h-4 w-4 accent-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:accent-gray-100"
+				/>
+				AI categorise
+			</label>
 			<input
 				bind:this={fileInputEl}
 				type="file"
@@ -181,6 +231,28 @@
 				</button>
 			</div>
 		</div>
+	{/if}
+
+	{#if importSteps.length > 0}
+		<ol
+			data-testid="import-progress"
+			class="grid gap-2 rounded-md border border-gray-200 bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#111114] sm:grid-cols-4"
+		>
+			{#each importSteps as step (step.id)}
+				<li class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+					<span
+						class="h-2.5 w-2.5 rounded-full {step.status === 'complete'
+							? 'bg-emerald-500'
+							: step.status === 'active'
+								? 'bg-blue-500 animate-pulse'
+								: step.status === 'skipped'
+									? 'bg-gray-300 dark:bg-gray-600'
+									: 'bg-gray-200 dark:bg-gray-700'}"
+					></span>
+					<span>{step.label}</span>
+				</li>
+			{/each}
+		</ol>
 	{/if}
 
 	<div class="flex flex-wrap items-center justify-between gap-3">

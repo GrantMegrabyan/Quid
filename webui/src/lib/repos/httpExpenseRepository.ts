@@ -31,11 +31,15 @@ export class HttpExpenseRepository implements ExpenseRepository {
 		});
 	}
 
-	async importCsv(files: File[]): Promise<ImportCsvResult> {
+	async importCsv(
+		files: File[],
+		options: { aiCategorize?: boolean } = {}
+	): Promise<ImportCsvResult> {
 		const form = new FormData();
 		for (const file of files) {
 			form.append('files', file, file.name);
 		}
+		form.append('ai_categorize', options.aiCategorize ? 'true' : 'false');
 		return this.client.request<ImportCsvResult>('api/v1/expenses/import-csv', {
 			method: 'POST',
 			formData: form

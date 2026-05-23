@@ -27,8 +27,11 @@ export async function deleteExpense(id: string): Promise<void> {
 	await refreshExpenses();
 }
 
-export async function importCsvFiles(files: File[]): Promise<ImportCsvResult> {
-	const result = await expenseRepository.importCsv(files);
+export async function importCsvFiles(
+	files: File[],
+	options: { aiCategorize?: boolean } = {}
+): Promise<ImportCsvResult> {
+	const result = await expenseRepository.importCsv(files, options);
 	await refreshExpenses();
 	return result;
 }

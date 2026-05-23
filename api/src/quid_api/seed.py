@@ -120,6 +120,7 @@ async def reset_and_seed(
     from sqlalchemy import text
 
     session = cat_repo.session
+    await session.execute(text("DELETE FROM import_rules"))
     await session.execute(text("DELETE FROM expenses"))
     await session.execute(
         text("DELETE FROM categories WHERE id != :uid"), {"uid": UNCATEGORIZED_ID}

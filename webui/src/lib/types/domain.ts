@@ -37,6 +37,8 @@ export interface ImportCsvResult {
 	skippedDuplicates: number;
 	skippedExcluded: number;
 	skippedInvalidRows: number;
+	transactionsFound: number;
+	aiCategorized: number;
 	categoriesCreated: Category[];
 	expenses: Expense[];
 	files: ImportCsvFileReport[];

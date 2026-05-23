@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from sqlalchemy import select
 
+from quid_api.ai_categorization import categorize_transactions
 from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
+from quid_api.models import Category
 from quid_api.repositories.expenses import BulkItem, ExpenseRepository
 from quid_api.schemas import (
     BulkExpenseRequest,
@@ -18,6 +21,7 @@ from quid_api.schemas import (
     ImportCsvFileReport,
     ImportCsvResponse,
 )
+from quid_api.settings import Settings, get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +29,7 @@ if TYPE_CHECKING:
 router = APIRouter(prefix="/api/v1/expenses", tags=["expenses"])
 
 SessionDep = Annotated["AsyncSession", Depends(get_session)]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("", response_model=list[ExpenseOut])
@@ -95,6 +100,11 @@ async def bulk_create_expenses(
 async def import_csv(
     session: SessionDep,
     files: Annotated[list[UploadFile], File(description="One or more CSV files to import.")],
+    settings: SettingsDep,
+    ai_categorize: Annotated[
+        bool,
+        Form(description="Use AI to categorise parsed transactions before saving."),
+    ] = False,
 ) -> ImportCsvResponse:
     if not files:
         raise RepositoryError(
@@ -113,6 +123,18 @@ async def import_csv(
         start = len(all_items)
         all_items.extend(parsed.items)
         item_ranges.append((start, len(parsed.items)))
+
+    ai_categorized = 0
+    if ai_categorize and all_items:
+        category_names = list(await session.scalars(select(Category.name).order_by(Category.name)))
+        categorized = await categorize_transactions(
+            all_items,
+            existing_categories=category_names,
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+        )
+        all_items = categorized.items
+        ai_categorized = categorized.categorized
 
     repo = ExpenseRepository(session)
     result = await repo.bulk_import(all_items)
@@ -139,6 +161,8 @@ async def import_csv(
         skipped_duplicates=result.skipped_duplicates,
         skipped_excluded=result.skipped_excluded,
         skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
+        transactions_found=len(all_items),
+        ai_categorized=ai_categorized,
         categories_created=[CategoryOut.model_validate(c) for c in result.categories_created],
         expenses=[ExpenseOut.model_validate(e) for e in result.expenses],
         files=reports,

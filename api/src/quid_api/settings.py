@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     cors_origin_regex: str = r"^http://localhost(:\d+)?$"
     testing: bool = False
     log_level: str = "INFO"
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openai/gpt-5.4-mini"
 
 
 _settings: Settings | None = None

@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from typer.testing import CliRunner
 
 from quid_api.cli import app
+from quid_api.models import Category, Expense, ImportRule
+from quid_api.seed import CATEGORY_SEEDS, seed_samples
 from quid_api.settings import reset_settings
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _run(args: list[str], env: dict[str, str]) -> object:
@@ -66,7 +72,7 @@ def test_seed_reset_replaces_data(tmp_path: Path) -> None:
 def test_help_lists_all_commands() -> None:
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0
-    for cmd in ("migrate", "seed", "serve", "import-csv"):
+    for cmd in ("migrate", "seed", "clear-transactions", "serve", "import-csv"):
         assert cmd in result.output
 
 
@@ -110,3 +116,81 @@ def test_read_csv_handles_missing_trailing_newline(tmp_path: Path) -> None:
     rows = _read_csv(csv_path)
     assert len(rows) == 1
     assert rows[0]["name"] == "Coffee"
+
+
+async def test_clear_transactions_keeps_rules_and_seed_categories(
+    app_client, session: AsyncSession, database_url: str
+) -> None:
+    from quid_api.cli import _clear_transactions_runner
+    from quid_api.repositories.categories import CategoryRepository
+    from quid_api.repositories.expenses import ExpenseRepository
+
+    cat_repo = CategoryRepository(session)
+    exp_repo = ExpenseRepository(session)
+    await seed_samples(cat_repo, exp_repo)
+
+    protected = Category(
+        id=f"cat-{uuid4()}",
+        name="Protected",
+        color="#123456",
+        icon="house",
+    )
+    orphan = Category(
+        id=f"cat-{uuid4()}",
+        name="Disposable",
+        color="#654321",
+        icon="coffee",
+    )
+    session.add_all([protected, orphan])
+    await session.flush()
+    session.add(
+        ImportRule(
+            id=f"rule-{uuid4()}",
+            name="Keep protected",
+            enabled=True,
+            priority=1,
+            action="categorize",
+            target_category_id=protected.id,
+            match_name_op="contains",
+            match_name_value="Coffee",
+            match_amount_op=None,
+            match_amount_value=None,
+            match_amount_value2=None,
+            match_date_from=None,
+            match_date_to=None,
+            created_at="2026-05-23T00:00:00Z",
+        )
+    )
+    session.add(
+        Expense(
+            id=f"exp-{uuid4()}",
+            name="Temp expense",
+            amount=Decimal("1"),
+            date="2026-05-23",
+            category_id=orphan.id,
+            note="",
+        )
+    )
+    await session.commit()
+
+    old_env = dict(os.environ)
+    os.environ["QUID_DATABASE_URL"] = database_url
+    reset_settings()
+    try:
+        counts = await _clear_transactions_runner()
+    finally:
+        os.environ.clear()
+        os.environ.update(old_env)
+        reset_settings()
+
+    assert counts == {"expenses": 18, "categories": 1}
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    rules = (await app_client.get("/api/v1/import-rules")).json()
+    categories = (await app_client.get("/api/v1/categories")).json()
+
+    assert expenses == []
+    assert len(rules) == 2
+    assert any(row["id"] == protected.id for row in categories)
+    assert any(row["id"] == seed.id for seed in CATEGORY_SEEDS for row in categories)
+    assert all(row["id"] != orphan.id for row in categories)
