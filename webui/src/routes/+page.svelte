@@ -61,6 +61,7 @@
 		const parts: string[] = [];
 		parts.push(`Imported ${result.imported}`);
 		if (result.skippedDuplicates > 0) parts.push(`${result.skippedDuplicates} duplicates skipped`);
+		if (result.skippedExcluded > 0) parts.push(`${result.skippedExcluded} excluded by rules`);
 		if (result.skippedInvalidRows > 0)
 			parts.push(`${result.skippedInvalidRows} invalid rows skipped`);
 		if (result.categoriesCreated.length > 0)

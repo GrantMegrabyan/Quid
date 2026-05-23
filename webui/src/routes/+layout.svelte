@@ -7,7 +7,8 @@
 
 	const navLinks = [
 		{ href: '/', label: 'Dashboard' },
-		{ href: '/categories', label: 'Categories' }
+		{ href: '/categories', label: 'Categories' },
+		{ href: '/rules', label: 'Rules' }
 	];
 
 	let isDark = $state(false);
@@ -48,22 +49,22 @@
 		class="sticky top-0 z-40 border-b border-gray-200 bg-white/80 backdrop-blur dark:border-gray-800 dark:bg-[#0b0b0c]/80"
 	>
 		<div
-			class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8"
+			class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8"
 		>
 			<a
 				href="/"
-				class="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+				class="shrink-0 text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-50"
 			>
 				Expenses
 			</a>
 
-			<nav class="flex items-center gap-1 sm:gap-2">
+			<nav class="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
 				{#each navLinks as link (link.href)}
 					{@const active = isActive($page.url.pathname, link.href)}
 					<a
 						href={link.href}
 						aria-current={active ? 'page' : undefined}
-						class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+						class="rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3"
 						class:bg-gray-900={active}
 						class:text-white={active}
 						class:dark:bg-gray-100={active}
