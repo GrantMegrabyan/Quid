@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal  # noqa: TC003  pydantic Field reads this at runtime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AliasGenerator,
@@ -111,16 +111,80 @@ class ImportCsvFileReport(_Camel):
     rows: int
     imported: int
     skipped_duplicates: int
+    skipped_excluded: int = 0
     skipped_invalid_rows: int
 
 
 class ImportCsvResponse(_Camel):
     imported: int
     skipped_duplicates: int
+    skipped_excluded: int = 0
     skipped_invalid_rows: int
     categories_created: list[CategoryOut]
     expenses: list[ExpenseOut]
     files: list[ImportCsvFileReport]
+
+
+NameMatchOp = Literal["contains", "equals", "starts_with", "ends_with"]
+AmountMatchOp = Literal["gte", "lte", "eq", "between"]
+RuleAction = Literal["exclude", "categorize"]
+
+
+class ImportRuleOut(_Camel):
+    id: str
+    name: str
+    enabled: bool
+    priority: int
+    action: RuleAction
+    target_category_id: str | None
+    match_name_op: NameMatchOp | None
+    match_name_value: str | None
+    match_amount_op: AmountMatchOp | None
+    match_amount_value: Decimal | None
+    match_amount_value2: Decimal | None
+    match_date_from: str | None
+    match_date_to: str | None
+    created_at: str
+
+    @field_serializer("match_amount_value", "match_amount_value2")
+    def _ser_amount(self, value: Decimal | None) -> float | None:
+        return None if value is None else float(value)
+
+
+class ImportRuleCreate(_Camel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    enabled: bool = True
+    priority: int = 100
+    action: RuleAction
+    target_category_id: str | None = None
+    match_name_op: NameMatchOp | None = None
+    match_name_value: str | None = None
+    match_amount_op: AmountMatchOp | None = None
+    match_amount_value: Decimal | None = None
+    match_amount_value2: Decimal | None = None
+    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+
+
+class ImportRuleUpdate(_Camel):
+    name: str | None = None
+    enabled: bool | None = None
+    priority: int | None = None
+    action: RuleAction | None = None
+    target_category_id: str | None = None
+    match_name_op: NameMatchOp | None = None
+    match_name_value: str | None = None
+    match_amount_op: AmountMatchOp | None = None
+    match_amount_value: Decimal | None = None
+    match_amount_value2: Decimal | None = None
+    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+
+
+class ImportRuleApplyResponse(_Camel):
+    matched: int
+    updated: int
+    deleted: int
 
 
 class ErrorBody(_Camel):
