@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -24,7 +25,20 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
+logger = logging.getLogger(__name__)
+
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_WS_RE = re.compile(r"\s+")
+
+
+def _normalize_text(value: str) -> str:
+    """Normalise free-text fields for dedup comparison.
+
+    Lower-cases, strips outer whitespace, collapses internal runs of
+    whitespace. Mirrors the SQL ``lower(trim(...))`` we issue against the DB
+    so the in-file Counter and the existing-row query stay in lockstep.
+    """
+    return _WS_RE.sub(" ", (value or "").strip().lower())
 
 
 def _coerce_amount(raw: object) -> Decimal:
@@ -288,12 +302,22 @@ class ExpenseRepository:
     async def bulk_import(self, items: list[BulkItem]) -> ImportResult:
         """Idempotent bulk insert.
 
-        Dedup key: (date, name, amount, category_id, note). For each unique
-        key, inserts ``max(0, in_file_count - existing_in_db)`` rows so that
-        re-uploading the same CSV is a no-op, while still allowing several
-        identical transactions to accumulate across uploads.
+        Dedup key: ``(date, lower(trim(name)), amount, lower(trim(note)))``.
+
+        Category is intentionally NOT part of the key. AI categorisation is
+        non-deterministic across runs, import-rule sets change over time, and
+        users re-categorise rows by hand. Including category in the key let
+        identical transactions slip through as duplicates whenever the
+        category drifted between imports. Same merchant, same day, same
+        amount, same note is the same transaction regardless of category.
+
+        For each unique normalised key we insert
+        ``max(0, in_file_count - existing_in_db)`` rows, so re-uploading the
+        same CSV is a no-op while several legitimate identical transactions
+        in the SAME file still accumulate.
         """
         if not items:
+            logger.info("import.bulk.empty")
             return ImportResult(
                 expenses=[],
                 categories_created=[],
@@ -302,10 +326,13 @@ class ExpenseRepository:
                 decisions=[],
             )
 
+        logger.info("import.bulk.start items=%d", len(items))
         created_categories: dict[str, Category] = {}
         rule_repo = ImportRuleRepository(self.session)
         prepared: list[tuple[int, Category, Decimal, str, str, str]] = []
         decisions = ["pending" for _ in items]
+        rule_excluded = 0
+        rule_categorised = 0
         for idx, item in enumerate(items):
             try:
                 clean_name = _validate_name(item.name)
@@ -321,39 +348,63 @@ class ExpenseRepository:
             )
             if rule is not None and rule.action == "exclude":
                 decisions[idx] = "excluded"
+                rule_excluded += 1
+                logger.debug(
+                    "import.bulk.rule_excluded row=%d name=%r rule=%s",
+                    idx,
+                    clean_name,
+                    rule.id,
+                )
                 continue
             if rule is not None and rule.action == "categorize":
                 assert rule.target_category_id is not None
                 category = await self.session.get(Category, rule.target_category_id)
                 assert category is not None
+                rule_categorised += 1
+                logger.debug(
+                    "import.bulk.rule_categorised row=%d name=%r rule=%s category=%s",
+                    idx,
+                    clean_name,
+                    rule.id,
+                    category.id,
+                )
             else:
                 category = await self._resolve_or_create_category(item.category, created_categories)
             prepared.append((idx, category, clean_amount, clean_date, clean_name, item.note or ""))
 
-        in_file_counts: Counter[tuple[str, str, Decimal, str, str]] = Counter()
-        for _, cat, amount, date, name, note in prepared:
-            in_file_counts[(date, name, amount, cat.id, note)] += 1
+        DedupKey = tuple[str, str, Decimal, str]
+        in_file_counts: Counter[DedupKey] = Counter()
+        for _, _cat, amount, date, name, note in prepared:
+            in_file_counts[(date, _normalize_text(name), amount, _normalize_text(note))] += 1
 
-        quotas: dict[tuple[str, str, Decimal, str, str], int] = {}
+        quotas: dict[DedupKey, int] = {}
         for key, in_file in in_file_counts.items():
-            date, name, amount, category_id, note = key
+            date, name_norm, amount, note_norm = key
             existing = await self.session.scalar(
                 select(func.count())
                 .select_from(Expense)
                 .where(
                     Expense.date == date,
-                    Expense.name == name,
+                    func.lower(func.trim(Expense.name)) == name_norm,
                     Expense.amount == amount,
-                    Expense.category_id == category_id,
-                    Expense.note == note,
+                    func.lower(func.trim(Expense.note)) == note_norm,
                 )
             )
             quotas[key] = max(0, in_file - int(existing or 0))
+            logger.debug(
+                "import.bulk.dedup date=%s name=%r amount=%s in_file=%d existing=%d quota=%d",
+                date,
+                name_norm,
+                amount,
+                in_file,
+                int(existing or 0),
+                quotas[key],
+            )
 
         created_expenses: list[Expense] = []
         skipped = 0
         for item_idx, cat, amount, date, name, note in prepared:
-            key = (date, name, amount, cat.id, note)
+            key = (date, _normalize_text(name), amount, _normalize_text(note))
             if quotas[key] > 0:
                 quotas[key] -= 1
                 row = Expense(
@@ -372,6 +423,15 @@ class ExpenseRepository:
                 decisions[item_idx] = "duplicate"
 
         await self.session.flush()
+        logger.info(
+            "import.bulk.done created=%d duplicates=%d excluded=%d rule_categorised=%d "
+            "categories_created=%d",
+            len(created_expenses),
+            skipped,
+            rule_excluded,
+            rule_categorised,
+            len(created_categories),
+        )
         return ImportResult(
             expenses=created_expenses,
             categories_created=list(created_categories.values()),

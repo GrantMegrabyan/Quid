@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -10,6 +11,17 @@ from fastapi.responses import JSONResponse
 from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_for
 from quid_api.routers import categories, expenses, health, import_rules, testing
 from quid_api.settings import Settings, get_settings
+
+
+def configure_logging(level: str) -> None:
+    resolved = getattr(logging, level.upper(), logging.INFO)
+    root = logging.getLogger()
+    quid = logging.getLogger("quid_api")
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        root.addHandler(handler)
+    quid.setLevel(resolved)
 
 
 def _error_body(code: RepositoryErrorCode | str, message: str) -> dict[str, str]:
@@ -40,6 +52,7 @@ async def _validation_error_handler(_: Request, exc: Exception) -> JSONResponse:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     cfg = settings or get_settings()
+    configure_logging(cfg.log_level)
     app = FastAPI(
         title="Quid API",
         version="0.1.0",

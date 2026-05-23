@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
@@ -25,6 +26,8 @@ from quid_api.settings import Settings, get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/expenses", tags=["expenses"])
 
@@ -112,6 +115,11 @@ async def import_csv(
             "At least one CSV file is required.",
         )
 
+    logger.info(
+        "import.csv.start files=%d ai=%s",
+        len(files),
+        ai_categorize,
+    )
     parsed_files = []
     item_ranges: list[tuple[int, int]] = []
     all_items: list[BulkItem] = []
@@ -123,6 +131,12 @@ async def import_csv(
         start = len(all_items)
         all_items.extend(parsed.items)
         item_ranges.append((start, len(parsed.items)))
+        logger.info(
+            "import.csv.parsed filename=%s parsed_rows=%d skipped_invalid=%d",
+            parsed.filename,
+            len(parsed.items),
+            parsed.skipped_rows,
+        )
 
     ai_categorized = 0
     if ai_categorize and all_items:
@@ -139,6 +153,14 @@ async def import_csv(
     repo = ExpenseRepository(session)
     result = await repo.bulk_import(all_items)
     await session.commit()
+    logger.info(
+        "import.csv.done imported=%d duplicates=%d excluded=%d invalid=%d ai_categorized=%d",
+        len(result.expenses),
+        result.skipped_duplicates,
+        result.skipped_excluded,
+        sum(p.skipped_rows for p in parsed_files),
+        ai_categorized,
+    )
 
     reports = []
     for parsed, (start, count) in zip(parsed_files, item_ranges, strict=True):

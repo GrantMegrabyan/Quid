@@ -15,12 +15,19 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from alembic import command
 from quid_api.category_helpers import UNCATEGORIZED_ID
 from quid_api.db import build_engine
+from quid_api.main import configure_logging
 from quid_api.repositories.categories import CategoryRepository
 from quid_api.repositories.expenses import ExpenseRepository
 from quid_api.seed import CATEGORY_SEEDS, reset_and_seed, seed_samples
 from quid_api.settings import get_settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Quid API toolkit.")
+
+
+@app.callback()
+def _bootstrap() -> None:
+    configure_logging(get_settings().log_level)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"

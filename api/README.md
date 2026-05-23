@@ -81,11 +81,19 @@ Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates a
 
 ### Idempotency
 
-The endpoint deduplicates by the tuple `(date, name, amount, category_id, note)`.
-For each unique tuple, the server inserts `max(0, rows_in_file − rows_already_in_db)`,
-so re-uploading the same file is a no-op while legitimate identical transactions
-can still accumulate over time. The response reports `imported`, `skippedDuplicates`,
-and `skippedInvalidRows`, plus a per-file breakdown.
+The endpoint deduplicates by the tuple `(date, lower(trim(name)), amount, lower(trim(note)))`.
+Category is intentionally excluded from the key: AI categorisation is non-deterministic
+across runs, import-rule sets change over time, and users re-categorise rows by hand —
+including category in the key let identical transactions slip through whenever the
+category drifted between imports.
+
+For each unique normalised tuple, the server inserts
+`max(0, rows_in_file − rows_already_in_db)`, so re-uploading the same file is a no-op
+while several legitimate identical transactions in the **same** file (e.g. two parking
+charges to the same merchant for the same amount on the same day) still accumulate.
+
+The response reports `imported`, `skippedDuplicates`, `skippedInvalidRows`,
+`skippedExcluded`, and a per-file breakdown.
 
 ## Verification
 

@@ -192,6 +192,57 @@ async def test_import_skips_invalid_rows_within_file(app_client):
     assert body["skippedInvalidRows"] == 2
 
 
+async def test_import_dedupes_across_uploads_with_category_drift(app_client, monkeypatch):
+    drift = {"category": "travel"}
+
+    async def fake_categorize(items, *, existing_categories, api_key, model):
+        return CategorizedBulkItems(
+            items=[replace(item, category=drift["category"]) for item in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+
+    csv = "name,amount,date\nGg Platform,-4.31,2026-04-25\n"
+
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        data={"ai_categorize": "true"},
+        files=[_upload("revolut.csv", csv)],
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["imported"] == 1
+
+    drift["category"] = "transport"
+    second = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        data={"ai_categorize": "true"},
+        files=[_upload("revolut.csv", csv)],
+    )
+    assert second.status_code == 201, second.text
+    body = second.json()
+    assert body["imported"] == 0, body
+    assert body["skippedDuplicates"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+
+
+async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
+    upper = "name,category,amount,date,note\nGG PLATFORM,travel,-4.31,2026-04-25,\n"
+    mixed = "name,category,amount,date,note\nGg Platform,travel,-4.31,2026-04-25,\n"
+
+    first = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("a.csv", upper)])
+    assert first.json()["imported"] == 1
+
+    second = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("b.csv", mixed)])
+    assert second.json()["imported"] == 0
+    assert second.json()["skippedDuplicates"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+
+
 async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
     async def fake_categorize(items, *, existing_categories, api_key, model):
         assert existing_categories
