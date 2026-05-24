@@ -6,12 +6,12 @@
 	import CumulativeChart from '$components/CumulativeChart.svelte';
 	import MonthlyBarChart from '$components/MonthlyBarChart.svelte';
 	import CategoryDoughnutChart from '$components/CategoryDoughnutChart.svelte';
+	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
 	import { refreshExpenses, importCsvFiles } from '$lib/stores/expenses';
 	import { refreshCategories } from '$lib/stores/categories';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$utils/dates';
-	import { formatAmount } from '$utils/money';
 	import { RepositoryError } from '$lib/repos';
 	import type { Expense, ImportCsvResult } from '$types';
 
@@ -41,7 +41,7 @@
 		}
 		return total;
 	});
-	const selectedMonthTotalLabel = $derived(formatAmount(selectedMonthTotal));
+
 
 	function openAdd(): void {
 		editingExpense = undefined;
@@ -161,11 +161,11 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-center justify-between gap-3">
 		<div>
-			<h1
-				data-testid="selected-month-total"
-				class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50"
-			>
-				{selectedMonthTotalLabel}
+			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+				<TweenedAmount
+					value={selectedMonthTotal}
+					testid="selected-month-total"
+				/>
 			</h1>
 			<p
 				data-testid="selected-month-heading"
