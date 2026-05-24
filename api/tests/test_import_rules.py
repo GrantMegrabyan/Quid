@@ -22,7 +22,9 @@ async def test_default_transfer_rule_is_seeded(app_client):
     assert rules[0]["matchNameValue"] == "transfer"
 
 
-async def test_transfer_rows_are_excluded_on_import(app_client):
+async def test_transfer_rows_are_not_modified_on_import(app_client):
+    # The CSV "Type" column value should NOT be prepended to the name.
+    # Names must be stored verbatim from the CSV description/name column.
     csv = (
         "Type,Completed Date,Description,Amount,State\n"
         "Transfer,2026-04-01 09:00:00,Pocket Withdrawal,-100.00,COMPLETED\n"
@@ -31,11 +33,14 @@ async def test_transfer_rows_are_excluded_on_import(app_client):
     res = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("bank.csv", csv)])
     assert res.status_code == 201, res.text
     body = res.json()
-    assert body["imported"] == 1
-    assert body["skippedExcluded"] == 1
-    assert body["files"][0]["skippedExcluded"] == 1
+    assert body["imported"] == 2
+    assert body["skippedExcluded"] == 0
     expenses = (await app_client.get("/api/v1/expenses")).json()
-    assert [e["name"] for e in expenses] == ["Pret"]
+    names = {e["name"] for e in expenses}
+    assert "Pocket Withdrawal" in names
+    assert "Pret" in names
+    # Names must NOT have been prefixed with "Transfer · "
+    assert not any("Transfer ·" in e["name"] for e in expenses)
 
 
 async def test_categorize_rule_by_name_amount_and_date(app_client):
