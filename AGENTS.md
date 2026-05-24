@@ -4,6 +4,7 @@
 
 - Treat this as a shared worktree. Do not revert or overwrite changes you did not make.
 - Commit after each meaningful chunk of work unless the user asks not to commit. Keep commits focused and inspect `git status`/`git diff` before committing.
+- Keep this file updated when new project-specific context, workflows, or constraints are discovered during sessions.
 - Ask before destructive or shared-impact operations, especially database wipes, branch resets, force pushes, or deleting files.
 - Prefer small, direct changes that match existing patterns over broad refactors.
 
