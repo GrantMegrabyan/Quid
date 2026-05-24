@@ -29,7 +29,8 @@ async def _wipe(session: AsyncSession) -> None:
     )
     await session.execute(
         text(
-            "UPDATE categories SET name='Uncategorized', color=:c, icon='circle-help' WHERE id=:uid"
+            "UPDATE categories SET name='Uncategorized', color=:c, icon='circle-help', "
+            "description='' WHERE id=:uid"
         ),
         {"c": UNCATEGORIZED_COLOR, "uid": UNCATEGORIZED_ID},
     )
@@ -57,6 +58,7 @@ class _SeedCategory(_Camel):
     name: str
     color: str
     icon: str
+    description: str = ""
 
 
 class _SeedExpense(_Camel):
@@ -86,11 +88,27 @@ async def seed_state(payload: _SeedState, session: SessionDep) -> _SeedResponse:
     for cat in payload.categories:
         if cat.id == UNCATEGORIZED_ID:
             await session.execute(
-                text("UPDATE categories SET name=:n, color=:c, icon=:i WHERE id=:uid"),
-                {"n": cat.name, "c": cat.color, "i": cat.icon, "uid": UNCATEGORIZED_ID},
+                text(
+                    "UPDATE categories SET name=:n, color=:c, icon=:i, description=:d WHERE id=:uid"
+                ),
+                {
+                    "n": cat.name,
+                    "c": cat.color,
+                    "i": cat.icon,
+                    "d": cat.description,
+                    "uid": UNCATEGORIZED_ID,
+                },
             )
             continue
-        session.add(Category(id=cat.id, name=cat.name, color=cat.color, icon=cat.icon))
+        session.add(
+            Category(
+                id=cat.id,
+                name=cat.name,
+                color=cat.color,
+                icon=cat.icon,
+                description=cat.description,
+            )
+        )
     await session.flush()
 
     for exp in payload.expenses:

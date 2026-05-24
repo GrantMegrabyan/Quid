@@ -11,6 +11,7 @@ async def test_list_initial_state(app_client):
     assert cat["name"] == "Uncategorized"
     assert "color" in cat
     assert "icon" in cat
+    assert "description" in cat
 
 
 async def test_get_uncategorized(app_client):
@@ -36,6 +37,7 @@ async def test_create_category(app_client):
     body = res.json()
     assert body["name"] == "Groceries"
     assert body["icon"] == "shopping-cart"
+    assert body["description"] == ""
     assert body["id"].startswith("cat-")
     assert body["color"].startswith("#")
 

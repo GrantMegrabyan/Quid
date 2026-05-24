@@ -23,6 +23,12 @@ def _normalize_name(value: str | None) -> str:
     return value.strip()
 
 
+def _normalize_description(value: str | None) -> str:
+    if value is None:
+        return ""
+    return " ".join(value.split())
+
+
 async def _find_duplicate(
     session: AsyncSession, name: str, exclude_id: str | None = None
 ) -> Category | None:
@@ -59,6 +65,7 @@ class CategoryRepository:
         name: str,
         color: str | None = None,
         icon: str | None = None,
+        description: str = "",
     ) -> Category:
         clean_name = _normalize_name(name)
         if clean_name == "":
@@ -83,6 +90,7 @@ class CategoryRepository:
             name=clean_name,
             color=resolved_color,
             icon=resolved_icon,
+            description=_normalize_description(description),
         )
         self.session.add(row)
         await self.session.flush()
@@ -95,6 +103,7 @@ class CategoryRepository:
         name: str | None = None,
         color: str | None = None,
         icon: str | None = None,
+        description: str | None = None,
     ) -> Category:
         row = await self.get(category_id)
 
@@ -123,6 +132,9 @@ class CategoryRepository:
 
         if icon is not None:
             row.icon = normalize_icon(icon)
+
+        if description is not None:
+            row.description = _normalize_description(description)
 
         await self.session.flush()
         return row

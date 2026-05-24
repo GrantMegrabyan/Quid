@@ -31,18 +31,21 @@ class CategoryOut(_Camel):
     name: str
     color: str
     icon: str
+    description: str
 
 
 class CategoryCreate(_Camel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     color: str | None = None
     icon: str | None = None
+    description: Annotated[str, Field(max_length=1000)] = ""
 
 
 class CategoryUpdate(_Camel):
     name: str | None = None
     color: str | None = None
     icon: str | None = None
+    description: Annotated[str | None, Field(max_length=1000)] = None
 
 
 class ExpenseOut(_Camel):

@@ -33,7 +33,12 @@ async def get_category(category_id: str, session: SessionDep) -> CategoryOut:
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
 async def create_category(payload: CategoryCreate, session: SessionDep) -> CategoryOut:
     repo = CategoryRepository(session)
-    row = await repo.create(name=payload.name, color=payload.color, icon=payload.icon)
+    row = await repo.create(
+        name=payload.name,
+        color=payload.color,
+        icon=payload.icon,
+        description=payload.description,
+    )
     await session.commit()
     return CategoryOut.model_validate(row)
 

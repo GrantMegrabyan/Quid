@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal  # noqa: TC003  SQLAlchemy needs runtime access for Mapped[]
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -17,6 +17,7 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     color: Mapped[str] = mapped_column(String, nullable=False)
     icon: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     expenses: Mapped[list[Expense]] = relationship(
         back_populates="category",
