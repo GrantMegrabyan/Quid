@@ -240,7 +240,7 @@
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 			<label class="flex flex-col gap-1 text-sm">
 				<span>Action</span>
-				<select bind:value={form.action} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.action} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
 					<option value="categorize">Categorize</option>
 					<option value="exclude">Exclude</option>
 				</select>
@@ -248,7 +248,7 @@
 			{#if form.action === 'categorize'}
 				<label class="flex flex-col gap-1 text-sm md:col-span-2">
 					<span>Target category</span>
-					<select bind:value={form.targetCategoryId} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+					<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
 						<option value="">Choose category</option>
 						{#each $categories as category (category.id)}
 							<option value={category.id}>{category.name}</option>
@@ -261,7 +261,7 @@
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 			<label class="flex flex-col gap-1 text-sm">
 				<span>Name match</span>
-				<select bind:value={form.matchNameOp} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
 					<option value="">No name condition</option>
 					<option value="contains">contains</option>
 					<option value="equals">equals</option>
@@ -278,7 +278,7 @@
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 			<label class="flex flex-col gap-1 text-sm">
 				<span>Amount match</span>
-				<select bind:value={form.matchAmountOp} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
 					<option value="">No amount condition</option>
 					<option value="gte">≥</option>
 					<option value="lte">≤</option>
