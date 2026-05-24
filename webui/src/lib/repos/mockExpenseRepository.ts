@@ -1,4 +1,10 @@
-import type { Expense, ImportCsvResult } from '$types';
+import type {
+	Expense,
+	ImportCsvConfirmRequest,
+	ImportCsvConfirmResult,
+	ImportCsvPreviewResult,
+	ImportCsvResult
+} from '$types';
 import { getStore, setStore } from './mockStore.js';
 import { RepositoryError } from './types.js';
 import type { ExpenseRepository, ListExpensesQuery } from './types.js';
@@ -39,6 +45,7 @@ export class MockExpenseRepository implements ExpenseRepository {
 				date: patch.date ?? existing.date,
 				categoryId: patch.categoryId ?? existing.categoryId,
 				note: patch.note ?? existing.note,
+				displayName: patch.displayName !== undefined ? patch.displayName : existing.displayName,
 			};
 		});
 		return newState.expenses.find((e) => e.id === id)!;
@@ -57,6 +64,20 @@ export class MockExpenseRepository implements ExpenseRepository {
 		throw new RepositoryError(
 			'VALIDATION',
 			`CSV import is only supported by the HTTP backend (received ${files.length} file(s)).`
+		);
+	}
+
+	async previewImportCsv(files: File[]): Promise<ImportCsvPreviewResult> {
+		throw new RepositoryError(
+			'VALIDATION',
+			`CSV import preview is only supported by the HTTP backend (received ${files.length} file(s)).`
+		);
+	}
+
+	async confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult> {
+		throw new RepositoryError(
+			'VALIDATION',
+			`CSV import confirmation is only supported by the HTTP backend (${input.importId}).`
 		);
 	}
 }

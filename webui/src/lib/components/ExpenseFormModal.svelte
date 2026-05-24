@@ -20,6 +20,7 @@
 	let dateInput = $state('');
 	let categoryInput = $state('');
 	let noteInput = $state('');
+	let displayNameInput = $state('');
 
 	let nameError = $state('');
 	let amountError = $state('');
@@ -46,12 +47,14 @@
 			dateInput = expense.date;
 			categoryInput = expense.categoryId;
 			noteInput = expense.note;
+			displayNameInput = expense.displayName ?? '';
 		} else {
 			nameInput = '';
 			amountInput = '';
 			dateInput = todayIso();
 			categoryInput = '';
 			noteInput = '';
+			displayNameInput = '';
 		}
 	}
 
@@ -141,7 +144,10 @@
 			};
 
 			if (expense) {
-				await editExpense(expense.id, payload);
+				await editExpense(expense.id, {
+					...payload,
+					displayName: displayNameInput.trim() || null
+				});
 			} else {
 				await addExpense(payload);
 			}
@@ -293,26 +299,47 @@
 					{/if}
 				</div>
 
+			<div class="flex flex-col gap-1">
+				<label
+					for="expense-note"
+					class="text-sm font-medium text-gray-700 dark:text-gray-300"
+				>
+					Note
+				</label>
+				<input
+					id="expense-note"
+					bind:value={noteInput}
+					data-testid="note-input"
+					type="text"
+					maxlength="200"
+					autocomplete="off"
+					class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+				/>
+				<p class="text-right text-xs text-gray-500 dark:text-gray-400">
+					{noteInput.length}/200
+				</p>
+			</div>
+
+			{#if isEdit}
 				<div class="flex flex-col gap-1">
 					<label
-						for="expense-note"
+						for="expense-display-name"
 						class="text-sm font-medium text-gray-700 dark:text-gray-300"
 					>
-						Note
+						Display name
 					</label>
 					<input
-						id="expense-note"
-						bind:value={noteInput}
-						data-testid="note-input"
+						id="expense-display-name"
+						bind:value={displayNameInput}
+						data-testid="display-name-input"
 						type="text"
 						maxlength="200"
 						autocomplete="off"
+						placeholder="Leave blank to use merchant name"
 						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
 					/>
-					<p class="text-right text-xs text-gray-500 dark:text-gray-400">
-						{noteInput.length}/200
-					</p>
 				</div>
+			{/if}
 
 				<div
 					class="mt-auto flex items-center justify-end gap-2 pt-2 sm:mt-2"

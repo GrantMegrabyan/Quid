@@ -47,6 +47,7 @@ class Expense(Base):
         nullable=False,
     )
     note: Mapped[str] = mapped_column(String, nullable=False, default="")
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     category: Mapped[Category] = relationship(
         back_populates="expenses",
@@ -87,6 +88,8 @@ class ImportRule(Base):
 
     match_date_from: Mapped[str | None] = mapped_column(String, nullable=True)
     match_date_to: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    set_display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 

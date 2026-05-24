@@ -86,7 +86,7 @@
 		for (const [id, items] of transactionsByGroupId) {
 			const first = items[0];
 			const category = categoryById.get(first.categoryId);
-			const name = groupBy === 'merchant' ? first.name : (category?.name ?? 'Uncategorized');
+			const name = groupBy === 'merchant' ? (first.displayName ?? first.name) : (category?.name ?? 'Uncategorized');
 			let amount = 0;
 			for (const item of items) amount += item.amount;
 			groups.push({ id, name, count: items.length, amount, category });
@@ -260,15 +260,15 @@
 					</div>
 
 					<div class="min-w-0 flex-1">
-						<p
-							class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
-						>
-							{expense.name}
-						</p>
-						<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-							{formatDate(expense.date)}
-						</p>
-						<span class="sr-only">{categoryName}</span>
+					<p
+						class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
+					>
+						{expense.displayName ?? expense.name}
+					</p>
+					<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+						{formatDate(expense.date)}
+					</p>
+					<span class="sr-only">{categoryName}</span>
 						{#if expense.note}
 							<span class="sr-only">{expense.note}</span>
 						{/if}
@@ -384,12 +384,12 @@
 										{/if}
 
 										<div class="min-w-0 flex-1">
-											{#if groupBy === 'category'}
-												<p
-													class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
-												>
-													{expense.name}
-												</p>
+									{#if groupBy === 'category'}
+											<p
+												class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
+											>
+												{expense.displayName ?? expense.name}
+											</p>
 												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
 													{formatDate(expense.date)}
 												</p>

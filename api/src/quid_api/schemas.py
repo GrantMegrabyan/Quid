@@ -55,6 +55,7 @@ class ExpenseOut(_Camel):
     date: str
     category_id: str
     note: str
+    display_name: str | None = None
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> float:
@@ -82,6 +83,7 @@ class ExpenseUpdate(_Camel):
     date: str | None = None
     category_id: str | None = None
     note: str | None = None
+    display_name: str | None = None
 
     @field_validator("amount")
     @classmethod
@@ -130,6 +132,85 @@ class ImportCsvResponse(_Camel):
     files: list[ImportCsvFileReport]
 
 
+ImportPreviewKind = Literal["create", "category_update", "duplicate_same_category", "excluded"]
+
+
+class ImportPreviewCategory(_Camel):
+    id: str | None = None
+    name: str
+    exists: bool = False
+
+
+class ImportPreviewRow(_Camel):
+    preview_row_id: str
+    filename: str
+    source_row: int
+    dedupe_key_hash: str
+    name: str
+    amount: Decimal
+    date: str
+    note: str
+    kind: ImportPreviewKind
+    existing_expense_id: str | None = None
+    existing_category_id: str | None = None
+    suggested_category: ImportPreviewCategory
+    existing_category_name: str | None = None
+
+    @field_serializer("amount")
+    def _ser_amount(self, value: Decimal) -> float:
+        return float(value)
+
+
+class ImportCsvPreviewSummary(_Camel):
+    creates: int
+    category_updates: int
+    hidden_duplicates: int
+    excluded: int
+    invalid_rows: int
+    ai_categorized: int
+
+
+class ImportCsvPreviewResponse(_Camel):
+    import_id: str
+    rows: list[ImportPreviewRow]
+    summary: ImportCsvPreviewSummary
+    files: list[ImportCsvFileReport]
+
+
+class ImportCsvConfirmCreateRow(_Camel):
+    preview_row_id: str
+    dedupe_key_hash: str
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    amount: Decimal
+    date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    note: str = ""
+    category_name: Annotated[str, Field(min_length=1, max_length=120)]
+
+
+class ImportCsvConfirmCategoryUpdateRow(_Camel):
+    preview_row_id: str
+    dedupe_key_hash: str
+    existing_expense_id: str
+    category_name: Annotated[str, Field(min_length=1, max_length=120)]
+    accept: bool = True
+
+
+class ImportCsvConfirmRequest(_Camel):
+    import_id: str
+    creates: list[ImportCsvConfirmCreateRow] = Field(default_factory=list)
+    category_updates: list[ImportCsvConfirmCategoryUpdateRow] = Field(default_factory=list)
+
+
+class ImportCsvConfirmResponse(_Camel):
+    created: int
+    updated: int
+    skipped_duplicates: int
+    skipped_stale_updates: int
+    kept_existing: int
+    categories_created: list[CategoryOut]
+    expenses: list[ExpenseOut]
+
+
 NameMatchOp = Literal["contains", "equals", "starts_with", "ends_with"]
 AmountMatchOp = Literal["gte", "lte", "eq", "between"]
 RuleAction = Literal["exclude", "categorize"]
@@ -149,6 +230,7 @@ class ImportRuleOut(_Camel):
     match_amount_value2: Decimal | None
     match_date_from: str | None
     match_date_to: str | None
+    set_display_name: str | None = None
     created_at: str
 
     @field_serializer("match_amount_value", "match_amount_value2")
@@ -169,6 +251,7 @@ class ImportRuleCreate(_Camel):
     match_amount_value2: Decimal | None = None
     match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    set_display_name: str | None = None
 
 
 class ImportRuleUpdate(_Camel):
@@ -184,6 +267,7 @@ class ImportRuleUpdate(_Camel):
     match_amount_value2: Decimal | None = None
     match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    set_display_name: str | None = None
 
 
 class ImportRuleApplyResponse(_Camel):

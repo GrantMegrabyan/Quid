@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_UNSET: object = object()
+
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _WS_RE = re.compile(r"\s+")
 
@@ -195,6 +197,7 @@ class ExpenseRepository:
         date: str | None = None,
         category_id: str | None = None,
         note: str | None = None,
+        display_name: object = _UNSET,
     ) -> Expense:
         row = await self.get(expense_id)
 
@@ -209,6 +212,8 @@ class ExpenseRepository:
             row.category_id = category_id
         if note is not None:
             row.note = note
+        if display_name is not _UNSET:
+            row.display_name = display_name  # type: ignore[assignment]
 
         await self.session.flush()
         return row
@@ -331,7 +336,7 @@ class ExpenseRepository:
         logger.info("import.bulk.start items=%d", len(items))
         created_categories: dict[str, Category] = {}
         rule_repo = ImportRuleRepository(self.session)
-        prepared: list[tuple[int, Category, Decimal, str, str, str]] = []
+        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None]] = []
         decisions = ["pending" for _ in items]
         rule_excluded = 0
         rule_categorised = 0
@@ -377,11 +382,22 @@ class ExpenseRepository:
                 )
             else:
                 category = await self._resolve_or_create_category(item.category, created_categories)
-            prepared.append((idx, category, clean_amount, clean_date, clean_name, item.note or ""))
+            item_display_name: str | None = rule.set_display_name if rule is not None else None
+            prepared.append(
+                (
+                    idx,
+                    category,
+                    clean_amount,
+                    clean_date,
+                    clean_name,
+                    item.note or "",
+                    item_display_name,
+                )
+            )
 
         DedupKey = tuple[str, str, Decimal, str]
         in_file_counts: Counter[DedupKey] = Counter()
-        for _, _cat, amount, date, name, note in prepared:
+        for _, _cat, amount, date, name, note, _dn in prepared:
             in_file_counts[(date, _normalize_text(name), amount, _normalize_text(note))] += 1
 
         quotas: dict[DedupKey, int] = {}
@@ -417,7 +433,7 @@ class ExpenseRepository:
 
         created_expenses: list[Expense] = []
         skipped = 0
-        for item_idx, cat, amount, date, name, note in prepared:
+        for item_idx, cat, amount, date, name, note, display_name in prepared:
             key = (date, _normalize_text(name), amount, _normalize_text(note))
             if quotas[key] > 0:
                 quotas[key] -= 1
@@ -428,6 +444,7 @@ class ExpenseRepository:
                     date=date,
                     category_id=cat.id,
                     note=note,
+                    display_name=display_name,
                 )
                 self.session.add(row)
                 created_expenses.append(row)

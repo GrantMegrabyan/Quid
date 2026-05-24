@@ -12,6 +12,7 @@ export interface Expense {
 	date: string;
 	categoryId: string;
 	note: string;
+	displayName?: string | null;
 }
 
 export interface Category {
@@ -45,6 +46,80 @@ export interface ImportCsvResult {
 	files: ImportCsvFileReport[];
 }
 
+export type ImportPreviewKind = 'create' | 'category_update' | 'duplicate_same_category' | 'excluded';
+
+export interface ImportPreviewCategory {
+ 	id: string | null;
+ 	name: string;
+ 	exists: boolean;
+}
+
+export interface ImportPreviewRow {
+ 	previewRowId: string;
+ 	filename: string;
+ 	sourceRow: number;
+ 	dedupeKeyHash: string;
+ 	name: string;
+ 	amount: number;
+ 	date: string;
+ 	note: string;
+ 	kind: ImportPreviewKind;
+ 	existingExpenseId: string | null;
+ 	existingCategoryId: string | null;
+ 	existingCategoryName: string | null;
+ 	suggestedCategory: ImportPreviewCategory;
+}
+
+export interface ImportCsvPreviewSummary {
+ 	creates: number;
+ 	categoryUpdates: number;
+ 	hiddenDuplicates: number;
+ 	excluded: number;
+ 	invalidRows: number;
+ 	aiCategorized: number;
+}
+
+export interface ImportCsvPreviewResult {
+ 	importId: string;
+ 	rows: ImportPreviewRow[];
+ 	summary: ImportCsvPreviewSummary;
+ 	files: ImportCsvFileReport[];
+}
+
+export interface ImportCsvConfirmCreateRow {
+ 	previewRowId: string;
+ 	dedupeKeyHash: string;
+ 	name: string;
+ 	amount: number;
+ 	date: string;
+ 	note: string;
+ 	categoryName: string;
+}
+
+export interface ImportCsvConfirmCategoryUpdateRow {
+ 	previewRowId: string;
+ 	dedupeKeyHash: string;
+ 	existingExpenseId: string;
+ 	categoryName: string;
+ 	accept: boolean;
+}
+
+export interface ImportCsvConfirmRequest {
+ 	importId: string;
+ 	creates: ImportCsvConfirmCreateRow[];
+ 	categoryUpdates: ImportCsvConfirmCategoryUpdateRow[];
+}
+
+export interface ImportCsvConfirmResult {
+ 	created: number;
+ 	updated: number;
+ 	skippedDuplicates: number;
+ 	skippedStaleUpdates: number;
+ 	keptExisting: number;
+ 	categoriesCreated: Category[];
+ 	expenses: Expense[];
+}
+
 export type RuleAction = 'exclude' | 'categorize';
 export type NameMatchOp = 'contains' | 'equals' | 'starts_with' | 'ends_with';
 export type AmountMatchOp = 'gte' | 'lte' | 'eq' | 'between';
@@ -63,6 +138,7 @@ export interface ImportRule {
 	matchAmountValue2: number | null;
 	matchDateFrom: string | null;
 	matchDateTo: string | null;
+	setDisplayName: string | null;
 	createdAt: string;
 }
 

@@ -130,6 +130,7 @@ class ImportRuleRepository:
         match_amount_value2: Decimal | None,
         match_date_from: str | None,
         match_date_to: str | None,
+        set_display_name: str | None = None,
     ) -> ImportRule:
         row = ImportRule(
             id=f"rule-{uuid4()}",
@@ -145,6 +146,7 @@ class ImportRuleRepository:
             match_amount_value2=match_amount_value2,
             match_date_from=match_date_from,
             match_date_to=match_date_to,
+            set_display_name=set_display_name,
             created_at=_now_iso(),
         )
         await self._validate(row)

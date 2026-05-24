@@ -30,6 +30,7 @@
 		matchAmountValue2: string;
 		matchDateFrom: string;
 		matchDateTo: string;
+		setDisplayName: string;
 	};
 
 	const emptyForm = (): FormState => ({
@@ -44,7 +45,8 @@
 		matchAmountValue: '',
 		matchAmountValue2: '',
 		matchDateFrom: '',
-		matchDateTo: ''
+		matchDateTo: '',
+		setDisplayName: ''
 	});
 
 	let form = $state<FormState>(emptyForm());
@@ -90,11 +92,12 @@
 			matchNameOp: rule.matchNameOp ?? '',
 			matchNameValue: rule.matchNameValue ?? '',
 			matchAmountOp: rule.matchAmountOp ?? '',
-			matchAmountValue: rule.matchAmountValue === null ? '' : String(rule.matchAmountValue),
-			matchAmountValue2: rule.matchAmountValue2 === null ? '' : String(rule.matchAmountValue2),
-			matchDateFrom: rule.matchDateFrom ?? '',
-			matchDateTo: rule.matchDateTo ?? ''
-		};
+		matchAmountValue: rule.matchAmountValue === null ? '' : String(rule.matchAmountValue),
+		matchAmountValue2: rule.matchAmountValue2 === null ? '' : String(rule.matchAmountValue2),
+		matchDateFrom: rule.matchDateFrom ?? '',
+		matchDateTo: rule.matchDateTo ?? '',
+		setDisplayName: rule.setDisplayName ?? ''
+	};
 		error = '';
 		message = '';
 	}
@@ -131,7 +134,8 @@
 			matchAmountValue2:
 				hasAmount && form.matchAmountOp === 'between' ? Number(form.matchAmountValue2) : null,
 			matchDateFrom: form.matchDateFrom || null,
-			matchDateTo: form.matchDateTo || null
+			matchDateTo: form.matchDateTo || null,
+			setDisplayName: form.setDisplayName.trim() || null
 		};
 	}
 
@@ -302,6 +306,13 @@
 			<label class="flex flex-col gap-1 text-sm">
 				<span>Date to</span>
 				<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+			</label>
+		</div>
+
+		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+			<label class="flex flex-col gap-1 text-sm md:col-span-2">
+				<span>Set display name <span class="text-gray-400">(optional)</span></span>
+				<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
 			</label>
 		</div>
 
