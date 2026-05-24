@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 from quid_api.ai_categorization import CategorizedBulkItems
 
@@ -195,7 +196,7 @@ async def test_import_skips_invalid_rows_within_file(app_client):
 async def test_import_dedupes_across_uploads_with_category_drift(app_client, monkeypatch):
     drift = {"category": "travel"}
 
-    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         return CategorizedBulkItems(
             items=[replace(item, category=drift["category"]) for item in items],
             categorized=len(items),
@@ -241,7 +242,7 @@ async def test_import_preview_shows_category_drift_without_saving(app_client, mo
     transport_id = first.json()["expenses"][0]["categoryId"]
     assert first.json()["expenses"][0]["categoryId"] == transport_id
 
-    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         return CategorizedBulkItems(
             items=[replace(item, category="groceries") for item in items],
             categorized=len(items),
@@ -278,7 +279,7 @@ async def test_import_confirm_creates_and_updates_categories(app_client, monkeyp
         ],
     )
 
-    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         updated = []
         for item in items:
             category = "groceries" if item.name == "Gg Platform" else "coffee"
@@ -367,7 +368,7 @@ async def test_import_dedupes_across_uploads_with_internal_whitespace_drift(app_
 
 
 async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
-    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         assert existing_categories
         assert ai_rules
         assert api_key is None
@@ -392,7 +393,7 @@ async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
 
 
 async def test_import_can_ai_exclude_transactions(app_client, monkeypatch):
-    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         assert "Exclude transfers from categorisation/imports." in ai_rules
         updated = [replace(item, category="other") for item in items]
         return CategorizedBulkItems(

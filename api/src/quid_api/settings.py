@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_file: str = "./.data/quid.log"
     openrouter_api_key: str | None = None
     openrouter_model: str = "openai/gpt-5.4-mini"
+    openrouter_chunk_size: int = 25
 
 
 _settings: Settings | None = None

@@ -154,6 +154,7 @@ async def _categorize_if_requested(
         ai_rules=ai_rules,
         api_key=settings.openrouter_api_key,
         model=settings.openrouter_model,
+        chunk_size=settings.openrouter_chunk_size,
     )
     logger.info(
         "import.csv.ai.done import_id=%s categorized=%d excluded=%d model=%s",
@@ -649,6 +650,7 @@ async def import_csv(
             ai_rules=ai_rules,
             api_key=settings.openrouter_api_key,
             model=settings.openrouter_model,
+            chunk_size=settings.openrouter_chunk_size,
         )
         all_items = categorized.items
         ai_categorized = categorized.categorized
