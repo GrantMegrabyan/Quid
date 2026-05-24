@@ -161,3 +161,14 @@ export interface AiRule {
 
 export type AiRuleCreate = Omit<AiRule, 'id' | 'createdAt'>;
 export type AiRuleUpdate = Partial<AiRuleCreate>;
+
+export interface ImportLog {
+	id: string;
+	importedAt: string;
+	files: string[];
+	imported: number;
+	updated: number;
+	skippedDuplicates: number;
+	skippedExcluded: number;
+	skippedInvalidRows: number;
+}

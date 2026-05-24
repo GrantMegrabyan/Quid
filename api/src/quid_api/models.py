@@ -156,3 +156,18 @@ class AiRule(Base):
         CheckConstraint("length(trim(text)) > 0", name="ck_ai_rules_text_not_blank"),
         Index("ix_ai_rules_priority", "priority"),
     )
+
+
+class ImportLog(Base):
+    __tablename__ = "import_logs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    imported_at: Mapped[str] = mapped_column(String, nullable=False)
+    files: Mapped[str] = mapped_column(Text, nullable=False)
+    imported: Mapped[int] = mapped_column(nullable=False, default=0)
+    updated: Mapped[int] = mapped_column(nullable=False, default=0)
+    skipped_duplicates: Mapped[int] = mapped_column(nullable=False, default=0)
+    skipped_excluded: Mapped[int] = mapped_column(nullable=False, default=0)
+    skipped_invalid_rows: Mapped[int] = mapped_column(nullable=False, default=0)
+
+    __table_args__ = (Index("ix_import_logs_imported_at", "imported_at"),)

@@ -3,7 +3,8 @@ import type {
 	ImportCsvConfirmRequest,
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
-	ImportCsvResult
+	ImportCsvResult,
+	ImportLog
 } from '$types';
 import { getStore, setStore } from './mockStore.js';
 import { RepositoryError } from './types.js';
@@ -79,6 +80,10 @@ export class MockExpenseRepository implements ExpenseRepository {
 			'VALIDATION',
 			`CSV import confirmation is only supported by the HTTP backend (${input.importId}).`
 		);
+	}
+
+	async listImportLogs(): Promise<ImportLog[]> {
+		return [];
 	}
 }
 

@@ -3,7 +3,7 @@
 	import { RepositoryError, expenseRepository } from '$lib/repos';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshExpenses } from '$lib/stores/expenses';
-	import type { Category, ImportCsvPreviewResult, ImportPreviewRow } from '$types';
+	import type { Category, ImportCsvPreviewResult, ImportLog, ImportPreviewRow } from '$types';
 
 	type ReviewRow = ImportPreviewRow & {
 		selectedCategoryName: string;
@@ -17,6 +17,7 @@
 	let preview: ImportCsvPreviewResult | null = $state(null);
 	let rows: ReviewRow[] = $state([]);
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
+	let importLogs: ImportLog[] = $state([]);
 
 	const createRows = $derived(rows.filter((row) => row.kind === 'create'));
 	const updateRows = $derived(rows.filter((row) => row.kind === 'category_update'));
@@ -101,14 +102,15 @@
 					accept: row.acceptUpdate
 				}))
 			});
-			await refreshExpenses();
-			await refreshCategories();
-			preview = null;
-			rows = [];
-			banner = {
-				kind: 'success',
-				message: `Imported ${result.created}, updated ${result.updated}, kept ${result.keptExisting}. ${result.skippedDuplicates} duplicates and ${result.skippedStaleUpdates} stale updates skipped.`
-			};
+		await refreshExpenses();
+		await refreshCategories();
+		importLogs = await expenseRepository.listImportLogs();
+		preview = null;
+		rows = [];
+		banner = {
+			kind: 'success',
+			message: `Imported ${result.created}, updated ${result.updated}, kept ${result.keptExisting}. ${result.skippedDuplicates} duplicates and ${result.skippedStaleUpdates} stale updates skipped.`
+		};
 		} catch (err) {
 			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
 			banner = { kind: 'error', message: `Import failed: ${message}` };
@@ -119,6 +121,9 @@
 
 	onMount(() => {
 		void refreshCategories();
+		void expenseRepository.listImportLogs().then((logs) => {
+			importLogs = logs;
+		});
 	});
 </script>
 
@@ -262,6 +267,47 @@
 			</div>
 		{/if}
 	{/if}
+
+	{#if importLogs.length > 0}
+		<div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
+			<div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+				<h2 class="text-sm font-medium text-gray-900 dark:text-gray-100">Import history</h2>
+			</div>
+			<div class="import-log-row border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+				<div>Date / Time</div>
+				<div>Files</div>
+				<div>Imported</div>
+				<div>Updated</div>
+				<div>Skipped</div>
+			</div>
+			{#each importLogs as log (log.id)}
+				<div class="import-log-row border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-800">
+					<div class="text-gray-700 dark:text-gray-300">
+						{new Date(log.importedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+					</div>
+					<div class="text-gray-600 dark:text-gray-400">
+						{log.files.length > 0 ? log.files.join(', ') : '—'}
+					</div>
+					<div class="text-gray-700 dark:text-gray-300">{log.imported}</div>
+					<div class="text-gray-700 dark:text-gray-300">{log.updated}</div>
+					<div class="text-gray-500 dark:text-gray-400 text-xs">
+						{#if log.skippedDuplicates > 0}
+							<span>{log.skippedDuplicates} dup</span>
+						{/if}
+						{#if log.skippedExcluded > 0}
+							<span>{log.skippedExcluded} excl</span>
+						{/if}
+						{#if log.skippedInvalidRows > 0}
+							<span>{log.skippedInvalidRows} invalid</span>
+						{/if}
+						{#if log.skippedDuplicates === 0 && log.skippedExcluded === 0 && log.skippedInvalidRows === 0}
+							<span>—</span>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -285,6 +331,13 @@
 		align-items: end;
 	}
 
+	.import-log-row {
+		display: grid;
+		grid-template-columns: minmax(10rem, 1.2fr) minmax(10rem, 2fr) 6rem 6rem minmax(8rem, 1fr);
+		gap: 0.75rem;
+		align-items: center;
+	}
+
 	@media (max-width: 900px) {
 		.import-summary {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -292,6 +345,11 @@
 
 		.import-row,
 		.import-row-header {
+			grid-template-columns: 1fr;
+			align-items: start;
+		}
+
+		.import-log-row {
 			grid-template-columns: 1fr;
 			align-items: start;
 		}

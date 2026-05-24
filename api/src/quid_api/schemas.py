@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal  # noqa: TC003  pydantic Field reads this at runtime
 from typing import Annotated, Any, Literal
 
@@ -294,6 +295,24 @@ class AiRuleUpdate(_Camel):
     text: Annotated[str | None, Field(min_length=1, max_length=2000)] = None
     enabled: bool | None = None
     priority: int | None = None
+
+
+class ImportLogOut(_Camel):
+    id: str
+    imported_at: str
+    files: list[str]
+    imported: int
+    updated: int
+    skipped_duplicates: int
+    skipped_excluded: int
+    skipped_invalid_rows: int
+
+    @field_validator("files", mode="before")
+    @classmethod
+    def _parse_files(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            return json.loads(v)  # type: ignore[no-any-return]
+        return v  # type: ignore[return-value]
 
 
 class ErrorBody(_Camel):

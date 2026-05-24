@@ -3,7 +3,8 @@ import type {
 	ImportCsvConfirmRequest,
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
-	ImportCsvResult
+	ImportCsvResult,
+	ImportLog
 } from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
 import type { ExpenseRepository, ListExpensesQuery } from './types.js';
@@ -72,6 +73,10 @@ export class HttpExpenseRepository implements ExpenseRepository {
 			method: 'POST',
 			body: input
 		});
+	}
+
+	async listImportLogs(): Promise<ImportLog[]> {
+		return this.client.request<ImportLog[]>('api/v1/import-logs');
 	}
 }
 

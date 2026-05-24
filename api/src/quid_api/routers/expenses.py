@@ -25,6 +25,7 @@ from quid_api.repositories.expenses import (
     _validate_date,
     _validate_name,
 )
+from quid_api.repositories.import_log import ImportLogRepository
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
 from quid_api.schemas import (
     BulkExpenseRequest,
@@ -553,6 +554,15 @@ async def confirm_import_csv(
         else:
             kept_existing += 1
 
+    log_repo = ImportLogRepository(session)
+    await log_repo.create(
+        files=[],
+        imported=len(created_expenses),
+        updated=updated,
+        skipped_duplicates=skipped_duplicates,
+        skipped_excluded=0,
+        skipped_invalid_rows=0,
+    )
     await session.commit()
     logger.info(
         "import.confirm.done import_id=%s created=%d updated=%d duplicates=%d stale_updates=%d "
@@ -655,6 +665,15 @@ async def import_csv(
 
     repo = ExpenseRepository(session)
     result = await repo.bulk_import(all_items, ai_excluded_indices=ai_excluded_indices)
+    log_repo = ImportLogRepository(session)
+    await log_repo.create(
+        files=[p.filename for p in parsed_files],
+        imported=len(result.expenses),
+        updated=0,
+        skipped_duplicates=result.skipped_duplicates,
+        skipped_excluded=result.skipped_excluded,
+        skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
+    )
     await session.commit()
     logger.info(
         "import.csv.done import_id=%s imported=%d duplicates=%d excluded=%d invalid=%d "

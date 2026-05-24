@@ -5,6 +5,7 @@ import type {
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
 	ImportCsvResult,
+	ImportLog,
 	AiRule,
 	AiRuleCreate,
 	AiRuleUpdate,
@@ -36,6 +37,7 @@ export interface ExpenseRepository {
 		options?: { aiCategorize?: boolean }
 	): Promise<ImportCsvPreviewResult>;
 	confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult>;
+	listImportLogs(): Promise<ImportLog[]>;
 }
 
 /**
