@@ -25,6 +25,7 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
 | `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for optional AI categorisation during CSV import. |
 | `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for CSV import categorisation. |
+| `QUID_OPENROUTER_CHUNK_SIZE` | `25` | Max transactions per OpenRouter call during AI categorisation. Larger imports are split into sequential chunks; each chunk's prompt carries forward the merchant→category decisions made by earlier chunks. Set lower if the model struggles on long batches; raise (or set to a very large number) to revert to single-shot behaviour. |
 
 Example dev database:
 
