@@ -15,6 +15,7 @@ from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
+from quid_api.refund_detection import detect_refund_pairs
 from quid_api.repositories.ai_rules import AiRuleRepository
 from quid_api.repositories.expenses import (
     BulkItem,
@@ -448,7 +449,17 @@ async def preview_import_csv(
         ai_categorize,
         import_id,
     )
-    prepared = await _prepare_preview_items(session, parsed_uploads, all_items, ai_excluded_indices)
+    refund_indices = (
+        detect_refund_pairs(all_items, window_days=settings.refund_window_days)
+        - ai_excluded_indices
+    )
+    logger.info(
+        "import.preview.refunds import_id=%s refunds=%d",
+        import_id,
+        len(refund_indices),
+    )
+    excluded_indices = ai_excluded_indices | refund_indices
+    prepared = await _prepare_preview_items(session, parsed_uploads, all_items, excluded_indices)
     rows = await _build_preview_rows(session, prepared)
     summary = ImportCsvPreviewSummary(
         creates=sum(1 for row in rows if row.kind == "create"),
@@ -457,10 +468,11 @@ async def preview_import_csv(
         excluded=sum(1 for row in rows if row.kind == "excluded"),
         invalid_rows=sum(upload.skipped_rows for upload in parsed_uploads),
         ai_categorized=ai_categorized,
+        skipped_refunds=len(refund_indices),
     )
     logger.info(
         "import.preview.plan import_id=%s creates=%d category_updates=%d hidden_duplicates=%d "
-        "excluded=%d invalid=%d ai_categorized=%d",
+        "excluded=%d invalid=%d ai_categorized=%d refunds=%d",
         import_id,
         summary.creates,
         summary.category_updates,
@@ -468,6 +480,7 @@ async def preview_import_csv(
         summary.excluded,
         summary.invalid_rows,
         summary.ai_categorized,
+        summary.skipped_refunds,
     )
     reports = []
     for upload in parsed_uploads:
@@ -665,8 +678,19 @@ async def import_csv(
     else:
         ai_excluded_indices = frozenset()
 
+    refund_indices = (
+        detect_refund_pairs(all_items, window_days=settings.refund_window_days)
+        - ai_excluded_indices
+    )
+    logger.info(
+        "import.csv.refunds import_id=%s refunds=%d",
+        import_id,
+        len(refund_indices),
+    )
+    excluded_indices = ai_excluded_indices | refund_indices
+
     repo = ExpenseRepository(session)
-    result = await repo.bulk_import(all_items, ai_excluded_indices=ai_excluded_indices)
+    result = await repo.bulk_import(all_items, ai_excluded_indices=excluded_indices)
     log_repo = ImportLogRepository(session)
     await log_repo.create(
         files=[p.filename for p in parsed_files],
@@ -678,12 +702,13 @@ async def import_csv(
     )
     await session.commit()
     logger.info(
-        "import.csv.done import_id=%s imported=%d duplicates=%d excluded=%d invalid=%d "
-        "ai_categorized=%d",
+        "import.csv.done import_id=%s imported=%d duplicates=%d excluded=%d refunds=%d "
+        "invalid=%d ai_categorized=%d",
         import_id,
         len(result.expenses),
         result.skipped_duplicates,
         result.skipped_excluded,
+        len(refund_indices),
         sum(p.skipped_rows for p in parsed_files),
         ai_categorized,
     )
@@ -708,6 +733,7 @@ async def import_csv(
         imported=len(result.expenses),
         skipped_duplicates=result.skipped_duplicates,
         skipped_excluded=result.skipped_excluded,
+        skipped_refunds=len(refund_indices),
         skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
         transactions_found=len(all_items),
         ai_categorized=ai_categorized,

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_model: str = "openai/gpt-5.4-mini"
     openrouter_chunk_size: int = 25
+    refund_window_days: int = 60
 
 
 _settings: Settings | None = None
