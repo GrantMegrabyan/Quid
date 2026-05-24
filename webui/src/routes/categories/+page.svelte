@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
+	import IconPicker from '$components/IconPicker.svelte';
 	import {
 		categories,
 		refreshCategories,
@@ -11,7 +12,7 @@
 	import { expenses, refreshExpenses } from '$lib/stores/expenses';
 	import { UNCATEGORIZED_ID } from '$lib/types';
 	import { colorForCategoryId, UNCATEGORIZED_COLOR } from '$lib/utils/categoryColor';
-	import { CATEGORY_ICON_OPTIONS, FALLBACK_CATEGORY_ICON, normalizeCategoryIcon } from '$utils/categoryIcons';
+	import { FALLBACK_CATEGORY_ICON, normalizeCategoryIcon } from '$utils/categoryIcons';
 	import type { Category } from '$lib/types';
 
 	const NAME_MAX = 50;
@@ -221,31 +222,29 @@
 		novalidate
 		class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-[#111114]"
 	>
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-			<div class="flex flex-col gap-1">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+			<div class="flex flex-col gap-1 sm:w-80">
 				<label
 					for="new-category-icon"
 					class="text-sm font-medium text-gray-700 dark:text-gray-300"
 				>
 					Icon
 				</label>
-				<div class="flex items-center gap-2">
+				<div class="flex items-start gap-2">
 					<span
 						data-testid="new-category-icon-preview"
+						data-icon={newIcon}
 						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
 					>
 						<CategoryIcon name={newIcon} />
 					</span>
-				<select
-					id="new-category-icon"
-					data-testid="new-category-icon"
-					bind:value={newIcon}
-					class="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
-				>
-					{#each CATEGORY_ICON_OPTIONS as option (option.key)}
-						<option value={option.key}>{option.label}</option>
-					{/each}
-				</select>
+					<div class="min-w-0 flex-1" data-testid="new-category-icon">
+						<IconPicker
+							id="new-category-icon"
+							value={newIcon}
+							onselect={(key) => (newIcon = key)}
+						/>
+					</div>
 				</div>
 			</div>
 
@@ -402,28 +401,25 @@
 
 				{#if isEditing}
 						<div class="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-[#0b0b0c]">
-						<div class="flex flex-col gap-2 sm:flex-row sm:items-end">
-							<div class="flex flex-col gap-1">
+						<div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+							<div class="flex flex-col gap-1 sm:w-72">
 								<label
 									for={`edit-icon-${category.id}`}
 									class="text-xs font-medium text-gray-700 dark:text-gray-300"
 								>
 									Icon
 								</label>
-								<div class="flex items-center gap-2">
+								<div class="flex items-start gap-2">
 									<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
 										<CategoryIcon name={editIcon} />
 									</span>
-								<select
-									id={`edit-icon-${category.id}`}
-									data-testid="category-edit-icon"
-									bind:value={editIcon}
-									class="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:focus:border-gray-100"
-								>
-									{#each CATEGORY_ICON_OPTIONS as option (option.key)}
-										<option value={option.key}>{option.label}</option>
-									{/each}
-								</select>
+									<div class="min-w-0 flex-1" data-testid="category-edit-icon">
+										<IconPicker
+											id={`edit-icon-${category.id}`}
+											value={editIcon}
+											onselect={(key) => (editIcon = key)}
+										/>
+									</div>
 								</div>
 							</div>
 
