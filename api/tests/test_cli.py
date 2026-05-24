@@ -66,7 +66,7 @@ def test_seed_reset_replaces_data(tmp_path: Path) -> None:
     _run(["seed"], env)
     result = _run(["seed", "--reset"], env)
     assert result.exit_code == 0, result.output  # type: ignore[attr-defined]
-    assert "+5 categories" in result.output  # type: ignore[attr-defined]
+    assert f"+{len(CATEGORY_SEEDS)} categories" in result.output  # type: ignore[attr-defined]
 
 
 def test_help_lists_all_commands() -> None:
