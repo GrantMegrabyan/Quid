@@ -1,4 +1,10 @@
-import type { Expense, ImportCsvResult } from '$types';
+import type {
+	Expense,
+	ImportCsvConfirmRequest,
+	ImportCsvConfirmResult,
+	ImportCsvPreviewResult,
+	ImportCsvResult
+} from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
 import type { ExpenseRepository, ListExpensesQuery } from './types.js';
 
@@ -43,6 +49,28 @@ export class HttpExpenseRepository implements ExpenseRepository {
 		return this.client.request<ImportCsvResult>('api/v1/expenses/import-csv', {
 			method: 'POST',
 			formData: form
+		});
+	}
+
+	async previewImportCsv(
+		files: File[],
+		options: { aiCategorize?: boolean } = {}
+	): Promise<ImportCsvPreviewResult> {
+		const form = new FormData();
+		for (const file of files) {
+			form.append('files', file, file.name);
+		}
+		form.append('ai_categorize', options.aiCategorize === false ? 'false' : 'true');
+		return this.client.request<ImportCsvPreviewResult>('api/v1/expenses/import-csv/preview', {
+			method: 'POST',
+			formData: form
+		});
+	}
+
+	async confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult> {
+		return this.client.request<ImportCsvConfirmResult>('api/v1/expenses/import-csv/confirm', {
+			method: 'POST',
+			body: input
 		});
 	}
 }

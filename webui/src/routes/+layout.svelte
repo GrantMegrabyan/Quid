@@ -7,6 +7,7 @@
 
 	const navLinks = [
 		{ href: '/', label: 'Dashboard' },
+		{ href: '/import', label: 'Import' },
 		{ href: '/categories', label: 'Categories' },
 		{ href: '/rules', label: 'Rules' },
 		{ href: '/ai-rules', label: 'AI Rules' }

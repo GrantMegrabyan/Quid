@@ -105,6 +105,15 @@ def _request_body(
     existing_categories: list[tuple[str, str]],
     ai_rules: list[str],
 ) -> dict[str, object]:
+    prompt = _build_prompt(items, existing_categories, ai_rules)
+    prompt_without_transactions = prompt.split("Transactions JSON:", 1)[0]
+    logger.debug(
+        "ai.categorize.prompt model=%s items=%d prompt=%r transactions=<%d transactions redacted>",
+        model,
+        len(items),
+        prompt_without_transactions + "Transactions JSON: <transactions redacted>",
+        len(items),
+    )
     return {
         "model": model,
         "temperature": 0,
@@ -113,7 +122,7 @@ def _request_body(
                 "role": "system",
                 "content": "You categorise expense transactions and respond only with valid JSON.",
             },
-            {"role": "user", "content": _build_prompt(items, existing_categories, ai_rules)},
+            {"role": "user", "content": prompt},
         ],
         "response_format": {
             "type": "json_schema",

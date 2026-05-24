@@ -26,7 +26,8 @@ app = typer.Typer(no_args_is_help=True, add_completion=False, help="Quid API too
 
 @app.callback()
 def _bootstrap() -> None:
-    configure_logging(get_settings().log_level)
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_file)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

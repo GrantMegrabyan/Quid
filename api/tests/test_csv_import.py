@@ -228,6 +228,112 @@ async def test_import_dedupes_across_uploads_with_category_drift(app_client, mon
     assert len(expenses) == 1
 
 
+async def test_import_preview_shows_category_drift_without_saving(app_client, monkeypatch):
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv", "name,category,amount,date\nGg Platform,transport,-4.31,2026-04-25\n"
+            )
+        ],
+    )
+    assert first.status_code == 201, first.text
+    transport_id = first.json()["expenses"][0]["categoryId"]
+    assert first.json()["expenses"][0]["categoryId"] == transport_id
+
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+        return CategorizedBulkItems(
+            items=[replace(item, category="groceries") for item in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        data={"ai_categorize": "true"},
+        files=[_upload("again.csv", "name,amount,date\nGg Platform,-4.31,2026-04-25\n")],
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["summary"]["creates"] == 0
+    assert body["summary"]["categoryUpdates"] == 1
+    assert body["summary"]["hiddenDuplicates"] == 0
+    assert len(body["rows"]) == 1
+    row = body["rows"][0]
+    assert row["kind"] == "category_update"
+    assert row["existingCategoryId"] == transport_id
+    assert row["suggestedCategory"]["id"] == "cat-groceries"
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert expenses[0]["categoryId"] == transport_id
+
+
+async def test_import_confirm_creates_and_updates_categories(app_client, monkeypatch):
+    await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv", "name,category,amount,date\nGg Platform,transport,-4.31,2026-04-25\n"
+            )
+        ],
+    )
+
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model):
+        updated = []
+        for item in items:
+            category = "groceries" if item.name == "Gg Platform" else "coffee"
+            updated.append(replace(item, category=category))
+        return CategorizedBulkItems(items=updated, categorized=len(updated))
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    csv = "name,amount,date\nGg Platform,-4.31,2026-04-25\nPret,-3.50,2026-04-26\n"
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        data={"ai_categorize": "true"},
+        files=[_upload("again.csv", csv)],
+    )
+    body = preview.json()
+    creates = []
+    updates = []
+    for row in body["rows"]:
+        if row["kind"] == "create":
+            creates.append(
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "name": row["name"],
+                    "amount": row["amount"],
+                    "date": row["date"],
+                    "note": row["note"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                }
+            )
+        elif row["kind"] == "category_update":
+            updates.append(
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "existingExpenseId": row["existingExpenseId"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "accept": True,
+                }
+            )
+
+    confirm = await app_client.post(
+        "/api/v1/expenses/import-csv/confirm",
+        json={"importId": body["importId"], "creates": creates, "categoryUpdates": updates},
+    )
+    assert confirm.status_code == 201, confirm.text
+    result = confirm.json()
+    assert result["created"] == 1
+    assert result["updated"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    by_name = {expense["name"]: expense for expense in expenses}
+    assert by_name["Gg Platform"]["categoryId"] == "cat-groceries"
+    assert by_name["Pret"]["categoryId"] == "cat-coffee"
+
+
 async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
     upper = "name,category,amount,date,note\nGG PLATFORM,travel,-4.31,2026-04-25,\n"
     mixed = "name,category,amount,date,note\nGg Platform,travel,-4.31,2026-04-25,\n"

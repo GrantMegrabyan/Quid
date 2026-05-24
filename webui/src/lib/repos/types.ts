@@ -1,6 +1,9 @@
 import type {
 	Category,
 	Expense,
+	ImportCsvConfirmRequest,
+	ImportCsvConfirmResult,
+	ImportCsvPreviewResult,
 	ImportCsvResult,
 	AiRule,
 	AiRuleCreate,
@@ -28,6 +31,11 @@ export interface ExpenseRepository {
 	update(id: string, patch: Partial<Omit<Expense, 'id'>>): Promise<Expense>;
 	delete(id: string): Promise<void>;
 	importCsv(files: File[], options?: { aiCategorize?: boolean }): Promise<ImportCsvResult>;
+	previewImportCsv(
+		files: File[],
+		options?: { aiCategorize?: boolean }
+	): Promise<ImportCsvPreviewResult>;
+	confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult>;
 }
 
 /**

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -13,14 +15,34 @@ from quid_api.routers import ai_rules, categories, expenses, health, import_rule
 from quid_api.settings import Settings, get_settings
 
 
-def configure_logging(level: str) -> None:
+def configure_logging(level: str, log_file: str | None = None) -> None:
     resolved = getattr(logging, level.upper(), logging.INFO)
     root = logging.getLogger()
     quid = logging.getLogger("quid_api")
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     if not root.handlers:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        handler.setFormatter(formatter)
         root.addHandler(handler)
+    if log_file:
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        resolved_path = str(log_path.resolve())
+        has_file_handler = any(
+            isinstance(handler, RotatingFileHandler)
+            and Path(handler.baseFilename).resolve() == Path(resolved_path)
+            for handler in root.handlers
+        )
+        if not has_file_handler:
+            file_handler = RotatingFileHandler(
+                resolved_path,
+                maxBytes=5 * 1024 * 1024,
+                backupCount=5,
+            )
+            file_handler.setFormatter(formatter)
+            root.addHandler(file_handler)
+            quid.info("logging.file.enabled path=%s", resolved_path)
+    root.setLevel(resolved)
     quid.setLevel(resolved)
 
 
@@ -52,7 +74,7 @@ async def _validation_error_handler(_: Request, exc: Exception) -> JSONResponse:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     cfg = settings or get_settings()
-    configure_logging(cfg.log_level)
+    configure_logging(cfg.log_level, cfg.log_file)
     app = FastAPI(
         title="Quid API",
         version="0.1.0",
