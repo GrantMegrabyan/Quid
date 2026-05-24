@@ -49,7 +49,7 @@ test.describe('dashboard', () => {
 						name: 'Previous Train',
 						amount: 20,
 						date: isoMonthOffset(-1, 2),
-						categoryId: 'cat-transport',
+						categoryId: 'cat-public-transport',
 						note: ''
 					}
 				]

@@ -51,7 +51,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 		categories: [
 			{ id: UNCATEGORIZED_ID, name: 'Uncategorized', color: '#9ca3af', icon: 'circle-help' },
 			{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e', icon: 'shopping-cart' },
-			{ id: 'cat-transport', name: 'Transport', color: '#3b82f6', icon: 'train-front' }
+			{ id: 'cat-public-transport', name: 'Public Transport', color: '#3b82f6', icon: 'train-front' }
 		],
 		expenses: [
 			{
@@ -67,7 +67,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 				name: 'Uber',
 				amount: 12,
 				date: isoDaysAgo(5),
-				categoryId: 'cat-transport',
+				categoryId: 'cat-public-transport',
 				note: ''
 			}
 		]
