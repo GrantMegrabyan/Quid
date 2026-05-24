@@ -141,13 +141,18 @@ async def import_csv(
 
     ai_categorized = 0
     if ai_categorize and all_items:
-        category_names = list(await session.scalars(select(Category.name).order_by(Category.name)))
+        category_rows = list(
+            await session.execute(
+                select(Category.name, Category.description).order_by(Category.name)
+            )
+        )
+        existing_categories = [(row.name, row.description) for row in category_rows]
         ai_rules = [
             rule.text for rule in await AiRuleRepository(session).list_all(enabled_only=True)
         ]
         categorized = await categorize_transactions(
             all_items,
-            existing_categories=category_names,
+            existing_categories=existing_categories,
             ai_rules=ai_rules,
             api_key=settings.openrouter_api_key,
             model=settings.openrouter_model,

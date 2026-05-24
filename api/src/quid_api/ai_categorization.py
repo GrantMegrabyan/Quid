@@ -53,8 +53,22 @@ def _serialise_amount(amount: Decimal) -> str:
     return format(abs(amount), "f")
 
 
+def _format_categories(existing_categories: list[tuple[str, str]]) -> str:
+    if not existing_categories:
+        return "none"
+    lines = []
+    for name, description in existing_categories:
+        if description:
+            lines.append(f"- {name}: {description}")
+        else:
+            lines.append(f"- {name}")
+    return "\n".join(lines)
+
+
 def _build_prompt(
-    items: list[BulkItem], existing_categories: list[str], ai_rules: list[str]
+    items: list[BulkItem],
+    existing_categories: list[tuple[str, str]],
+    ai_rules: list[str],
 ) -> str:
     transactions = [
         _TransactionInput(
@@ -67,7 +81,7 @@ def _build_prompt(
         ).model_dump()
         for idx, item in enumerate(items)
     ]
-    categories = ", ".join(existing_categories) if existing_categories else "none"
+    categories_block = _format_categories(existing_categories)
     rules = "\n".join(f"- {rule}" for rule in ai_rules) if ai_rules else "- none"
     return (
         "Categorise these personal finance transactions.\n"
@@ -76,17 +90,20 @@ def _build_prompt(
         f"AI rules:\n{rules}\n\n"
         "STRONGLY prefer an existing category from the list below. Reuse the exact "
         "spelling and casing of an existing category whenever it fits, even if it is "
-        "a loose fit. Only invent a new category when no existing category could "
-        "reasonably apply.\n"
+        "a loose fit. Use the category descriptions to decide which category fits best. "
+        "Only invent a new category when no existing category could reasonably apply.\n"
         "Use merchant and note context, ignore dates unless helpful, and never return "
         "empty categories.\n\n"
-        f"Existing categories: {categories}\n\n"
+        f"Existing categories:\n{categories_block}\n\n"
         f"Transactions JSON: {json.dumps(transactions, ensure_ascii=False)}"
     )
 
 
 def _request_body(
-    model: str, items: list[BulkItem], existing_categories: list[str], ai_rules: list[str]
+    model: str,
+    items: list[BulkItem],
+    existing_categories: list[tuple[str, str]],
+    ai_rules: list[str],
 ) -> dict[str, object]:
     return {
         "model": model,
@@ -174,20 +191,20 @@ def _parse_response(payload: object) -> _CategoryResponse:
         ) from exc
 
 
-def _snap_to_existing(suggestion: str, existing_categories: list[str]) -> str:
+def _snap_to_existing(suggestion: str, existing_categories: list[tuple[str, str]]) -> str:
     cleaned = " ".join(suggestion.split()).lower()
     if not cleaned:
         return suggestion
-    for existing in existing_categories:
-        if " ".join(existing.split()).lower() == cleaned:
-            return existing
+    for name, _ in existing_categories:
+        if " ".join(name.split()).lower() == cleaned:
+            return name
     return suggestion
 
 
 async def categorize_transactions(
     items: list[BulkItem],
     *,
-    existing_categories: list[str],
+    existing_categories: list[tuple[str, str]],
     ai_rules: list[str] | None = None,
     api_key: str | None,
     model: str,
