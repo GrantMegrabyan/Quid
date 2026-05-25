@@ -1,4 +1,4 @@
-import type { Category, Expense } from '$types';
+import type { Category, Expense, ExpenseImportance } from '$types';
 import { normalizeCategoryIcon } from '$utils/categoryIcons';
 import { defaultCategories, sampleExpenses } from './seed.js';
 
@@ -9,7 +9,10 @@ export interface MockStoreState {
 	expenses: Expense[];
 }
 
-type StoredExpense = Omit<Expense, 'name'> & { name?: unknown };
+type StoredExpense = Omit<Expense, 'name' | 'importance'> & {
+	name?: unknown;
+	importance?: unknown;
+};
 type StoredCategory = Omit<Category, 'icon'> & { icon?: unknown };
 
 interface NormalizeResult {
@@ -46,14 +49,26 @@ function normalizeStoredState(state: MockStoreState): NormalizeResult {
 
 	const seedNameById = new Map(sampleExpenses().map((expense) => [expense.id, expense.name]));
 	const expenses = (state.expenses as StoredExpense[]).map((expense) => {
-		if (typeof expense.name === 'string' && expense.name.trim().length > 0) {
+		const name =
+			typeof expense.name === 'string' && expense.name.trim().length > 0
+				? expense.name
+				: (seedNameById.get(expense.id) ?? 'Unknown merchant');
+		const importance =
+			expense.importance === 'essential' ||
+			expense.importance === 'important' ||
+			expense.importance === 'discretionary'
+				? expense.importance
+				: 'important';
+
+		if (expense.name === name && expense.importance === importance) {
 			return expense as Expense;
 		}
 
 		changed = true;
 		return {
 			...expense,
-			name: seedNameById.get(expense.id) ?? 'Unknown merchant'
+			name,
+			importance: importance as ExpenseImportance
 		} as Expense;
 	});
 

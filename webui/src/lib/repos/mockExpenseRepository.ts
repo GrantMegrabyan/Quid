@@ -47,6 +47,7 @@ export class MockExpenseRepository implements ExpenseRepository {
 				categoryId: patch.categoryId ?? existing.categoryId,
 				note: patch.note ?? existing.note,
 				displayName: patch.displayName !== undefined ? patch.displayName : existing.displayName,
+				importance: patch.importance ?? existing.importance,
 			};
 		});
 		return newState.expenses.find((e) => e.id === id)!;

@@ -14,6 +14,7 @@ type ExpenseSeed = {
 	amount: number;
 	categoryId: string;
 	note: string;
+	importance?: Expense['importance'];
 	monthsAgo: number;
 	day: number;
 };
@@ -180,5 +181,6 @@ export function sampleExpenses(): Expense[] {
 		date: isoDateForMonthsAgo(reference, seed.monthsAgo, seed.day),
 		categoryId: seed.categoryId,
 		note: seed.note,
+		importance: seed.importance ?? 'important',
 	}));
 }

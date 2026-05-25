@@ -13,7 +13,10 @@ export interface Expense {
 	categoryId: string;
 	note: string;
 	displayName?: string | null;
+	importance: ExpenseImportance;
 }
+
+export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
 
 export interface Category {
 	id: string;
@@ -68,6 +71,8 @@ export interface ImportPreviewRow {
  	existingCategoryId: string | null;
  	existingCategoryName: string | null;
  	suggestedCategory: ImportPreviewCategory;
+	suggestedImportance: ExpenseImportance;
+	existingImportance: ExpenseImportance | null;
 }
 
 export interface ImportCsvPreviewSummary {
@@ -94,14 +99,16 @@ export interface ImportCsvConfirmCreateRow {
  	date: string;
  	note: string;
  	categoryName: string;
+	importance: ExpenseImportance;
 }
 
 export interface ImportCsvConfirmCategoryUpdateRow {
- 	previewRowId: string;
- 	dedupeKeyHash: string;
- 	existingExpenseId: string;
- 	categoryName: string;
- 	accept: boolean;
+  	previewRowId: string;
+  	dedupeKeyHash: string;
+  	existingExpenseId: string;
+  	categoryName: string;
+	importance: ExpenseImportance;
+  	accept: boolean;
 }
 
 export interface ImportCsvConfirmRequest {
