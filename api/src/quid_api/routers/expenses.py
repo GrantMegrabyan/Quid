@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
@@ -24,6 +24,7 @@ from quid_api.repositories.expenses import (
     _normalize_text,
     _validate_amount,
     _validate_date,
+    _validate_importance,
     _validate_name,
 )
 from quid_api.repositories.import_log import ImportLogRepository
@@ -35,6 +36,7 @@ from quid_api.schemas import (
     ExpenseCreate,
     ExpenseOut,
     ExpenseUpdate,
+    Importance,
     ImportCsvConfirmRequest,
     ImportCsvConfirmResponse,
     ImportCsvFileReport,
@@ -80,6 +82,7 @@ class _PreparedImportItem:
     category_id: str | None
     category_name: str
     category_exists: bool
+    importance: str
     excluded: bool = False
 
 
@@ -187,6 +190,7 @@ async def _prepare_preview_items(
             clean_name = _validate_name(item.name)
             clean_amount = _validate_amount(abs(_coerce_amount(item.amount)))
             clean_date = _validate_date(item.date)
+            clean_importance = _validate_importance(item.importance)
         except RepositoryError as exc:
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION, f"row {idx}: {exc.message}"
@@ -205,6 +209,7 @@ async def _prepare_preview_items(
                     category_id=suggested.id,
                     category_name=suggested.name,
                     category_exists=suggested.exists,
+                    importance=clean_importance,
                     excluded=True,
                 )
             )
@@ -226,6 +231,7 @@ async def _prepare_preview_items(
                     category_id=suggested.id,
                     category_name=suggested.name,
                     category_exists=suggested.exists,
+                    importance=clean_importance,
                     excluded=True,
                 )
             )
@@ -254,6 +260,7 @@ async def _prepare_preview_items(
                 category_id=category_id,
                 category_name=category_name,
                 category_exists=category_exists,
+                importance=clean_importance,
             )
         )
     return prepared
@@ -288,6 +295,7 @@ async def _build_preview_rows(
                     note=item.note,
                     kind="excluded",
                     suggested_category=suggested,
+                    suggested_importance=cast("Importance", item.importance),
                 )
             )
             continue
@@ -318,6 +326,7 @@ async def _build_preview_rows(
                 exists=item.category_exists,
             )
             key_hash = _dedupe_key_hash(item.date, item.name, item.amount, item.note)
+            existing_importance: str | None = None
             if occurrence >= len(existing):
                 kind: ImportPreviewKind = "create"
                 existing_expense_id = None
@@ -327,6 +336,7 @@ async def _build_preview_rows(
                 matched = existing[occurrence]
                 existing_expense_id = matched.id
                 existing_category_id = matched.category_id
+                existing_importance = matched.importance
                 matched_category = category_by_id.get(matched.category_id)
                 existing_category_name = (
                     matched_category.name if matched_category is not None else matched.category_id
@@ -334,6 +344,7 @@ async def _build_preview_rows(
                 kind = (
                     "duplicate_same_category"
                     if matched.category_id == item.category_id
+                    and matched.importance == item.importance
                     else "category_update"
                 )
             rows.append(
@@ -351,6 +362,12 @@ async def _build_preview_rows(
                     existing_category_id=existing_category_id,
                     existing_category_name=existing_category_name,
                     suggested_category=suggested,
+                    suggested_importance=cast("Importance", item.importance),
+                    existing_importance=(
+                        cast("Importance", existing_importance)
+                        if existing_importance is not None
+                        else None
+                    ),
                 )
             )
     return sorted(rows, key=lambda row: (row.filename, row.source_row, row.preview_row_id))
@@ -383,6 +400,7 @@ async def create_expense(payload: ExpenseCreate, session: SessionDep) -> Expense
         date=payload.date,
         category_id=payload.category_id,
         note=payload.note,
+        importance=payload.importance,
     )
     await session.commit()
     return ExpenseOut.model_validate(row)
@@ -404,6 +422,7 @@ async def bulk_create_expenses(
             amount=i.amount,
             date=i.date,
             note=i.note,
+            importance=i.importance,
         )
         for i in payload.items
     ]
@@ -528,6 +547,7 @@ async def confirm_import_csv(
             amount=row.amount,
             date=row.date,
             note=row.note,
+            importance=row.importance,
         )
         for row in payload.creates
     ]
@@ -553,16 +573,26 @@ async def confirm_import_csv(
             stale_updates += 1
             continue
         old_category = expense.category_id
+        old_importance = expense.importance
         category = await repo._resolve_or_create_category(row.category_name, created_category_index)
+        changed = False
         if category.id != old_category:
             expense.category_id = category.id
+            changed = True
+        if row.importance != old_importance:
+            expense.importance = row.importance
+            changed = True
+        if changed:
             updated += 1
             logger.info(
-                "import.confirm.update_category import_id=%s expense=%s old=%s new=%s row=%s",
+                "import.confirm.update_existing import_id=%s expense=%s old_category=%s "
+                "new_category=%s old_importance=%s new_importance=%s row=%s",
                 payload.import_id,
                 expense.id,
                 old_category,
                 category.id,
+                old_importance,
+                row.importance,
                 row.preview_row_id,
             )
         else:

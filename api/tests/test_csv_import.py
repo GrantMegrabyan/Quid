@@ -269,6 +269,63 @@ async def test_import_preview_shows_category_drift_without_saving(app_client, mo
     assert expenses[0]["categoryId"] == transport_id
 
 
+async def test_import_preview_confirm_updates_importance_drift(app_client):
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv",
+                "name,category,amount,date,importance\nRent,housing,-1200,2026-04-25,important\n",
+            )
+        ],
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["expenses"][0]["importance"] == "important"
+
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        data={"ai_categorize": "false"},
+        files=[
+            _upload(
+                "again.csv",
+                "name,category,amount,date,importance\nRent,housing,-1200,2026-04-25,essential\n",
+            )
+        ],
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["summary"]["creates"] == 0
+    assert body["summary"]["categoryUpdates"] == 1
+    assert body["summary"]["hiddenDuplicates"] == 0
+    row = body["rows"][0]
+    assert row["kind"] == "category_update"
+    assert row["existingImportance"] == "important"
+    assert row["suggestedImportance"] == "essential"
+
+    confirm = await app_client.post(
+        "/api/v1/expenses/import-csv/confirm",
+        json={
+            "importId": body["importId"],
+            "creates": [],
+            "categoryUpdates": [
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "existingExpenseId": row["existingExpenseId"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "importance": row["suggestedImportance"],
+                    "accept": True,
+                }
+            ],
+        },
+    )
+    assert confirm.status_code == 201, confirm.text
+    assert confirm.json()["updated"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert expenses[0]["importance"] == "essential"
+
+
 async def test_import_confirm_creates_and_updates_categories(app_client, monkeypatch):
     await app_client.post(
         "/api/v1/expenses/import-csv",

@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode
-from quid_api.repositories.expenses import BulkItem
+from quid_api.repositories.expenses import (
+    DEFAULT_IMPORTANCE,
+    VALID_IMPORTANCE,
+    BulkItem,
+)
 
 _NAME_ALIASES = ("name", "description", "merchant", "payee")
 _AMOUNT_ALIASES = ("amount", "value")
@@ -20,6 +24,7 @@ _DATE_ALIASES = (
 _CATEGORY_ALIASES = ("category", "type", "tag")
 _NOTE_ALIASES = ("note", "notes", "memo", "reference")
 _STATE_ALIASES = ("state", "status")
+_IMPORTANCE_ALIASES = ("importance", "priority")
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,7 @@ def parse_csv(file: CsvFile) -> CsvParsed:
     category_col = _pick_column(header_map, _CATEGORY_ALIASES)
     note_col = _pick_column(header_map, _NOTE_ALIASES)
     state_col = _pick_column(header_map, _STATE_ALIASES)
+    importance_col = _pick_column(header_map, _IMPORTANCE_ALIASES)
 
     missing = [
         label
@@ -142,6 +148,9 @@ def parse_csv(file: CsvFile) -> CsvParsed:
             skipped += 1
             continue
 
+        importance_raw = (raw.get(importance_col) or "").strip().lower() if importance_col else ""
+        importance = importance_raw if importance_raw in VALID_IMPORTANCE else DEFAULT_IMPORTANCE
+
         items.append(
             BulkItem(
                 name=name,
@@ -149,6 +158,7 @@ def parse_csv(file: CsvFile) -> CsvParsed:
                 amount=amount,
                 date=date_raw,
                 note=note,
+                importance=importance,
             )
         )
 
