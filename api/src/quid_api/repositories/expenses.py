@@ -32,6 +32,20 @@ _UNSET: object = object()
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _WS_RE = re.compile(r"\s+")
 
+VALID_IMPORTANCE: frozenset[str] = frozenset({"essential", "important", "discretionary"})
+DEFAULT_IMPORTANCE = "important"
+
+
+def _validate_importance(value: str | None) -> str:
+    if value is None or value == "":
+        return DEFAULT_IMPORTANCE
+    if value not in VALID_IMPORTANCE:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            f"Importance must be one of {sorted(VALID_IMPORTANCE)}, got {value!r}",
+        )
+    return value
+
 
 def _normalize_text(value: str) -> str:
     """Normalise free-text fields for dedup comparison.
@@ -105,6 +119,7 @@ class BulkItem:
     amount: Decimal
     date: str
     note: str = ""
+    importance: str = DEFAULT_IMPORTANCE
 
 
 @dataclass(frozen=True)
@@ -170,10 +185,12 @@ class ExpenseRepository:
         date: str,
         category_id: str,
         note: str = "",
+        importance: str | None = None,
     ) -> Expense:
         clean_name = _validate_name(name)
         clean_amount = _validate_amount(_coerce_amount(amount))
         clean_date = _validate_date(date)
+        clean_importance = _validate_importance(importance)
         await self._ensure_category_exists(category_id)
 
         row = Expense(
@@ -183,6 +200,7 @@ class ExpenseRepository:
             date=clean_date,
             category_id=category_id,
             note=note or "",
+            importance=clean_importance,
         )
         self.session.add(row)
         await self.session.flush()
@@ -198,6 +216,7 @@ class ExpenseRepository:
         category_id: str | None = None,
         note: str | None = None,
         display_name: object = _UNSET,
+        importance: str | None = None,
     ) -> Expense:
         row = await self.get(expense_id)
 
@@ -214,6 +233,8 @@ class ExpenseRepository:
             row.note = note
         if display_name is not _UNSET:
             row.display_name = display_name  # type: ignore[assignment]
+        if importance is not None:
+            row.importance = _validate_importance(importance)
 
         await self.session.flush()
         return row
@@ -279,6 +300,7 @@ class ExpenseRepository:
                 magnitude = abs(coerced_amount)
                 clean_amount = _validate_amount(magnitude)
                 clean_date = _validate_date(item.date)
+                clean_importance = _validate_importance(item.importance)
             except RepositoryError as exc:
                 raise RepositoryError(
                     RepositoryErrorCode.VALIDATION,
@@ -294,6 +316,7 @@ class ExpenseRepository:
                 date=clean_date,
                 category_id=category.id,
                 note=item.note or "",
+                importance=clean_importance,
             )
             self.session.add(expense)
             created_expenses.append(expense)
@@ -336,7 +359,7 @@ class ExpenseRepository:
         logger.info("import.bulk.start items=%d", len(items))
         created_categories: dict[str, Category] = {}
         rule_repo = ImportRuleRepository(self.session)
-        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None]] = []
+        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None, str]] = []
         decisions = ["pending" for _ in items]
         rule_excluded = 0
         rule_categorised = 0
@@ -350,6 +373,7 @@ class ExpenseRepository:
                 clean_name = _validate_name(item.name)
                 clean_amount = _validate_amount(abs(_coerce_amount(item.amount)))
                 clean_date = _validate_date(item.date)
+                clean_importance = _validate_importance(item.importance)
             except RepositoryError as exc:
                 raise RepositoryError(
                     RepositoryErrorCode.VALIDATION,
@@ -392,12 +416,13 @@ class ExpenseRepository:
                     clean_name,
                     item.note or "",
                     item_display_name,
+                    clean_importance,
                 )
             )
 
         DedupKey = tuple[str, str, Decimal, str]
         in_file_counts: Counter[DedupKey] = Counter()
-        for _, _cat, amount, date, name, note, _dn in prepared:
+        for _, _cat, amount, date, name, note, _dn, _imp in prepared:
             in_file_counts[(date, _normalize_text(name), amount, _normalize_text(note))] += 1
 
         quotas: dict[DedupKey, int] = {}
@@ -433,7 +458,7 @@ class ExpenseRepository:
 
         created_expenses: list[Expense] = []
         skipped = 0
-        for item_idx, cat, amount, date, name, note, display_name in prepared:
+        for item_idx, cat, amount, date, name, note, display_name, importance in prepared:
             key = (date, _normalize_text(name), amount, _normalize_text(note))
             if quotas[key] > 0:
                 quotas[key] -= 1
@@ -445,6 +470,7 @@ class ExpenseRepository:
                     category_id=cat.id,
                     note=note,
                     display_name=display_name,
+                    importance=importance,
                 )
                 self.session.add(row)
                 created_expenses.append(row)

@@ -27,6 +27,9 @@ class _Camel(BaseModel):
     )
 
 
+Importance = Literal["essential", "important", "discretionary"]
+
+
 class CategoryOut(_Camel):
     id: str
     name: str
@@ -57,6 +60,7 @@ class ExpenseOut(_Camel):
     category_id: str
     note: str
     display_name: str | None = None
+    importance: Importance
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> float:
@@ -69,6 +73,7 @@ class ExpenseCreate(_Camel):
     date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
     category_id: Annotated[str, Field(min_length=1)]
     note: str = ""
+    importance: Importance = "important"
 
     @field_validator("amount")
     @classmethod
@@ -85,6 +90,7 @@ class ExpenseUpdate(_Camel):
     category_id: str | None = None
     note: str | None = None
     display_name: str | None = None
+    importance: Importance | None = None
 
     @field_validator("amount")
     @classmethod
@@ -100,6 +106,7 @@ class BulkExpenseItem(_Camel):
     amount: Decimal
     date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
     note: str = ""
+    importance: Importance = "important"
 
 
 class BulkExpenseRequest(_Camel):
@@ -157,6 +164,8 @@ class ImportPreviewRow(_Camel):
     existing_category_id: str | None = None
     suggested_category: ImportPreviewCategory
     existing_category_name: str | None = None
+    suggested_importance: Importance = "important"
+    existing_importance: Importance | None = None
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> float:
@@ -188,6 +197,7 @@ class ImportCsvConfirmCreateRow(_Camel):
     date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
     note: str = ""
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
+    importance: Importance = "important"
 
 
 class ImportCsvConfirmCategoryUpdateRow(_Camel):
@@ -195,6 +205,7 @@ class ImportCsvConfirmCategoryUpdateRow(_Camel):
     dedupe_key_hash: str
     existing_expense_id: str
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
+    importance: Importance = "important"
     accept: bool = True
 
 

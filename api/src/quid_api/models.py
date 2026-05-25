@@ -48,6 +48,12 @@ class Expense(Base):
     )
     note: Mapped[str] = mapped_column(String, nullable=False, default="")
     display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    importance: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'important'"),
+        default="important",
+    )
 
     category: Mapped[Category] = relationship(
         back_populates="expenses",
@@ -59,6 +65,10 @@ class Expense(Base):
         CheckConstraint(
             "date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'",
             name="ck_expenses_date_iso",
+        ),
+        CheckConstraint(
+            "importance IN ('essential', 'important', 'discretionary')",
+            name="ck_expenses_importance",
         ),
         Index("ix_expenses_date", "date"),
         Index("ix_expenses_category", "category_id"),
