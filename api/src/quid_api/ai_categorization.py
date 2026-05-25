@@ -40,9 +40,16 @@ class _TransactionInput(BaseModel):
     current_category: str
 
 
+VALID_IMPORTANCE: frozenset[str] = frozenset({"essential", "important", "discretionary"})
+DEFAULT_IMPORTANCE = "important"
+
+
 class _CategorySuggestion(BaseModel):
     index: int = Field(description="The input transaction index.")
     category: str = Field(description="Short spending category name.")
+    importance: str = Field(
+        description="One of essential, important, discretionary.",
+    )
     exclude: bool = Field(description="True when AI rules say this transaction should be excluded.")
     confidence: float = Field(ge=0, le=1, description="Confidence from 0 to 1.")
 
@@ -96,9 +103,11 @@ def _build_prompt(
     rules = "\n".join(f"- {rule}" for rule in ai_rules) if ai_rules else "- none"
     prior_block = _format_prior_decisions(prior_decisions)
     return (
-        "Categorise these personal finance transactions.\n"
-        "Before categorising, apply the AI rules below. If a transaction should be "
-        "excluded, set exclude=true and still provide the best category.\n\n"
+        "Categorise these personal finance transactions and rate how essential each "
+        "expense is.\n"
+        "Before categorising, apply the AI rules below. The rules may speak about "
+        "categories OR about importance (essentialness). If a transaction should be "
+        "excluded, set exclude=true and still provide the best category and importance.\n\n"
         f"AI rules:\n{rules}\n\n"
         "STRONGLY prefer an existing category from the list below. Reuse the exact "
         "spelling and casing of an existing category whenever it fits, even if it is "
@@ -106,6 +115,16 @@ def _build_prompt(
         "Only invent a new category when no existing category could reasonably apply.\n"
         "Use merchant and note context, ignore dates unless helpful, and never return "
         "empty categories.\n\n"
+        "Importance levels (pick exactly one per transaction):\n"
+        "- essential: necessities you would not cut even if income dropped sharply "
+        "(rent/mortgage, utilities, insurance, debt minimums, groceries, core transport, "
+        "childcare, essential medical).\n"
+        "- important: valued, regular, quality-of-life spending that is flexible but "
+        "meaningful (gym, modest dining, useful subscriptions, hobbies you actively use).\n"
+        "- discretionary: wants, splurges, impulses — the first things to cut "
+        "(luxury dining, gadgets, premium subscriptions, entertainment splurges, "
+        "non-essential shopping).\n"
+        "Unless context clearly says otherwise, default to important.\n\n"
         f"Existing categories:\n{categories_block}\n\n"
         "Decisions made earlier in this same import (prefer the same category when the "
         "same merchant appears again, unless context clearly differs):\n"
@@ -163,6 +182,15 @@ def _request_body(
                                         "type": "string",
                                         "description": "Short spending category name.",
                                     },
+                                    "importance": {
+                                        "type": "string",
+                                        "enum": [
+                                            "essential",
+                                            "important",
+                                            "discretionary",
+                                        ],
+                                        "description": ("How essential this expense is."),
+                                    },
                                     "exclude": {
                                         "type": "boolean",
                                         "description": "Whether AI rules say to exclude this transaction.",
@@ -172,7 +200,13 @@ def _request_body(
                                         "description": "Confidence from 0 to 1.",
                                     },
                                 },
-                                "required": ["index", "category", "exclude", "confidence"],
+                                "required": [
+                                    "index",
+                                    "category",
+                                    "importance",
+                                    "exclude",
+                                    "confidence",
+                                ],
                                 "additionalProperties": False,
                             },
                         }
@@ -305,6 +339,7 @@ async def categorize_transactions(
     active_client = client or httpx.AsyncClient(timeout=60)
 
     updates: dict[int, str] = {}
+    importance_updates: dict[int, str] = {}
     excluded: set[int] = set()
     # Sequential, not parallel: each chunk's prompt includes decisions made in
     # earlier chunks so the model stays consistent on naming and repeat merchants.
@@ -348,6 +383,15 @@ async def categorize_transactions(
                         snapped,
                     )
                 updates[global_index] = snapped
+                importance = suggestion.importance.strip().lower()
+                if importance in VALID_IMPORTANCE:
+                    importance_updates[global_index] = importance
+                else:
+                    logger.debug(
+                        "ai.categorize.bad_importance row=%d value=%r -> default",
+                        global_index,
+                        suggestion.importance,
+                    )
                 chunk_categorized += 1
                 running_decisions[chunk[suggestion.index].name] = snapped
 
@@ -373,7 +417,11 @@ async def categorize_transactions(
     )
     return CategorizedBulkItems(
         items=[
-            replace(item, category=updates.get(idx, item.category))
+            replace(
+                item,
+                category=updates.get(idx, item.category),
+                importance=importance_updates.get(idx, item.importance),
+            )
             for idx, item in enumerate(items)
         ],
         categorized=len(updates),

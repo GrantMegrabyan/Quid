@@ -82,6 +82,7 @@ async def test_chunking_splits_request_and_maps_global_indices():
                     {
                         "index": tx["index"],
                         "category": f"Cat-{tx['name']}",
+                        "importance": "important",
                         "exclude": False,
                         "confidence": 1.0,
                     }
@@ -131,6 +132,7 @@ async def test_prior_decisions_carry_into_later_chunks():
                     {
                         "index": tx["index"],
                         "category": f"Cat-{tx['name']}",
+                        "importance": "important",
                         "exclude": False,
                         "confidence": 1.0,
                     }
@@ -171,6 +173,7 @@ async def test_exclude_indices_mapped_to_global_position():
                     {
                         "index": tx["index"],
                         "category": "Other",
+                        "importance": "important",
                         "exclude": tx["index"] == 0,
                         "confidence": 1.0,
                     }
@@ -205,6 +208,7 @@ async def test_existing_category_snapping_normalises_case_and_spacing():
                     {
                         "index": 0,
                         "category": "COFFEE  shops",
+                        "importance": "important",
                         "exclude": False,
                         "confidence": 1.0,
                     }
@@ -257,6 +261,7 @@ async def test_chunk_size_zero_clamps_to_one_chunk_per_item():
                     {
                         "index": tx["index"],
                         "category": "Misc",
+                        "importance": "important",
                         "exclude": False,
                         "confidence": 1.0,
                     }
