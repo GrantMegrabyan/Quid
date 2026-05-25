@@ -36,6 +36,8 @@ def test_color_differs_across_ids():
 
 def test_normalize_icon_passes_known_keys():
     assert normalize_icon("shopping-cart") == "shopping-cart"
+    assert normalize_icon("car-taxi-front") == "car-taxi-front"
+    assert normalize_icon("ticket") == "ticket"
 
 
 def test_normalize_icon_maps_legacy_emoji():
@@ -43,7 +45,7 @@ def test_normalize_icon_maps_legacy_emoji():
 
 
 def test_normalize_icon_falls_back_for_unknown():
-    assert normalize_icon("unknown-thing") == "circle-help"
+    assert normalize_icon("not an icon key") == "circle-help"
 
 
 def test_normalize_icon_falls_back_for_non_string():

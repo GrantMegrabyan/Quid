@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 UNCATEGORIZED_ID = "uncategorized"
 UNCATEGORIZED_COLOR = "#9ca3af"
 FALLBACK_ICON = "circle-help"
@@ -7,19 +9,7 @@ FALLBACK_ICON = "circle-help"
 _SATURATION = 68
 _LIGHTNESS = 52
 
-KNOWN_ICONS: frozenset[str] = frozenset(
-    {
-        "shopping-cart",
-        "train-front",
-        "house",
-        "utensils",
-        "receipt",
-        "wallet",
-        "coffee",
-        "car",
-        FALLBACK_ICON,
-    }
-)
+_ICON_KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 _LEGACY_EMOJI_TO_ICON: dict[str, str] = {
     "•": FALLBACK_ICON,
@@ -39,7 +29,7 @@ def normalize_icon(value: object, fallback: str = FALLBACK_ICON) -> str:
     if not isinstance(value, str):
         return fallback
     trimmed = value.strip()
-    if trimmed in KNOWN_ICONS:
+    if _ICON_KEY_RE.fullmatch(trimmed):
         return trimmed
     return _LEGACY_EMOJI_TO_ICON.get(trimmed, fallback)
 
