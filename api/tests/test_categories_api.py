@@ -42,6 +42,26 @@ async def test_create_category(app_client):
     assert body["color"].startswith("#")
 
 
+async def test_category_icon_round_trips_new_lucide_key(app_client):
+    created = await app_client.post(
+        "/api/v1/categories",
+        json={"name": "Tickets", "icon": "ticket"},
+    )
+    assert created.status_code == 201
+    cat_id = created.json()["id"]
+    assert created.json()["icon"] == "ticket"
+
+    updated = await app_client.patch(
+        f"/api/v1/categories/{cat_id}", json={"icon": "car-taxi-front"}
+    )
+    assert updated.status_code == 200
+    assert updated.json()["icon"] == "car-taxi-front"
+
+    fetched = await app_client.get(f"/api/v1/categories/{cat_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["icon"] == "car-taxi-front"
+
+
 async def test_create_category_blank_name_returns_422(app_client):
     res = await app_client.post("/api/v1/categories", json={"name": ""})
     assert res.status_code == 422

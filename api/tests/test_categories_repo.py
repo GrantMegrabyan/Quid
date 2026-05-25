@@ -23,9 +23,9 @@ async def test_create_assigns_id_color_icon(session):
 
 async def test_create_with_explicit_color_and_icon(session):
     repo = CategoryRepository(session)
-    cat = await repo.create(name="Coffee", color="#123456", icon="coffee")
+    cat = await repo.create(name="Coffee", color="#123456", icon="car-taxi-front")
     assert cat.color == "#123456"
-    assert cat.icon == "coffee"
+    assert cat.icon == "car-taxi-front"
 
 
 async def test_create_strips_whitespace(session):
