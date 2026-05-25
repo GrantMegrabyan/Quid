@@ -3,10 +3,17 @@
 	import { RepositoryError, expenseRepository } from '$lib/repos';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshExpenses } from '$lib/stores/expenses';
-	import type { Category, ImportCsvPreviewResult, ImportLog, ImportPreviewRow } from '$types';
+	import type {
+		Category,
+		ExpenseImportance,
+		ImportCsvPreviewResult,
+		ImportLog,
+		ImportPreviewRow
+	} from '$types';
 
 	type ReviewRow = ImportPreviewRow & {
 		selectedCategoryName: string;
+		selectedImportance: ExpenseImportance;
 		acceptUpdate: boolean;
 	};
 
@@ -46,6 +53,10 @@
 		return options;
 	}
 
+	function importanceLabel(value: ExpenseImportance): string {
+		return value === 'essential' ? 'Essential' : value === 'important' ? 'Important' : 'Discretionary';
+	}
+
 	async function handleFilesSelected(event: Event): Promise<void> {
 		const input = event.target as HTMLInputElement;
 		const picked = input.files ? Array.from(input.files) : [];
@@ -62,6 +73,7 @@
 			rows = result.rows.map((row) => ({
 				...row,
 				selectedCategoryName: row.suggestedCategory.name,
+				selectedImportance: row.suggestedImportance,
 				acceptUpdate: row.kind === 'category_update'
 			}));
 			if (result.rows.length === 0) {
@@ -92,13 +104,15 @@
 					amount: row.amount,
 					date: row.date,
 					note: row.note,
-					categoryName: row.selectedCategoryName
+					categoryName: row.selectedCategoryName,
+					importance: row.selectedImportance
 				})),
 				categoryUpdates: updateRows.map((row) => ({
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					existingExpenseId: row.existingExpenseId ?? '',
 					categoryName: row.selectedCategoryName,
+					importance: row.selectedImportance,
 					accept: row.acceptUpdate
 				}))
 			});
@@ -202,6 +216,7 @@
 					<div>Transaction</div>
 					<div>Amount</div>
 					<div>Category</div>
+					<div>Importance</div>
 					<div>Decision</div>
 				</div>
 				{#each visibleRows as row (row.previewRowId)}
@@ -228,12 +243,28 @@
 							</select>
 						</div>
 						<div>
+							<select
+								bind:value={row.selectedImportance}
+								disabled={row.kind === 'category_update' && !row.acceptUpdate}
+								class="h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-800 dark:bg-[#0b0b0c] dark:text-gray-100"
+							>
+								<option value="essential">Essential</option>
+								<option value="important">Important</option>
+								<option value="discretionary">Discretionary</option>
+							</select>
+							{#if row.existingImportance && row.existingImportance !== row.selectedImportance}
+								<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+									Was {importanceLabel(row.existingImportance)}
+								</p>
+							{/if}
+						</div>
+						<div>
 							{#if row.kind === 'create'}
 								<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">New transaction</span>
 							{:else if row.kind === 'category_update'}
 								<label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
 									<input type="checkbox" bind:checked={row.acceptUpdate} class="mt-1 h-4 w-4 accent-gray-900 dark:accent-gray-100" />
-									<span>Change from {row.existingCategoryName} to {row.selectedCategoryName}</span>
+									<span>Apply category / importance changes</span>
 								</label>
 							{:else}
 								<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">Excluded</span>
@@ -319,7 +350,7 @@
 
 	.import-row {
 		display: grid;
-		grid-template-columns: minmax(18rem, 1.6fr) minmax(6rem, 0.55fr) minmax(12rem, 1fr) minmax(
+		grid-template-columns: minmax(18rem, 1.6fr) minmax(6rem, 0.55fr) minmax(12rem, 1fr) minmax(10rem, 0.8fr) minmax(
 				14rem,
 				1fr
 			);
