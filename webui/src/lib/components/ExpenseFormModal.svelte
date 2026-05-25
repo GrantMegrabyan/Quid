@@ -4,7 +4,7 @@
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { parseAmountInput } from '$utils/money';
 	import { todayIso } from '$utils/dates';
-	import type { Expense } from '$types';
+	import type { Expense, ExpenseImportance } from '$types';
 
 	type Props = {
 		open: boolean;
@@ -21,6 +21,7 @@
 	let categoryInput = $state('');
 	let noteInput = $state('');
 	let displayNameInput = $state('');
+	let importanceInput = $state<ExpenseImportance>('important');
 
 	let nameError = $state('');
 	let amountError = $state('');
@@ -48,6 +49,7 @@
 			categoryInput = expense.categoryId;
 			noteInput = expense.note;
 			displayNameInput = expense.displayName ?? '';
+			importanceInput = expense.importance;
 		} else {
 			nameInput = '';
 			amountInput = '';
@@ -55,6 +57,7 @@
 			categoryInput = '';
 			noteInput = '';
 			displayNameInput = '';
+			importanceInput = 'important';
 		}
 	}
 
@@ -140,7 +143,8 @@
 				amount: parsedAmount as number,
 				date: trimmedDate,
 				categoryId: categoryInput,
-				note: trimmedNote
+				note: trimmedNote,
+				importance: importanceInput
 			};
 
 			if (expense) {
@@ -297,6 +301,25 @@
 							{categoryError}
 						</p>
 					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label
+						for="expense-importance"
+						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+					>
+						Importance
+					</label>
+					<select
+						id="expense-importance"
+						bind:value={importanceInput}
+						data-testid="importance-select"
+						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+					>
+						<option value="essential">Essential</option>
+						<option value="important">Important</option>
+						<option value="discretionary">Discretionary</option>
+					</select>
 				</div>
 
 			<div class="flex flex-col gap-1">

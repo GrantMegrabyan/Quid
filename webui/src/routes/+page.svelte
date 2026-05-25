@@ -18,7 +18,7 @@
 	let editingExpense: Expense | undefined = $state(undefined);
 	let showMonthlyChart = $state(false);
 	let showCategoryChart = $state(false);
-	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category';
+	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
 	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
 
 	const CHART_PREFS_KEY = 'expense-tracker:dashboard-charts:v1';
@@ -176,6 +176,7 @@
 				<option value="transaction">Transaction</option>
 				<option value="merchant">Merchant</option>
 				<option value="category">Category</option>
+				<option value="importance">Importance</option>
 			</select>
 		</label>
 	</div>

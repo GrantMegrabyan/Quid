@@ -10,16 +10,17 @@
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
 	import { formatAmount } from '$lib/utils/money';
-	import type { Category, Expense } from '$lib/types';
+	import type { Category, Expense, ExpenseImportance } from '$lib/types';
 
 	type EditCallback = (expense: Expense) => void;
-	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category';
+	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
 	type ExpenseGroup = {
 		id: string;
 		name: string;
 		count: number;
 		amount: number;
 		category?: Category;
+		importance?: ExpenseImportance;
 	};
 
 	let { groupBy = 'transaction', onedit }: { groupBy?: ExpenseGroupBy; onedit?: EditCallback } =
@@ -33,6 +34,7 @@
 
 	const FLIP_DURATION = 280;
 	const SLIDE_DURATION = 220;
+	const IMPORTANCE_ORDER: ExpenseImportance[] = ['essential', 'important', 'discretionary'];
 
 	let confirmingId: string | null = $state(null);
 	let expandedGroups: Set<string> = $state(new Set());
@@ -59,7 +61,25 @@
 	);
 
 	function groupIdFor(expense: Expense): string {
-		return groupBy === 'merchant' ? expense.name : expense.categoryId;
+		if (groupBy === 'merchant') return expense.name;
+		if (groupBy === 'importance') return expense.importance;
+		return expense.categoryId;
+	}
+
+	function importanceLabel(value: ExpenseImportance): string {
+		return value === 'essential' ? 'Essential' : value === 'important' ? 'Important' : 'Discretionary';
+	}
+
+	function importanceBadgeClass(value: ExpenseImportance): string {
+		if (value === 'essential') return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/70';
+		if (value === 'important') return 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/70';
+		return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/70';
+	}
+
+	function importanceColor(value: ExpenseImportance | undefined): string {
+		if (value === 'essential') return '#059669';
+		if (value === 'discretionary') return '#d97706';
+		return '#2563eb';
 	}
 
 	const transactionsByGroupId = $derived.by(() => {
@@ -86,10 +106,17 @@
 		for (const [id, items] of transactionsByGroupId) {
 			const first = items[0];
 			const category = categoryById.get(first.categoryId);
-			const name = groupBy === 'merchant' ? (first.displayName ?? first.name) : (category?.name ?? 'Uncategorized');
+			const name = groupBy === 'merchant'
+				? (first.displayName ?? first.name)
+				: groupBy === 'importance'
+					? importanceLabel(first.importance)
+					: (category?.name ?? 'Uncategorized');
 			let amount = 0;
 			for (const item of items) amount += item.amount;
-			groups.push({ id, name, count: items.length, amount, category });
+			groups.push({ id, name, count: items.length, amount, category, importance: first.importance });
+		}
+		if (groupBy === 'importance') {
+			return groups.sort((a, b) => IMPORTANCE_ORDER.indexOf(a.importance ?? 'important') - IMPORTANCE_ORDER.indexOf(b.importance ?? 'important'));
 		}
 		return groups.sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
 	});
@@ -166,6 +193,15 @@
 		void refreshCategories();
 	});
 </script>
+
+{#snippet importanceBadge(value: ExpenseImportance)}
+	<span
+		data-testid="expense-importance-badge"
+		class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset {importanceBadgeClass(value)}"
+	>
+		{importanceLabel(value)}
+	</span>
+{/snippet}
 
 {#snippet rowActions(expense: Expense)}
 	{@const isConfirming = confirmingId === expense.id}
@@ -268,6 +304,9 @@
 					<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
 						{formatDate(expense.date)}
 					</p>
+					<div class="mt-1 flex flex-wrap items-center gap-1.5">
+						{@render importanceBadge(expense.importance)}
+					</div>
 					<span class="sr-only">{categoryName}</span>
 						{#if expense.note}
 							<span class="sr-only">{expense.note}</span>
@@ -286,8 +325,8 @@
 			{/each}
 		{:else}
 			{#each groupedExpenses as group (group.id)}
-				{@const color = group.category?.color ?? '#64748b'}
-				{@const categoryIcon = group.category?.icon ?? (groupBy === 'merchant' ? '🏬' : '•')}
+				{@const color = groupBy === 'importance' ? importanceColor(group.importance) : (group.category?.color ?? '#64748b')}
+				{@const categoryIcon = groupBy === 'importance' ? 'tag' : (group.category?.icon ?? (groupBy === 'merchant' ? '🏬' : '•'))}
 				{@const expanded = expandedGroups.has(group.id)}
 				{@const items = transactionsByGroupId.get(group.id) ?? []}
 				{@const panelId = `group-panel-${group.id}`}
@@ -384,15 +423,20 @@
 										{/if}
 
 										<div class="min-w-0 flex-1">
-									{#if groupBy === 'category'}
+										{#if groupBy === 'category' || groupBy === 'importance'}
 											<p
 												class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
 											>
 												{expense.displayName ?? expense.name}
 											</p>
 												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-													{formatDate(expense.date)}
+													{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}
 												</p>
+												{#if groupBy === 'category'}
+													<div class="mt-1 flex flex-wrap items-center gap-1.5">
+														{@render importanceBadge(expense.importance)}
+													</div>
+												{/if}
 											{:else}
 												<p
 													class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
@@ -402,6 +446,9 @@
 												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
 													{formatDate(expense.date)}
 												</p>
+												<div class="mt-1 flex flex-wrap items-center gap-1.5">
+													{@render importanceBadge(expense.importance)}
+												</div>
 											{/if}
 											{#if expense.note}
 												<span class="sr-only">{expense.note}</span>
