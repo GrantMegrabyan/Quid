@@ -8,7 +8,7 @@ from uuid import uuid4
 from typer.testing import CliRunner
 
 from quid_api.cli import app
-from quid_api.models import Category, Expense, ImportRule
+from quid_api.models import Category, Expense, ImportLog, ImportRule
 from quid_api.seed import CATEGORY_SEEDS, seed_samples
 from quid_api.settings import reset_settings
 
@@ -118,7 +118,7 @@ def test_read_csv_handles_missing_trailing_newline(tmp_path: Path) -> None:
     assert rows[0]["name"] == "Coffee"
 
 
-async def test_clear_transactions_keeps_rules_and_seed_categories(
+async def test_clear_transactions_clears_expenses_and_import_logs_only(
     app_client, session: AsyncSession, database_url: str
 ) -> None:
     from quid_api.cli import _clear_transactions_runner
@@ -171,6 +171,18 @@ async def test_clear_transactions_keeps_rules_and_seed_categories(
             note="",
         )
     )
+    session.add(
+        ImportLog(
+            id=f"log-{uuid4()}",
+            imported_at="2026-05-23T00:00:00Z",
+            files="rows.csv",
+            imported=1,
+            updated=0,
+            skipped_duplicates=0,
+            skipped_excluded=0,
+            skipped_invalid_rows=0,
+        )
+    )
     await session.commit()
 
     old_env = dict(os.environ)
@@ -183,14 +195,16 @@ async def test_clear_transactions_keeps_rules_and_seed_categories(
         os.environ.update(old_env)
         reset_settings()
 
-    assert counts == {"expenses": 18, "categories": 1}
+    assert counts == {"expenses": 18, "import_logs": 1}
 
     expenses = (await app_client.get("/api/v1/expenses")).json()
+    import_logs = (await app_client.get("/api/v1/import-logs")).json()
     rules = (await app_client.get("/api/v1/import-rules")).json()
     categories = (await app_client.get("/api/v1/categories")).json()
 
     assert expenses == []
+    assert import_logs == []
     assert len(rules) == 2
     assert any(row["id"] == protected.id for row in categories)
     assert any(row["id"] == seed.id for seed in CATEGORY_SEEDS for row in categories)
-    assert all(row["id"] != orphan.id for row in categories)
+    assert any(row["id"] == orphan.id for row in categories)

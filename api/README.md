@@ -40,7 +40,7 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serv
 uv run quid-api migrate          # upgrade SQLite schema to head
 uv run quid-api migrate --down 1 # downgrade one Alembic revision
 uv run quid-api seed --reset     # reset to deterministic sample data
-uv run quid-api clear-transactions # delete expenses and orphaned categories
+uv run quid-api clear-transactions # delete expenses and import logs
 uv run quid-api serve            # run uvicorn on 127.0.0.1:8000
 ```
 

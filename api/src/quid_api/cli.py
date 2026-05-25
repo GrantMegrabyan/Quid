@@ -9,16 +9,15 @@ import httpx
 import typer
 import uvicorn
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import bindparam, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from alembic import command
-from quid_api.category_helpers import UNCATEGORIZED_ID
 from quid_api.db import build_engine
 from quid_api.main import configure_logging
 from quid_api.repositories.categories import CategoryRepository
 from quid_api.repositories.expenses import ExpenseRepository
-from quid_api.seed import CATEGORY_SEEDS, reset_and_seed, seed_samples
+from quid_api.seed import reset_and_seed, seed_samples
 from quid_api.settings import get_settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Quid API toolkit.")
@@ -77,7 +76,7 @@ def seed(
 @app.command("clear-transactions")
 def clear_transactions() -> None:
     counts = asyncio.run(_clear_transactions_runner())
-    typer.echo(f"Cleared: {counts['expenses']} expenses, {counts['categories']} categories removed")
+    typer.echo(f"Cleared: {counts['expenses']} expenses, {counts['import_logs']} import logs")
 
 
 async def _seed_runner(*, reset: bool) -> dict[str, int]:
@@ -103,25 +102,15 @@ async def _clear_transactions_runner() -> dict[str, int]:
     settings = get_settings()
     engine = build_engine(settings)
     sm = async_sessionmaker(engine, expire_on_commit=False)
-    protected_ids = [seed.id for seed in CATEGORY_SEEDS] + [UNCATEGORIZED_ID]
     try:
         async with sm() as session:
             exp_r = await session.execute(text("DELETE FROM expenses"))
-            cat_r = await session.execute(
-                text(
-                    "DELETE FROM categories WHERE id NOT IN :protected_ids "
-                    "AND id NOT IN ("
-                    "SELECT target_category_id FROM import_rules "
-                    "WHERE target_category_id IS NOT NULL"
-                    ")"
-                ).bindparams(bindparam("protected_ids", expanding=True)),
-                {"protected_ids": protected_ids},
-            )
+            log_r = await session.execute(text("DELETE FROM import_logs"))
             await session.commit()
             # CursorResult.rowcount is -1 when the DB doesn't report it; treat as 0
             exp_count = max(0, exp_r.rowcount)  # type: ignore[attr-defined]
-            cat_count = max(0, cat_r.rowcount)  # type: ignore[attr-defined]
-            return {"expenses": exp_count, "categories": cat_count}
+            log_count = max(0, log_r.rowcount)  # type: ignore[attr-defined]
+            return {"expenses": exp_count, "import_logs": log_count}
     finally:
         await engine.dispose()
 
