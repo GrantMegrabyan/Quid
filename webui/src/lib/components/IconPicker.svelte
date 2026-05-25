@@ -3,6 +3,7 @@
 	import { CATEGORY_ICON_OPTIONS, filterCategoryIcons } from '$utils/categoryIcons';
 
 	const DEFAULT_VISIBLE = 24;
+	const SEARCH_VISIBLE = 180;
 
 	let {
 		value,
@@ -19,12 +20,16 @@
 	let query = $state('');
 
 	const filtered = $derived(filterCategoryIcons(query));
+	const isEmptyQuery = $derived(query.trim() === '');
 	const visible = $derived(
-		query.trim() === '' ? filtered.slice(0, DEFAULT_VISIBLE) : filtered,
+		isEmptyQuery ? filtered.slice(0, DEFAULT_VISIBLE) : filtered.slice(0, SEARCH_VISIBLE),
 	);
 	const totalCount = CATEGORY_ICON_OPTIONS.length;
 	const hiddenWhenEmpty = $derived(
-		query.trim() === '' && totalCount > DEFAULT_VISIBLE ? totalCount - DEFAULT_VISIBLE : 0,
+		isEmptyQuery && totalCount > DEFAULT_VISIBLE ? totalCount - DEFAULT_VISIBLE : 0,
+	);
+	const hiddenSearchMatches = $derived(
+		!isEmptyQuery && filtered.length > visible.length ? filtered.length - visible.length : 0,
 	);
 
 	function handleSelect(key: string): void {
@@ -78,9 +83,14 @@
 				</button>
 			{/each}
 		</div>
-		{#if hiddenWhenEmpty > 0}
-			<p class="px-1 text-[11px] text-gray-500 dark:text-gray-400">
-				Showing {visible.length} of {totalCount}. Type to search the rest.
+		{#if hiddenWhenEmpty > 0 || hiddenSearchMatches > 0}
+			<p data-testid="icon-picker-summary" class="px-1 text-[11px] text-gray-500 dark:text-gray-400">
+				{#if isEmptyQuery}
+					Showing {visible.length} of {totalCount}. Type to search the rest.
+				{:else}
+					Showing {visible.length} of {filtered.length} matches. Narrow your search to reveal
+					{hiddenSearchMatches} more.
+				{/if}
 			</p>
 		{/if}
 	{/if}

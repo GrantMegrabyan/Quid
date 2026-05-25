@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
+import type { Locator } from '@playwright/test';
 import { buildSeed, seedApiState } from './helpers.js';
+
+async function chooseIcon(picker: Locator, key: string): Promise<void> {
+	await picker.getByTestId('icon-picker-search').fill(key);
+	await picker.locator(`[data-testid="icon-picker-option"][data-icon="${key}"]`).click();
+}
 
 test.describe('categories page', () => {
 	test.beforeEach(async ({ page }) => {
@@ -28,7 +34,7 @@ test.describe('categories page', () => {
 	test('add new category appends a row', async ({ page }) => {
 		await page.goto('/categories');
 
-		await page.getByTestId('new-category-icon').selectOption('coffee');
+		await chooseIcon(page.getByTestId('new-category-icon'), 'ticket');
 		await page.getByTestId('new-category-name').fill('Coffee');
 		await page.getByTestId('new-category-submit').click();
 
@@ -36,7 +42,10 @@ test.describe('categories page', () => {
 		await expect(
 			page.locator('[data-testid="category-row"]').filter({ hasText: 'Coffee' })
 		).toBeVisible();
-		await expect(page.locator('[data-testid="category-icon"][data-icon="coffee"]')).toHaveCount(1);
+		await expect(page.locator('[data-testid="category-icon"][data-icon="ticket"]')).toHaveCount(1);
+
+		await page.reload();
+		await expect(page.locator('[data-testid="category-icon"][data-icon="ticket"]')).toHaveCount(1);
 	});
 
 	test('duplicate category name is rejected with inline error', async ({ page }) => {
@@ -56,7 +65,7 @@ test.describe('categories page', () => {
 			'[data-testid="category-row"][data-category-id="cat-groceries"]'
 		);
 		await targetRow.getByTestId('category-edit-btn').click();
-		await targetRow.getByTestId('category-edit-icon').selectOption('wallet');
+		await chooseIcon(targetRow.getByTestId('category-edit-icon'), 'wallet');
 		await page.getByTestId('category-edit-name').fill('Food');
 		await page.getByTestId('category-edit-save-btn').click();
 
@@ -88,5 +97,21 @@ test.describe('categories page', () => {
 				.locator('[data-testid="expense-row"][data-expense-id="exp-seed-1"]')
 				.filter({ hasText: 'Uncategorized' })
 		).toHaveCount(1);
+	});
+
+	test('icon picker exposes the Lucide catalog and searchable seed icons', async ({ page }) => {
+		await page.goto('/categories');
+
+		const picker = page.getByTestId('new-category-icon');
+		const summary = await picker.getByTestId('icon-picker-summary').innerText();
+		const total = Number(summary.match(/of (\d+)/)?.[1] ?? 0);
+		expect(total).toBeGreaterThan(91);
+
+		for (const key of ['car-taxi-front', 'ticket', 'repeat']) {
+			await picker.getByTestId('icon-picker-search').fill(key);
+			await expect(
+				picker.locator(`[data-testid="icon-picker-option"][data-icon="${key}"]`)
+			).toBeVisible();
+		}
 	});
 });
