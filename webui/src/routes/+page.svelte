@@ -6,10 +6,13 @@
 	import CumulativeChart from '$components/CumulativeChart.svelte';
 	import MonthlyBarChart from '$components/MonthlyBarChart.svelte';
 	import CategoryDoughnutChart from '$components/CategoryDoughnutChart.svelte';
+	import MonthlyByCategoryChart from '$components/MonthlyByCategoryChart.svelte';
+	import CategoryMultiSelect from '$components/CategoryMultiSelect.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
 	import { refreshExpenses } from '$lib/stores/expenses';
-	import { refreshCategories } from '$lib/stores/categories';
+	import { categories, refreshCategories } from '$lib/stores/categories';
+	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$utils/dates';
 	import type { Expense } from '$types';
@@ -18,6 +21,9 @@
 	let editingExpense: Expense | undefined = $state(undefined);
 	let showMonthlyChart = $state(false);
 	let showCategoryChart = $state(false);
+	let showCategoryMonthlyChart = $state(false);
+	let selectedCategoryIds = $state<string[]>([]);
+	let categoryMonthlyInitialised = $state(false);
 	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
 	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
 
@@ -52,19 +58,42 @@
 	onMount(() => {
 		void refreshExpenses();
 		void refreshCategories();
+		void refreshSettings();
 
 		const saved = localStorage.getItem(CHART_PREFS_KEY);
 		if (saved) {
-			const prefs = JSON.parse(saved) as { monthly?: boolean; category?: boolean };
+			const prefs = JSON.parse(saved) as {
+				monthly?: boolean;
+				category?: boolean;
+				categoryMonthly?: boolean;
+				categoryMonthlySelected?: string[];
+			};
 			showMonthlyChart = Boolean(prefs.monthly);
 			showCategoryChart = Boolean(prefs.category);
+			showCategoryMonthlyChart = Boolean(prefs.categoryMonthly);
+			if (Array.isArray(prefs.categoryMonthlySelected)) {
+				selectedCategoryIds = prefs.categoryMonthlySelected;
+				categoryMonthlyInitialised = true;
+			}
 		}
+	});
+
+	$effect(() => {
+		if (categoryMonthlyInitialised) return;
+		if ($categories.length === 0) return;
+		selectedCategoryIds = $categories.map((category) => category.id);
+		categoryMonthlyInitialised = true;
 	});
 
 	$effect(() => {
 		localStorage.setItem(
 			CHART_PREFS_KEY,
-			JSON.stringify({ monthly: showMonthlyChart, category: showCategoryChart })
+			JSON.stringify({
+				monthly: showMonthlyChart,
+				category: showCategoryChart,
+				categoryMonthly: showCategoryMonthlyChart,
+				categoryMonthlySelected: selectedCategoryIds
+			})
 		);
 	});
 </script>
@@ -79,6 +108,7 @@
 			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
 				<TweenedAmount
 					value={selectedMonthTotal}
+					currency={$settings.currency}
 					testid="selected-month-total"
 				/>
 			</h1>
@@ -130,6 +160,15 @@
 				/>
 				By category
 			</label>
+			<label class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-gray-700 dark:border-gray-800 dark:bg-[#111114] dark:text-gray-300">
+				<input
+					type="checkbox"
+					data-testid="toggle-category-monthly-chart"
+					bind:checked={showCategoryMonthlyChart}
+					class="h-4 w-4 accent-gray-900 dark:accent-gray-100"
+				/>
+				By category over time
+			</label>
 		</div>
 	</div>
 
@@ -162,6 +201,21 @@
 			<CategoryDoughnutChart />
 		</div>
 		{/if}
+	</div>
+	{/if}
+
+	{#if showCategoryMonthlyChart}
+	<div
+		data-testid="category-monthly-chart-card"
+		class="rounded-lg border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-[#111114]"
+	>
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+			<h2 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+				Monthly expenses by category
+			</h2>
+			<CategoryMultiSelect bind:selectedIds={selectedCategoryIds} />
+		</div>
+		<MonthlyByCategoryChart {selectedCategoryIds} />
 	</div>
 	{/if}
 

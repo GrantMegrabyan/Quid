@@ -1,16 +1,26 @@
-const MONEY_FORMATTER = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'GBP',
-	minimumFractionDigits: 2,
-	maximumFractionDigits: 2
-});
+const formatterByCurrency = new Map<string, Intl.NumberFormat>();
+
+function formatterFor(currency: string): Intl.NumberFormat {
+	const normalized = currency.trim().toUpperCase() || 'GBP';
+	const existing = formatterByCurrency.get(normalized);
+	if (existing) return existing;
+
+	const formatter = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: normalized,
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2
+	});
+	formatterByCurrency.set(normalized, formatter);
+	return formatter;
+}
 
 function isDigits(value: string): boolean {
 	return value.length > 0 && Array.from(value).every((character) => character >= '0' && character <= '9');
 }
 
-export function formatAmount(amount: number): string {
-	return MONEY_FORMATTER.format(amount);
+export function formatAmount(amount: number, currency = 'GBP'): string {
+	return formatterFor(currency).format(amount);
 }
 
 export function parseAmountInput(raw: string): number | null {

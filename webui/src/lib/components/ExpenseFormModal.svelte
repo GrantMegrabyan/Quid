@@ -344,6 +344,15 @@
 			</div>
 
 			{#if isEdit}
+				{#if expense?.amazonOrderId}
+					<div
+						data-testid="expense-amazon-link"
+						class="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200"
+					>
+						Linked to Amazon order <span class="font-mono">{expense.amazonOrderId}</span>.
+					</div>
+				{/if}
+
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-display-name"

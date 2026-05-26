@@ -3,6 +3,8 @@
 	import { RepositoryError, expenseRepository } from '$lib/repos';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshExpenses } from '$lib/stores/expenses';
+	import { refreshSettings, settings } from '$lib/stores/settings';
+	import { formatAmount } from '$lib/utils/money';
 	import type {
 		Category,
 		ExpenseImportance,
@@ -33,10 +35,6 @@
 	function openFilePicker(): void {
 		banner = null;
 		fileInputEl?.click();
-	}
-
-	function formatAmount(amount: number): string {
-		return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
 	}
 
 	function categoryOptions(row: ReviewRow): Category[] {
@@ -135,6 +133,7 @@
 
 	onMount(() => {
 		void refreshCategories();
+		void refreshSettings();
 		void expenseRepository.listImportLogs().then((logs) => {
 			importLogs = logs;
 		});
@@ -230,7 +229,7 @@
 								<div class="text-xs text-gray-500 dark:text-gray-400">{row.note}</div>
 							{/if}
 						</div>
-						<div class="text-gray-700 dark:text-gray-300">{formatAmount(row.amount)}</div>
+						<div class="text-gray-700 dark:text-gray-300">{formatAmount(row.amount, $settings.currency)}</div>
 						<div>
 							<select
 								bind:value={row.selectedCategoryName}

@@ -3,12 +3,15 @@
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import {
 		addImportRule,
+		applyAllImportRules,
 		applyImportRule,
 		deleteImportRule,
 		editImportRule,
 		importRules,
 		refreshImportRules
 	} from '$lib/stores/importRules';
+	import { refreshSettings, settings } from '$lib/stores/settings';
+	import { formatAmount } from '$lib/utils/money';
 	import type {
 		AmountMatchOp,
 		ImportRule,
@@ -55,6 +58,7 @@
 	let message = $state('');
 	let saving = $state(false);
 	let applyingId: string | null = $state(null);
+	let applyingAll = $state(false);
 
 	function categoryName(id: string | null): string {
 		return $categories.find((c) => c.id === id)?.name ?? 'Unknown category';
@@ -62,11 +66,11 @@
 
 	function amountText(rule: ImportRule): string | null {
 		if (!rule.matchAmountOp || rule.matchAmountValue === null) return null;
-		const value = `£${rule.matchAmountValue.toFixed(2)}`;
+		const value = formatAmount(rule.matchAmountValue, $settings.currency);
 		if (rule.matchAmountOp === 'gte') return `amount ≥ ${value}`;
 		if (rule.matchAmountOp === 'lte') return `amount ≤ ${value}`;
 		if (rule.matchAmountOp === 'eq') return `amount = ${value}`;
-		return `amount between ${value} and £${(rule.matchAmountValue2 ?? 0).toFixed(2)}`;
+		return `amount between ${value} and ${formatAmount(rule.matchAmountValue2 ?? 0, $settings.currency)}`;
 	}
 
 	function summary(rule: ImportRule): string {
@@ -180,6 +184,21 @@
 		}
 	}
 
+	async function applyAll(): Promise<void> {
+		if (applyingAll) return;
+		applyingAll = true;
+		message = '';
+		error = '';
+		try {
+			const result = await applyAllImportRules();
+			message = `Reapplied all rules: matched ${result.matched}; updated ${result.updated}; deleted ${result.deleted}.`;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Could not reapply all rules.';
+		} finally {
+			applyingAll = false;
+		}
+	}
+
 	async function removeRule(rule: ImportRule): Promise<void> {
 		await deleteImportRule(rule.id);
 		if (editingId === rule.id) cancelEdit();
@@ -188,19 +207,31 @@
 	onMount(() => {
 		void refreshCategories();
 		void refreshImportRules();
+		void refreshSettings();
 	});
 </script>
 
 <svelte:head><title>Import Rules</title></svelte:head>
 
 <section class="flex flex-col gap-6">
-	<header class="flex flex-col gap-1">
-		<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-			Import rules
-		</h1>
-		<p class="text-sm text-gray-500 dark:text-gray-400">
-			Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
-		</p>
+	<header class="flex flex-wrap items-start justify-between gap-3">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+				Import rules
+			</h1>
+			<p class="text-sm text-gray-500 dark:text-gray-400">
+				Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
+			</p>
+		</div>
+		<button
+			type="button"
+			data-testid="reapply-all-rules-btn"
+			disabled={applyingAll || $importRules.length === 0}
+			onclick={applyAll}
+			class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:hover:bg-gray-800"
+		>
+			{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
+		</button>
 	</header>
 
 	{#if message}

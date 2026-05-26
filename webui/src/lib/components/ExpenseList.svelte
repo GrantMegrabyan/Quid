@@ -4,9 +4,11 @@
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
+	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
+	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
 	import { formatAmount } from '$lib/utils/money';
@@ -68,12 +70,6 @@
 
 	function importanceLabel(value: ExpenseImportance): string {
 		return value === 'essential' ? 'Essential' : value === 'important' ? 'Important' : 'Discretionary';
-	}
-
-	function importanceBadgeClass(value: ExpenseImportance): string {
-		if (value === 'essential') return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/70';
-		if (value === 'important') return 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/70';
-		return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/70';
 	}
 
 	function importanceColor(value: ExpenseImportance | undefined): string {
@@ -191,17 +187,9 @@
 	onMount(() => {
 		void refreshExpenses();
 		void refreshCategories();
+		void refreshSettings();
 	});
 </script>
-
-{#snippet importanceBadge(value: ExpenseImportance)}
-	<span
-		data-testid="expense-importance-badge"
-		class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset {importanceBadgeClass(value)}"
-	>
-		{importanceLabel(value)}
-	</span>
-{/snippet}
 
 {#snippet rowActions(expense: Expense)}
 	{@const isConfirming = confirmingId === expense.id}
@@ -296,18 +284,28 @@
 					</div>
 
 					<div class="min-w-0 flex-1">
-					<p
-						class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
-					>
-						{expense.displayName ?? expense.name}
-					</p>
-					<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-						{formatDate(expense.date)}
-					</p>
-					<div class="mt-1 flex flex-wrap items-center gap-1.5">
-						{@render importanceBadge(expense.importance)}
-					</div>
-					<span class="sr-only">{categoryName}</span>
+						<p
+							class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
+						>
+							{expense.displayName ?? expense.name}
+						</p>
+						<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+							{formatDate(expense.date)}
+						</p>
+						<div class="mt-1 flex flex-wrap items-center gap-1.5">
+							{#if $settings.showImportanceBadge}
+								<ImportanceBadge importance={expense.importance} />
+							{/if}
+							{#if expense.amazonOrderId}
+								<span
+									data-testid="amazon-linked-badge"
+									class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+								>
+									Amazon
+								</span>
+							{/if}
+						</div>
+						<span class="sr-only">{categoryName}</span>
 						{#if expense.note}
 							<span class="sr-only">{expense.note}</span>
 						{/if}
@@ -317,7 +315,7 @@
 						<span
 							class="text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100"
 						>
-							{formatAmount(expense.amount)}
+							{formatAmount(expense.amount, $settings.currency)}
 						</span>
 						{@render rowActions(expense)}
 					</div>
@@ -385,6 +383,7 @@
 
 						<TweenedAmount
 							value={group.amount}
+							currency={$settings.currency}
 							testid="expense-group-amount"
 							class="ml-auto text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100"
 						/>
@@ -429,15 +428,10 @@
 											>
 												{expense.displayName ?? expense.name}
 											</p>
-												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-													{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}
-												</p>
-												{#if groupBy === 'category'}
-													<div class="mt-1 flex flex-wrap items-center gap-1.5">
-														{@render importanceBadge(expense.importance)}
-													</div>
-												{/if}
-											{:else}
+										<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}
+										</p>
+										{:else}
 												<p
 													class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
 												>
@@ -446,11 +440,21 @@
 												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
 													{formatDate(expense.date)}
 												</p>
-												<div class="mt-1 flex flex-wrap items-center gap-1.5">
-													{@render importanceBadge(expense.importance)}
-												</div>
-											{/if}
-											{#if expense.note}
+									{/if}
+									<div class="mt-1 flex flex-wrap items-center gap-1.5">
+										{#if $settings.showImportanceBadge}
+											<ImportanceBadge importance={expense.importance} />
+										{/if}
+										{#if expense.amazonOrderId}
+											<span
+												data-testid="amazon-linked-badge"
+												class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+											>
+												Amazon
+											</span>
+										{/if}
+									</div>
+									{#if expense.note}
 												<span class="sr-only">{expense.note}</span>
 											{/if}
 										</div>
@@ -459,7 +463,7 @@
 											<span
 												class="text-right text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100"
 											>
-												{formatAmount(expense.amount)}
+										{formatAmount(expense.amount, $settings.currency)}
 											</span>
 											{@render rowActions(expense)}
 										</div>

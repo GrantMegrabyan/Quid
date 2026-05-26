@@ -6,12 +6,13 @@
 
 	type Props = {
 		value: number;
+		currency?: string;
 		duration?: number;
 		class?: string;
 		testid?: string;
 	};
 
-	let { value, duration = 400, class: className = '', testid }: Props = $props();
+	let { value, currency = 'GBP', duration = 400, class: className = '', testid }: Props = $props();
 
 	const display = tweened(untrack(() => value), {
 		duration: untrack(() => duration),
@@ -23,4 +24,4 @@
 	});
 </script>
 
-<span class={className} data-testid={testid}>{formatAmount($display)}</span>
+<span class={className} data-testid={testid}>{formatAmount($display, currency)}</span>
