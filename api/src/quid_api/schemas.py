@@ -61,6 +61,7 @@ class ExpenseOut(_Camel):
     note: str
     display_name: str | None = None
     importance: Importance
+    amazon_order_id: str | None = None
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> float:
@@ -326,6 +327,67 @@ class ImportLogOut(_Camel):
         if isinstance(v, str):
             return json.loads(v)  # type: ignore[no-any-return]
         return v  # type: ignore[return-value]
+
+
+class AmazonOrderItem(_Camel):
+    title: str
+    quantity: int = 1
+    price: Decimal | None = None
+
+    @field_serializer("price")
+    def _ser_price(self, value: Decimal | None) -> float | None:
+        return None if value is None else float(value)
+
+
+class AmazonOrderOut(_Camel):
+    id: str
+    order_date: str
+    total: Decimal
+    currency: str
+    items: list[AmazonOrderItem] = Field(default_factory=list)
+    payment_last4: str | None = None
+    order_url: str | None = None
+    imported_at: str
+    linked_expense_ids: list[str] = Field(default_factory=list)
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> float:
+        return float(value)
+
+
+class AmazonImportFileReport(_Camel):
+    filename: str
+    orders_parsed: int
+    skipped_rows: int
+
+
+class AmazonImportResponse(_Camel):
+    created: int
+    updated: int
+    auto_matched: int
+    ambiguous: int
+    files: list[AmazonImportFileReport]
+
+
+class AmazonMatchAllResponse(_Camel):
+    auto_matched: int
+    ambiguous: int
+    total_orders: int
+
+
+class AmazonLinkRequest(_Camel):
+    expense_id: Annotated[str, Field(min_length=1)]
+
+
+class AppSettingsOut(_Camel):
+    currency: str
+    show_importance_badge: bool
+    updated_at: str
+
+
+class AppSettingsUpdate(_Camel):
+    currency: Annotated[str | None, Field(min_length=3, max_length=3)] = None
+    show_importance_badge: bool | None = None
 
 
 class ErrorBody(_Camel):

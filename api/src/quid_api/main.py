@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_for
 from quid_api.routers import (
     ai_rules,
+    amazon_orders,
+    app_settings,
     categories,
     expenses,
     health,
@@ -106,6 +108,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(import_rules.router)
     app.include_router(import_log.router)
     app.include_router(expenses.router)
+    app.include_router(amazon_orders.router)
+    app.include_router(app_settings.router)
 
     if cfg.testing:
         app.include_router(testing.router)
