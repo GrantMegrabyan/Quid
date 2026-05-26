@@ -14,6 +14,7 @@ export interface Expense {
 	note: string;
 	displayName?: string | null;
 	importance: ExpenseImportance;
+	amazonOrderId?: string | null;
 }
 
 export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
@@ -178,4 +179,53 @@ export interface ImportLog {
 	skippedDuplicates: number;
 	skippedExcluded: number;
 	skippedInvalidRows: number;
+}
+
+export interface AppSettings {
+	currency: string;
+	showImportanceBadge: boolean;
+	updatedAt: string;
+}
+
+export interface AppSettingsUpdate {
+	currency?: string;
+	showImportanceBadge?: boolean;
+}
+
+export interface AmazonOrderItem {
+	title: string;
+	quantity: number;
+	price: number | null;
+}
+
+export interface AmazonOrder {
+	id: string;
+	orderDate: string;
+	total: number;
+	currency: string;
+	items: AmazonOrderItem[];
+	paymentLast4: string | null;
+	orderUrl: string | null;
+	importedAt: string;
+	linkedExpenseIds: string[];
+}
+
+export interface AmazonImportFileReport {
+	filename: string;
+	ordersParsed: number;
+	skippedRows: number;
+}
+
+export interface AmazonImportResult {
+	created: number;
+	updated: number;
+	autoMatched: number;
+	ambiguous: number;
+	files: AmazonImportFileReport[];
+}
+
+export interface AmazonMatchAllResult {
+	autoMatched: number;
+	ambiguous: number;
+	totalOrders: number;
 }

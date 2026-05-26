@@ -35,6 +35,12 @@ export class HttpImportRuleRepository implements ImportRuleRepository {
 			{ method: 'POST' }
 		);
 	}
+
+	async applyAll(): Promise<ImportRuleApplyResult> {
+		return this.client.request<ImportRuleApplyResult>('api/v1/import-rules/apply-all', {
+			method: 'POST'
+		});
+	}
 }
 
 export const httpImportRuleRepository: ImportRuleRepository = new HttpImportRuleRepository();

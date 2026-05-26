@@ -12,4 +12,12 @@ export {
 	HttpImportRuleRepository
 } from './httpImportRuleRepository.js';
 export { httpAiRuleRepository as aiRuleRepository, HttpAiRuleRepository } from './httpAiRuleRepository.js';
+export {
+	httpAppSettingsRepository as appSettingsRepository,
+	HttpAppSettingsRepository
+} from './httpAppSettingsRepository.js';
+export {
+	httpAmazonOrderRepository as amazonOrderRepository,
+	HttpAmazonOrderRepository
+} from './httpAmazonOrderRepository.js';
 export { httpClient, HttpClient } from './httpClient.js';

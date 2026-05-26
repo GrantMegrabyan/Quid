@@ -31,3 +31,11 @@ export async function applyImportRule(id: string): Promise<ImportRuleApplyResult
 	}
 	return result;
 }
+
+export async function applyAllImportRules(): Promise<ImportRuleApplyResult> {
+	const result = await importRuleRepository.applyAll();
+	if (result.updated > 0 || result.deleted > 0) {
+		await refreshExpenses();
+	}
+	return result;
+}

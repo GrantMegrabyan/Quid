@@ -1,4 +1,9 @@
 import type {
+	AmazonImportResult,
+	AmazonMatchAllResult,
+	AmazonOrder,
+	AppSettings,
+	AppSettingsUpdate,
 	Category,
 	Expense,
 	ImportCsvConfirmRequest,
@@ -56,12 +61,29 @@ export interface ImportRuleRepository {
 	update(id: string, patch: ImportRuleUpdate): Promise<ImportRule>;
 	delete(id: string): Promise<void>;
 	apply(id: string): Promise<ImportRuleApplyResult>;
+	applyAll(): Promise<ImportRuleApplyResult>;
 }
 
 export interface AiRuleRepository {
 	list(): Promise<AiRule[]>;
 	create(input: AiRuleCreate): Promise<AiRule>;
 	update(id: string, patch: AiRuleUpdate): Promise<AiRule>;
+	delete(id: string): Promise<void>;
+}
+
+export interface AppSettingsRepository {
+	get(): Promise<AppSettings>;
+	update(patch: AppSettingsUpdate): Promise<AppSettings>;
+}
+
+export interface AmazonOrderRepository {
+	list(): Promise<AmazonOrder[]>;
+	get(id: string): Promise<AmazonOrder>;
+	importCsv(files: File[]): Promise<AmazonImportResult>;
+	matchAll(): Promise<AmazonMatchAllResult>;
+	suggestedMatches(id: string): Promise<Expense[]>;
+	link(orderId: string, expenseId: string): Promise<Expense>;
+	unlink(orderId: string, expenseId: string): Promise<Expense>;
 	delete(id: string): Promise<void>;
 }
 
