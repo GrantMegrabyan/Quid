@@ -4,7 +4,6 @@
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
-	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
@@ -293,9 +292,6 @@
 							{formatDate(expense.date)}
 						</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1.5">
-							{#if $settings.showImportanceBadge}
-								<ImportanceBadge importance={expense.importance} />
-							{/if}
 							{#if expense.amazonOrderId}
 								<span
 									data-testid="amazon-linked-badge"
@@ -442,9 +438,6 @@
 												</p>
 									{/if}
 									<div class="mt-1 flex flex-wrap items-center gap-1.5">
-										{#if $settings.showImportanceBadge}
-											<ImportanceBadge importance={expense.importance} />
-										{/if}
 										{#if expense.amazonOrderId}
 											<span
 												data-testid="amazon-linked-badge"
