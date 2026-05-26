@@ -54,8 +54,17 @@ class Expense(Base):
         server_default=text("'important'"),
         default="important",
     )
+    amazon_order_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("amazon_orders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     category: Mapped[Category] = relationship(
+        back_populates="expenses",
+        lazy="raise_on_sql",
+    )
+    amazon_order: Mapped[AmazonOrder | None] = relationship(
         back_populates="expenses",
         lazy="raise_on_sql",
     )
@@ -72,6 +81,7 @@ class Expense(Base):
         ),
         Index("ix_expenses_date", "date"),
         Index("ix_expenses_category", "category_id"),
+        Index("ix_expenses_amazon_order", "amazon_order_id"),
     )
 
 
@@ -181,3 +191,73 @@ class ImportLog(Base):
     skipped_invalid_rows: Mapped[int] = mapped_column(nullable=False, default=0)
 
     __table_args__ = (Index("ix_import_logs_imported_at", "imported_at"),)
+
+
+class AmazonOrder(Base):
+    """An Amazon order imported from a CSV/JSON export.
+
+    `id` IS the Amazon order id (e.g. ``111-1234567-1234567``). Re-importing
+    the same order id replaces its details, which keeps the table idempotent
+    against repeated exports.
+    """
+
+    __tablename__ = "amazon_orders"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    order_date: Mapped[str] = mapped_column(String, nullable=False)
+    total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="GBP")
+    # JSON-serialised list of {"title": str, "quantity": int, "price": float}.
+    items_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    payment_last4: Mapped[str | None] = mapped_column(String, nullable=True)
+    order_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    imported_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    expenses: Mapped[list[Expense]] = relationship(
+        back_populates="amazon_order",
+        passive_deletes=True,
+        lazy="raise_on_sql",
+    )
+
+    __table_args__ = (
+        CheckConstraint("total > 0", name="ck_amazon_orders_total_positive"),
+        CheckConstraint(
+            "order_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'",
+            name="ck_amazon_orders_date_iso",
+        ),
+        Index("ix_amazon_orders_date", "order_date"),
+        Index("ix_amazon_orders_total", "total"),
+    )
+
+
+class AppSettings(Base):
+    """Singleton row holding global application settings.
+
+    The single row uses the fixed id ``"singleton"``. New settings are added
+    by extending this table; this avoids a generic key/value store that would
+    lose strong typing.
+    """
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    currency: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'GBP'"),
+        default="GBP",
+    )
+    show_importance_badge: Mapped[bool] = mapped_column(
+        nullable=False,
+        server_default=text("1"),
+        default=True,
+    )
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("id = 'singleton'", name="ck_app_settings_singleton"),
+        CheckConstraint(
+            "length(trim(currency)) = 3",
+            name="ck_app_settings_currency_len",
+        ),
+    )
