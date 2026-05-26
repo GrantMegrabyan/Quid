@@ -206,6 +206,49 @@ class ImportRuleRepository:
         await self.session.flush()
         return ApplyResult(matched=len(matched), updated=len(matched), deleted=0)
 
+    async def apply_all_to_existing(self) -> ApplyResult:
+        rules = await self.list_all(enabled_only=True)
+        if not rules:
+            return ApplyResult(matched=0, updated=0, deleted=0)
+
+        expenses = list((await self.session.scalars(select(Expense))).all())
+        category_updates: dict[str, list[str]] = {}
+        to_delete: list[Expense] = []
+        matched_total = 0
+
+        for expense in expenses:
+            item = RuleMatchItem(name=expense.name, amount=expense.amount, date=expense.date)
+            for rule in rules:
+                if not matches_rule(rule, item):
+                    continue
+                matched_total += 1
+                if rule.action == "exclude":
+                    to_delete.append(expense)
+                else:
+                    assert rule.target_category_id is not None
+                    if expense.category_id != rule.target_category_id:
+                        category_updates.setdefault(rule.target_category_id, []).append(expense.id)
+                break
+
+        updated_total = 0
+        for target_category_id, expense_ids in category_updates.items():
+            await self.session.execute(
+                update(Expense)
+                .where(Expense.id.in_(expense_ids))
+                .values(category_id=target_category_id)
+            )
+            updated_total += len(expense_ids)
+
+        for expense in to_delete:
+            await self.session.delete(expense)
+
+        await self.session.flush()
+        return ApplyResult(
+            matched=matched_total,
+            updated=updated_total,
+            deleted=len(to_delete),
+        )
+
     async def _validate(self, row: ImportRule) -> None:
         if row.action not in {"exclude", "categorize"}:
             raise RepositoryError(RepositoryErrorCode.VALIDATION, "Rule action is invalid.")

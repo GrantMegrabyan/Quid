@@ -63,6 +63,18 @@ async def apply_import_rule(rule_id: str, session: SessionDep) -> ImportRuleAppl
     )
 
 
+@router.post("/apply-all", response_model=ImportRuleApplyResponse)
+async def apply_all_import_rules(session: SessionDep) -> ImportRuleApplyResponse:
+    repo = ImportRuleRepository(session)
+    result = await repo.apply_all_to_existing()
+    await session.commit()
+    return ImportRuleApplyResponse(
+        matched=result.matched,
+        updated=result.updated,
+        deleted=result.deleted,
+    )
+
+
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_import_rule(rule_id: str, session: SessionDep) -> Response:
     repo = ImportRuleRepository(session)

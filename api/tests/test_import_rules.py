@@ -198,6 +198,83 @@ async def test_rule_update_and_delete(app_client):
     assert missing.status_code == 404
 
 
+async def test_apply_all_rules_applies_every_enabled_rule(app_client):
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    coffee = (await app_client.post("/api/v1/categories", json={"name": "Coffee"})).json()
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "Safeland Active Management Ltd",
+                    "category": "other",
+                    "amount": -3445,
+                    "date": "2026-04-22",
+                    "note": "",
+                },
+                {
+                    "name": "Pret",
+                    "category": "other",
+                    "amount": -3.50,
+                    "date": "2026-04-23",
+                    "note": "",
+                },
+                {
+                    "name": "Transfer · Pocket Withdrawal",
+                    "category": "other",
+                    "amount": -100,
+                    "date": "2026-04-23",
+                    "note": "",
+                },
+            ]
+        },
+    )
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Rent",
+            "priority": 5,
+            "action": "categorize",
+            "targetCategoryId": home["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "Safeland",
+        },
+    )
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Coffee",
+            "priority": 10,
+            "action": "categorize",
+            "targetCategoryId": coffee["id"],
+            "matchNameOp": "equals",
+            "matchNameValue": "Pret",
+        },
+    )
+
+    applied = await app_client.post("/api/v1/import-rules/apply-all")
+    assert applied.status_code == 200, applied.text
+    body = applied.json()
+    assert body == {"matched": 3, "updated": 2, "deleted": 1}
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    by_name = {e["name"]: e for e in rows}
+    assert "Transfer · Pocket Withdrawal" not in by_name
+    assert by_name["Safeland Active Management Ltd"]["categoryId"] == home["id"]
+    assert by_name["Pret"]["categoryId"] == coffee["id"]
+
+    rerun = await app_client.post("/api/v1/import-rules/apply-all")
+    assert rerun.status_code == 200
+    assert rerun.json() == {"matched": 2, "updated": 0, "deleted": 0}
+
+
+async def test_apply_all_rules_with_no_rules_is_noop(app_client):
+    await app_client.delete("/api/v1/import-rules/rule-exclude-transfers")
+    res = await app_client.post("/api/v1/import-rules/apply-all")
+    assert res.status_code == 200
+    assert res.json() == {"matched": 0, "updated": 0, "deleted": 0}
+
+
 async def test_disabled_rule_apply_is_noop(app_client):
     created = (
         await app_client.post(
