@@ -209,10 +209,10 @@
 
 <section class="flex flex-col gap-6">
 	<header class="flex flex-col gap-1">
-		<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
 			Categories
 		</h1>
-		<p class="text-sm text-gray-500 dark:text-gray-400">
+		<p class="text-sm text-ctp-overlay1">
 			Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.
 		</p>
 	</header>
@@ -220,13 +220,13 @@
 	<form
 		onsubmit={handleAdd}
 		novalidate
-		class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-[#111114]"
+		class="flex flex-col gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base p-4 sm:p-5"
 	>
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-start">
 			<div class="flex flex-col gap-1 sm:w-80">
 				<label
 					for="new-category-icon"
-					class="text-sm font-medium text-gray-700 dark:text-gray-300"
+					class="text-sm font-medium text-ctp-subtext0"
 				>
 					Icon
 				</label>
@@ -234,7 +234,7 @@
 					<span
 						data-testid="new-category-icon-preview"
 						data-icon={newIcon}
-						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ctp-accent text-ctp-on-accent"
 					>
 						<CategoryIcon name={newIcon} />
 					</span>
@@ -251,7 +251,7 @@
 			<div class="flex min-w-0 flex-1 flex-col gap-1">
 				<label
 					for="new-category-name"
-					class="text-sm font-medium text-gray-700 dark:text-gray-300"
+					class="text-sm font-medium text-ctp-subtext0"
 				>
 					Name
 				</label>
@@ -264,14 +264,14 @@
 					placeholder="e.g. Coffee"
 					bind:value={newName}
 					oninput={() => (newError = '')}
-					class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
 				/>
 			</div>
 
 			<div class="flex flex-col gap-1">
 				<label
 					for="new-category-color"
-					class="text-sm font-medium text-gray-700 dark:text-gray-300"
+					class="text-sm font-medium text-ctp-subtext0"
 				>
 					Color
 				</label>
@@ -280,7 +280,7 @@
 					data-testid="new-category-color"
 					type="color"
 					bind:value={newColor}
-					class="h-10 w-14 cursor-pointer rounded-md border border-gray-300 bg-white p-1 dark:border-gray-700 dark:bg-[#0b0b0c]"
+					class="h-10 w-14 cursor-pointer rounded-md border border-ctp-surface2 bg-ctp-base p-1"
 				/>
 			</div>
 
@@ -288,7 +288,7 @@
 				type="submit"
 				data-testid="new-category-submit"
 				disabled={submittingNew}
-				class="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-60 sm:self-end dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60 sm:self-end"
 			>
 				Add category
 			</button>
@@ -316,7 +316,7 @@
 	{/if}
 
 	<ul
-		class="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+		class="divide-y divide-ctp-surface1 overflow-hidden rounded-lg border border-ctp-surface1"
 	>
 		{#each $categories as category (category.id)}
 			{@const isUncategorized = category.id === UNCATEGORIZED_ID}
@@ -325,7 +325,7 @@
 			<li
 				data-testid="category-row"
 				data-category-id={category.id}
-				class="flex flex-col gap-3 bg-white px-4 py-3 sm:px-5 dark:bg-transparent"
+				class="flex flex-col gap-3 bg-ctp-base px-4 py-3 sm:px-5"
 			>
 				<div
 					data-testid={isUncategorized ? 'category-uncategorized' : undefined}
@@ -336,17 +336,17 @@
 							aria-hidden="true"
 							data-testid="category-icon"
 							data-icon={normalizeCategoryIcon(category.icon)}
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/5 dark:ring-white/10"
+							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/5"
 							style="background-color: {category.color || FALLBACK_COLOR};"
 						><CategoryIcon name={category.icon} size={16} /></span>
 						<div class="min-w-0 flex-1">
 							<p
-								class="truncate text-sm font-medium text-gray-900 dark:text-gray-100"
+								class="truncate text-sm font-medium text-ctp-text"
 							>
 								{category.name}
 							</p>
 							{#if isUncategorized}
-								<p class="text-xs text-gray-500 dark:text-gray-400">
+								<p class="text-xs text-ctp-overlay1">
 									Default fallback · cannot be deleted
 								</p>
 							{/if}
@@ -368,7 +368,7 @@
 								type="button"
 								data-testid="category-delete-cancel-btn"
 								onclick={cancelDelete}
-								class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+								class="rounded-md border border-ctp-surface1 px-2.5 py-1 text-xs font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
 							>
 								Cancel
 							</button>
@@ -380,7 +380,7 @@
 								data-testid="category-edit-btn"
 								aria-label={`Edit ${category.name}`}
 								onclick={() => startEdit(category)}
-								class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+								class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
 							>
 								✎
 							</button>
@@ -390,7 +390,7 @@
 									data-testid="category-delete-btn"
 									aria-label={`Delete ${category.name}`}
 									onclick={() => requestDelete(category.id)}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+									class="inline-flex h-8 w-8 items-center justify-center rounded-md text-base text-ctp-overlay1 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
 								>
 									🗑
 								</button>
@@ -400,17 +400,17 @@
 				</div>
 
 				{#if isEditing}
-						<div class="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-[#0b0b0c]">
+						<div class="flex flex-col gap-2 rounded-md border border-ctp-surface1 bg-ctp-surface0 p-3">
 						<div class="flex flex-col gap-2 sm:flex-row sm:items-start">
 							<div class="flex flex-col gap-1 sm:w-72">
 								<label
 									for={`edit-icon-${category.id}`}
-									class="text-xs font-medium text-gray-700 dark:text-gray-300"
+									class="text-xs font-medium text-ctp-subtext0"
 								>
 									Icon
 								</label>
 								<div class="flex items-start gap-2">
-									<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
+									<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ctp-accent text-ctp-on-accent">
 										<CategoryIcon name={editIcon} />
 									</span>
 									<div class="min-w-0 flex-1" data-testid="category-edit-icon">
@@ -426,7 +426,7 @@
 							<div class="flex min-w-0 flex-1 flex-col gap-1">
 								<label
 									for={`edit-name-${category.id}`}
-									class="text-xs font-medium text-gray-700 dark:text-gray-300"
+									class="text-xs font-medium text-ctp-subtext0"
 								>
 									Name
 								</label>
@@ -439,13 +439,13 @@
 									disabled={isUncategorized}
 									bind:value={editName}
 									oninput={() => (editError = '')}
-									class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:focus:border-gray-100 dark:disabled:bg-[#0b0b0c] dark:disabled:text-gray-500"
+									class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none disabled:cursor-not-allowed disabled:bg-ctp-surface0 disabled:text-ctp-overlay1"
 								/>
 							</div>
 							<div class="flex flex-col gap-1">
 								<label
 									for={`edit-color-${category.id}`}
-									class="text-xs font-medium text-gray-700 dark:text-gray-300"
+									class="text-xs font-medium text-ctp-subtext0"
 								>
 									Color
 								</label>
@@ -454,7 +454,7 @@
 									data-testid="category-edit-color"
 									type="color"
 									bind:value={editColor}
-									class="h-10 w-14 cursor-pointer rounded-md border border-gray-300 bg-white p-1 dark:border-gray-700 dark:bg-[#111114]"
+									class="h-10 w-14 cursor-pointer rounded-md border border-ctp-surface2 bg-ctp-base p-1"
 								/>
 							</div>
 							<div class="flex items-center gap-1.5 sm:self-end">
@@ -463,7 +463,7 @@
 									data-testid="category-edit-save-btn"
 									disabled={savingEdit}
 									onclick={() => saveEdit(category.id)}
-									class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+									class="rounded-md bg-ctp-accent px-3 py-1.5 text-xs font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
 								>
 									Save
 								</button>
@@ -471,7 +471,7 @@
 									type="button"
 									data-testid="category-edit-cancel-btn"
 									onclick={cancelEdit}
-									class="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+									class="rounded-md border border-ctp-surface1 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
 								>
 									Cancel
 								</button>

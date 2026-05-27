@@ -81,11 +81,11 @@
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		onclick={() => (open = !open)}
-		class="inline-flex w-full items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-[#111114] dark:text-gray-100 dark:hover:bg-gray-900"
+		class="inline-flex w-full items-center justify-between gap-2 rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text transition-colors hover:bg-ctp-surface0"
 	>
 		<span class="truncate">{buttonLabel}</span>
 		<svg
-			class="h-4 w-4 shrink-0 text-gray-500 transition-transform"
+			class="h-4 w-4 shrink-0 text-ctp-overlay1 transition-transform"
 			style:transform={open ? 'rotate(180deg)' : 'rotate(0deg)'}
 			viewBox="0 0 12 12"
 			fill="none"
@@ -101,13 +101,13 @@
 			role="listbox"
 			aria-multiselectable="true"
 			data-testid="category-multi-select-panel"
-			class="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-800 dark:bg-[#111114]"
+			class="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-ctp-surface1 bg-ctp-base p-2 shadow-lg"
 		>
 			<div class="mb-1 flex items-center justify-between gap-2 px-1 pb-2">
 				<button
 					type="button"
 					data-testid="category-multi-select-all"
-					class="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+					class="text-xs font-medium text-ctp-blue hover:underline"
 					onclick={selectAll}
 				>
 					Select all
@@ -115,7 +115,7 @@
 				<button
 					type="button"
 					data-testid="category-multi-select-clear"
-					class="text-xs font-medium text-gray-500 hover:underline dark:text-gray-400"
+					class="text-xs font-medium text-ctp-overlay1 hover:underline"
 					onclick={clear}
 				>
 					Clear
@@ -131,14 +131,14 @@
 					data-testid="category-multi-select-option"
 					data-category-id={category.id}
 					onclick={() => toggle(category.id)}
-					class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+					class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-ctp-surface1"
 				>
 					<input
 						type="checkbox"
 						tabindex="-1"
 						{checked}
 						readonly
-						class="h-4 w-4 accent-gray-900 dark:accent-gray-100"
+						class="h-4 w-4 accent-ctp-accent"
 					/>
 					<span
 						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white"
@@ -147,7 +147,7 @@
 					>
 						<CategoryIcon name={category.icon} size={12} />
 					</span>
-					<span class="truncate text-gray-800 dark:text-gray-100">{category.name}</span>
+					<span class="truncate text-ctp-text">{category.name}</span>
 				</button>
 			{/each}
 		</div>

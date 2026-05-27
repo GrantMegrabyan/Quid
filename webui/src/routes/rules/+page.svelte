@@ -216,10 +216,10 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-3">
 		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
 				Import rules
 			</h1>
-			<p class="text-sm text-gray-500 dark:text-gray-400">
+			<p class="text-sm text-ctp-overlay1">
 				Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
 			</p>
 		</div>
@@ -228,7 +228,7 @@
 			data-testid="reapply-all-rules-btn"
 			disabled={applyingAll || $importRules.length === 0}
 			onclick={applyAll}
-			class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:hover:bg-gray-800"
+			class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 disabled:cursor-not-allowed disabled:opacity-60"
 		>
 			{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
 		</button>
@@ -245,41 +245,41 @@
 		</div>
 	{/if}
 
-	<form onsubmit={saveRule} class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#111114]">
+	<form onsubmit={saveRule} class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 		<div class="mb-4 flex items-center justify-between gap-3">
-			<h2 class="text-lg font-medium">{editingId ? 'Edit rule' : 'Add rule'}</h2>
+			<h2 class="text-lg font-medium text-ctp-text">{editingId ? 'Edit rule' : 'Add rule'}</h2>
 			{#if editingId}
-				<button type="button" class="text-sm underline" onclick={cancelEdit}>Cancel edit</button>
+				<button type="button" class="text-sm text-ctp-blue underline" onclick={cancelEdit}>Cancel edit</button>
 			{/if}
 		</div>
 
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Name</span>
-				<input bind:value={form.name} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.name} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Priority</span>
-				<input bind:value={form.priority} type="number" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.priority} type="number" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
-			<label class="flex items-center gap-2 pt-6 text-sm">
-				<input bind:checked={form.enabled} type="checkbox" class="h-4 w-4" />
+			<label class="flex items-center gap-2 pt-6 text-sm text-ctp-subtext0">
+				<input bind:checked={form.enabled} type="checkbox" class="h-4 w-4 accent-ctp-accent" />
 				Enabled
 			</label>
 		</div>
 
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Action</span>
-				<select bind:value={form.action} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.action} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
 					<option value="categorize">Categorize</option>
 					<option value="exclude">Exclude</option>
 				</select>
 			</label>
 			{#if form.action === 'categorize'}
-				<label class="flex flex-col gap-1 text-sm md:col-span-2">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
 					<span>Target category</span>
-					<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+					<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
 						<option value="">Choose category</option>
 						{#each $categories as category (category.id)}
 							<option value={category.id}>{category.name}</option>
@@ -290,9 +290,9 @@
 		</div>
 
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Name match</span>
-				<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
 					<option value="">No name condition</option>
 					<option value="contains">contains</option>
 					<option value="equals">equals</option>
@@ -300,16 +300,16 @@
 					<option value="ends_with">ends with</option>
 				</select>
 			</label>
-			<label class="flex flex-col gap-1 text-sm md:col-span-2">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
 				<span>Name value</span>
-				<input bind:value={form.matchNameValue} class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.matchNameValue} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
 		</div>
 
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Amount match</span>
-				<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]">
+				<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
 					<option value="">No amount condition</option>
 					<option value="gte">≥</option>
 					<option value="lte">≤</option>
@@ -317,38 +317,38 @@
 					<option value="between">between</option>
 				</select>
 			</label>
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Amount</span>
-				<input bind:value={form.matchAmountValue} type="number" step="0.01" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.matchAmountValue} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
 			{#if form.matchAmountOp === 'between'}
-				<label class="flex flex-col gap-1 text-sm">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Second amount</span>
-					<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+					<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 				</label>
 			{/if}
 		</div>
 
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Date from</span>
-				<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
-			<label class="flex flex-col gap-1 text-sm">
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Date to</span>
-				<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+				<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 			</label>
 		</div>
 
 		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-			<label class="flex flex-col gap-1 text-sm md:col-span-2">
-				<span>Set display name <span class="text-gray-400">(optional)</span></span>
-				<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-[#0b0b0c]" />
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
+				<span>Set display name <span class="text-ctp-overlay0">(optional)</span></span>
+				<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
 			</label>
 		</div>
 
 		<div class="mt-4">
-			<button type="submit" disabled={saving} class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900">
+			<button type="submit" disabled={saving} class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60">
 				{saving ? 'Saving…' : editingId ? 'Save rule' : 'Add rule'}
 			</button>
 		</div>
@@ -356,25 +356,25 @@
 
 	<div class="flex flex-col gap-3">
 		{#each $importRules as rule (rule.id)}
-			<div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#111114]">
+			<div class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
 						<div class="flex flex-wrap items-center gap-2">
-							<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">#{rule.priority}</span>
-							<h2 class="text-base font-semibold">{rule.name}</h2>
-							<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}">
+							<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs text-ctp-subtext0">#{rule.priority}</span>
+							<h2 class="text-base font-semibold text-ctp-text">{rule.name}</h2>
+							<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-ctp-surface1 text-ctp-subtext0'}">
 								{rule.enabled ? 'Enabled' : 'Disabled'}
 							</span>
 						</div>
-						<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">If {summary(rule) || 'no conditions'}.</p>
-						<p class="mt-1 text-sm font-medium">
+						<p class="mt-2 text-sm text-ctp-overlay1">If {summary(rule) || 'no conditions'}.</p>
+						<p class="mt-1 text-sm font-medium text-ctp-text">
 							Then {rule.action === 'exclude' ? 'exclude from import' : `categorize as ${categoryName(rule.targetCategoryId)}`}.
 						</p>
 					</div>
 					<div class="flex flex-wrap gap-2">
-						<button type="button" class="rounded-md border px-3 py-1.5 text-sm" onclick={() => toggleEnabled(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
-						<button type="button" class="rounded-md border px-3 py-1.5 text-sm" onclick={() => startEdit(rule)}>Edit</button>
-						<button type="button" disabled={applyingId === rule.id} class="rounded-md border px-3 py-1.5 text-sm disabled:opacity-60" onclick={() => applyRule(rule)}>{applyingId === rule.id ? 'Applying…' : 'Re-apply'}</button>
+						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => toggleEnabled(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
+						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => startEdit(rule)}>Edit</button>
+						<button type="button" disabled={applyingId === rule.id} class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1 disabled:opacity-60" onclick={() => applyRule(rule)}>{applyingId === rule.id ? 'Applying…' : 'Re-apply'}</button>
 						<button type="button" class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 dark:border-red-900 dark:text-red-300" onclick={() => removeRule(rule)}>Delete</button>
 					</div>
 				</div>

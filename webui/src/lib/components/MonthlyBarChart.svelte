@@ -15,20 +15,16 @@
 	const monthKeys = $derived(centered12MonthWindow($selectedMonth));
 	const labels = $derived(monthKeys.map(formatMonthLabel));
 
-	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
-
+	let themeVersion = $state(0);
 	let themeObserver: MutationObserver | null = null;
 
 	if (browser) {
 		themeObserver = new MutationObserver(() => {
-			const next = document.documentElement.classList.contains('dark');
-			if (next !== isDark) {
-				isDark = next;
-			}
+			themeVersion++;
 		});
 		themeObserver.observe(document.documentElement, {
 			attributes: true,
-			attributeFilter: ['class']
+			attributeFilter: ['class', 'data-theme']
 		});
 	}
 
@@ -48,21 +44,27 @@
 		return monthKeys.map((key) => buckets.get(key) ?? 0);
 	});
 
-	const data: ChartData<'bar'> = $derived({
-		labels,
-		datasets: [
-			{
-				label: 'Monthly total',
-				data: totals,
-				backgroundColor: isDark ? '#60a5fa' : '#2563eb',
-				borderRadius: 4,
-				maxBarThickness: 28
-			}
-		]
+	const data: ChartData<'bar'> = $derived.by(() => {
+		void themeVersion;
+		const s = getComputedStyle(document.documentElement);
+		const blue = s.getPropertyValue('--ctp-blue').trim() || '#89b4fa';
+		return {
+			labels,
+			datasets: [
+				{
+					label: 'Monthly total',
+					data: totals,
+					backgroundColor: blue,
+					borderRadius: 4,
+					maxBarThickness: 28
+				}
+			]
+		};
 	});
 
 	const options: ChartOptions<'bar'> = $derived.by(() => {
-		const theme = chartThemeColors(isDark);
+		void themeVersion;
+		const theme = chartThemeColors();
 		return {
 			responsive: true,
 			maintainAspectRatio: false,

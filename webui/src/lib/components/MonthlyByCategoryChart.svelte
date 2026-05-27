@@ -15,19 +15,16 @@
 		ensureChartJsRegistered();
 	}
 
-	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
+	let themeVersion = $state(0);
 	let themeObserver: MutationObserver | null = null;
 
 	if (browser) {
 		themeObserver = new MutationObserver(() => {
-			const next = document.documentElement.classList.contains('dark');
-			if (next !== isDark) {
-				isDark = next;
-			}
+			themeVersion++;
 		});
 		themeObserver.observe(document.documentElement, {
 			attributes: true,
-			attributeFilter: ['class']
+			attributeFilter: ['class', 'data-theme']
 		});
 	}
 
@@ -75,7 +72,8 @@
 	});
 
 	const options: ChartOptions<'bar'> = $derived.by(() => {
-		const theme = chartThemeColors(isDark);
+		void themeVersion;
+		const theme = chartThemeColors();
 		return {
 			responsive: true,
 			maintainAspectRatio: false,
@@ -113,11 +111,11 @@
 
 <div data-testid="category-monthly-chart" class="h-72 w-full">
 	{#if visibleCategories.length === 0}
-		<div class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+		<div class="flex h-full items-center justify-center text-sm text-ctp-overlay1">
 			Pick one or more categories to see monthly totals.
 		</div>
 	{:else if !hasData}
-		<div class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+		<div class="flex h-full items-center justify-center text-sm text-ctp-overlay1">
 			No expenses recorded for the selected categories in this window.
 		</div>
 	{:else if browser}

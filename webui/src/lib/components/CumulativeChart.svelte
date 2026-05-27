@@ -14,7 +14,7 @@
 		ensureChartJsRegistered();
 	}
 
-	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
+	let themeVersion = $state(0);
 	let themeObserver: MutationObserver | null = null;
 	let chart: Chart<'line'> | null = $state(null);
 	let activeTooltip:
@@ -23,14 +23,11 @@
 
 	if (browser) {
 		themeObserver = new MutationObserver(() => {
-			const next = document.documentElement.classList.contains('dark');
-			if (next !== isDark) {
-				isDark = next;
-			}
+			themeVersion++;
 		});
 		themeObserver.observe(document.documentElement, {
 			attributes: true,
-			attributeFilter: ['class']
+			attributeFilter: ['class', 'data-theme']
 		});
 	}
 
@@ -142,26 +139,32 @@
 		};
 	}
 
-	const data: ChartData<'line'> = $derived({
-		labels,
-		datasets: [
-			{
-				label: 'Cumulative expenses',
-				data: cumulativeTotals,
-				borderColor: isDark ? '#60a5fa' : '#2563eb',
-				backgroundColor: isDark ? 'rgba(96, 165, 250, 0.14)' : 'rgba(37, 99, 235, 0.12)',
-				fill: true,
-				tension: 0.28,
-				pointRadius: 0,
-				pointHitRadius: 8,
-				borderWidth: 2,
-				spanGaps: false
-			}
-		]
+	const data: ChartData<'line'> = $derived.by(() => {
+		void themeVersion;
+		const s = getComputedStyle(document.documentElement);
+		const blue = s.getPropertyValue('--ctp-blue').trim() || '#89b4fa';
+		return {
+			labels,
+			datasets: [
+				{
+					label: 'Cumulative expenses',
+					data: cumulativeTotals,
+					borderColor: blue,
+					backgroundColor: blue + '26',
+					fill: true,
+					tension: 0.28,
+					pointRadius: 0,
+					pointHitRadius: 8,
+					borderWidth: 2,
+					spanGaps: false
+				}
+			]
+		};
 	});
 
 	const options: ChartOptions<'line'> = $derived.by(() => {
-		const theme = chartThemeColors(isDark);
+		void themeVersion;
+		const theme = chartThemeColors();
 		return {
 			responsive: true,
 			maintainAspectRatio: false,
@@ -202,7 +205,7 @@
 	onpointerleave={() => (activeTooltip = null)}
 >
 	{#if total === 0}
-		<div class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+		<div class="flex h-full items-center justify-center text-sm text-ctp-overlay1">
 			No expenses recorded for this month yet.
 		</div>
 	{:else if browser}
@@ -210,12 +213,12 @@
 		{#if activeTooltip}
 			<div
 				data-testid="cumulative-chart-tooltip"
-				class="pointer-events-none absolute z-10 w-[172px] rounded-2xl border border-blue-200/70 bg-white/95 px-3 py-2.5 text-xs shadow-xl shadow-blue-950/10 backdrop-blur dark:border-blue-400/30 dark:bg-gray-950/95 dark:shadow-black/30"
+				class="pointer-events-none absolute z-10 w-[172px] rounded-2xl border border-ctp-surface2 bg-ctp-base/95 px-3 py-2.5 text-xs shadow-xl shadow-ctp-crust/10 backdrop-blur"
 				style:left={`${activeTooltip.x}px`}
 				style:top={`${activeTooltip.y}px`}
 			>
-				<p class="mb-2 font-semibold text-gray-950 dark:text-gray-50">{activeTooltip.date}</p>
-				<div class="space-y-1.5 text-gray-700 dark:text-gray-200">
+				<p class="mb-2 font-semibold text-ctp-text">{activeTooltip.date}</p>
+				<div class="space-y-1.5 text-ctp-subtext0">
 					<div class="flex items-center justify-between gap-3">
 						<span aria-label="Day expenses">💳</span>
 						<span class="font-semibold tabular-nums">{activeTooltip.daily}</span>

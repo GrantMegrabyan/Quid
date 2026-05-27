@@ -46,22 +46,22 @@
 		spellcheck="false"
 		{placeholder}
 		bind:value={query}
-		class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+		class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
 	/>
 
 	{#if visible.length === 0}
 		<p
 			data-testid="icon-picker-empty"
-			class="px-1 py-4 text-center text-xs text-gray-500 dark:text-gray-400"
+			class="px-1 py-4 text-center text-xs text-ctp-overlay1"
 		>
-			No icons match “{query.trim()}”.
+			No icons match "{query.trim()}".
 		</p>
 	{:else}
 		<div
 			role="listbox"
 			aria-label="Category icon"
 			data-testid="icon-picker-grid"
-			class="grid max-h-56 grid-cols-4 gap-1 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 sm:grid-cols-6 dark:border-gray-800 dark:bg-[#0b0b0c]"
+			class="grid max-h-56 grid-cols-4 gap-1 overflow-y-auto rounded-md border border-ctp-surface1 bg-ctp-surface0 p-2 sm:grid-cols-6"
 		>
 			{#each visible as option (option.key)}
 				{@const isSelected = option.key === value}
@@ -74,9 +74,9 @@
 					data-selected={isSelected ? 'true' : undefined}
 					title={option.label}
 					onclick={() => handleSelect(option.key)}
-					class="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border p-1 text-[10px] leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-gray-100 {isSelected
-						? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-						: 'border-transparent text-gray-700 hover:border-gray-300 hover:bg-white dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-[#111114]'}"
+					class="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border p-1 text-[10px] leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ctp-accent {isSelected
+						? 'border-ctp-accent bg-ctp-accent text-ctp-on-accent'
+						: 'border-transparent text-ctp-subtext0 hover:border-ctp-surface2 hover:bg-ctp-base'}"
 				>
 					<CategoryIcon name={option.key} size={18} />
 					<span class="line-clamp-1 w-full truncate text-center">{option.label}</span>
@@ -84,7 +84,7 @@
 			{/each}
 		</div>
 		{#if hiddenWhenEmpty > 0 || hiddenSearchMatches > 0}
-			<p data-testid="icon-picker-summary" class="px-1 text-[11px] text-gray-500 dark:text-gray-400">
+			<p data-testid="icon-picker-summary" class="px-1 text-[11px] text-ctp-overlay1">
 				{#if isEmptyQuery}
 					Showing {visible.length} of {totalCount}. Type to search the rest.
 				{:else}

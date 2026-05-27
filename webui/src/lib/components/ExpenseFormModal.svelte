@@ -176,12 +176,12 @@
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="expense-modal-title"
-			class="flex h-full w-full flex-col overflow-y-auto border-gray-200 bg-white p-6 shadow-xl sm:h-auto sm:max-w-md sm:rounded-lg sm:border dark:border-gray-800 dark:bg-[#111114]"
+			class="flex h-full w-full flex-col overflow-y-auto border-ctp-surface1 bg-ctp-base p-6 shadow-xl sm:h-auto sm:max-w-md sm:rounded-lg sm:border"
 		>
 			<h2
 				id="expense-modal-title"
 				data-testid="modal-title"
-				class="text-lg font-semibold text-gray-900 dark:text-gray-50"
+				class="text-lg font-semibold text-ctp-text"
 			>
 				{title}
 			</h2>
@@ -194,7 +194,7 @@
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-name"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
 						Merchant
 					</label>
@@ -208,7 +208,7 @@
 						placeholder="e.g. Starbucks"
 						value={nameInput}
 						oninput={(event) => (nameInput = event.currentTarget.value)}
-						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
 					/>
 					{#if nameError}
 						<p
@@ -223,7 +223,7 @@
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-amount"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
 						Amount
 					</label>
@@ -238,7 +238,7 @@
 						placeholder="0.00"
 						value={amountInput}
 						oninput={(event) => (amountInput = event.currentTarget.value)}
-						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
 					/>
 					{#if amountError}
 						<p
@@ -253,7 +253,7 @@
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-date"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
 						Date
 					</label>
@@ -263,7 +263,7 @@
 						data-testid="date-input"
 						type="date"
 						autocomplete="off"
-					class="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
 					/>
 					{#if dateError}
 						<p
@@ -278,7 +278,7 @@
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-category"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
 						Category
 					</label>
@@ -286,7 +286,7 @@
 						id="expense-category"
 						bind:value={categoryInput}
 						data-testid="category-select"
-						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
 					>
 						<option value="" disabled>Select a category</option>
 						{#each $categories as category (category.id)}
@@ -306,7 +306,7 @@
 				<div class="flex flex-col gap-1">
 					<label
 						for="expense-importance"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
 						Importance
 					</label>
@@ -314,7 +314,7 @@
 						id="expense-importance"
 						bind:value={importanceInput}
 						data-testid="importance-select"
-						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
 					>
 						<option value="essential">Essential</option>
 						<option value="important">Important</option>
@@ -322,56 +322,56 @@
 					</select>
 				</div>
 
-			<div class="flex flex-col gap-1">
-				<label
-					for="expense-note"
-					class="text-sm font-medium text-gray-700 dark:text-gray-300"
-				>
-					Note
-				</label>
-				<input
-					id="expense-note"
-					bind:value={noteInput}
-					data-testid="note-input"
-					type="text"
-					maxlength="200"
-					autocomplete="off"
-					class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
-				/>
-				<p class="text-right text-xs text-gray-500 dark:text-gray-400">
-					{noteInput.length}/200
-				</p>
-			</div>
-
-			{#if isEdit}
-				{#if expense?.amazonOrderId}
-					<div
-						data-testid="expense-amazon-link"
-						class="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200"
-					>
-						Linked to Amazon order <span class="font-mono">{expense.amazonOrderId}</span>.
-					</div>
-				{/if}
-
 				<div class="flex flex-col gap-1">
 					<label
-						for="expense-display-name"
-						class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						for="expense-note"
+						class="text-sm font-medium text-ctp-subtext0"
 					>
-						Display name
+						Note
 					</label>
 					<input
-						id="expense-display-name"
-						bind:value={displayNameInput}
-						data-testid="display-name-input"
+						id="expense-note"
+						bind:value={noteInput}
+						data-testid="note-input"
 						type="text"
 						maxlength="200"
 						autocomplete="off"
-						placeholder="Leave blank to use merchant name"
-						class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:outline-none dark:border-gray-700 dark:bg-[#0b0b0c] dark:text-gray-100 dark:focus:border-gray-100"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
 					/>
+					<p class="text-right text-xs text-ctp-overlay1">
+						{noteInput.length}/200
+					</p>
 				</div>
-			{/if}
+
+				{#if isEdit}
+					{#if expense?.amazonOrderId}
+						<div
+							data-testid="expense-amazon-link"
+							class="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200"
+						>
+							Linked to Amazon order <span class="font-mono">{expense.amazonOrderId}</span>.
+						</div>
+					{/if}
+
+					<div class="flex flex-col gap-1">
+						<label
+							for="expense-display-name"
+							class="text-sm font-medium text-ctp-subtext0"
+						>
+							Display name
+						</label>
+						<input
+							id="expense-display-name"
+							bind:value={displayNameInput}
+							data-testid="display-name-input"
+							type="text"
+							maxlength="200"
+							autocomplete="off"
+							placeholder="Leave blank to use merchant name"
+							class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						/>
+					</div>
+				{/if}
 
 				<div
 					class="mt-auto flex items-center justify-end gap-2 pt-2 sm:mt-2"
@@ -380,7 +380,7 @@
 						type="button"
 						data-testid="modal-cancel"
 						onclick={close}
-						class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+						class="rounded-md border border-ctp-surface2 px-4 py-2 text-sm font-medium text-ctp-subtext0 hover:bg-ctp-surface1"
 					>
 						Cancel
 					</button>
@@ -388,7 +388,7 @@
 						type="submit"
 						data-testid="modal-submit"
 						disabled={submitting}
-						class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+						class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
 					>
 						{isEdit ? 'Save' : 'Add'}
 					</button>

@@ -146,8 +146,8 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">Amazon orders</h1>
-			<p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Amazon orders</h1>
+			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
 				Import Amazon order CSVs and link orders to matching transactions.
 			</p>
 		</div>
@@ -166,7 +166,7 @@
 				data-testid="amazon-import-button"
 				onclick={openFilePicker}
 				disabled={loading}
-				class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+				class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
 			>
 				{loading ? 'Working…' : 'Import CSV'}
 			</button>
@@ -175,7 +175,7 @@
 				data-testid="amazon-match-all-button"
 				onclick={matchAll}
 				disabled={loading || $amazonOrders.length === 0}
-				class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:hover:bg-gray-800"
+				class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
 			>
 				Re-match all
 			</button>
@@ -195,28 +195,28 @@
 	{/if}
 
 	{#if $amazonOrders.length === 0}
-		<div class="rounded-lg border border-dashed border-gray-300 px-6 py-16 text-center dark:border-gray-700">
-			<p class="font-medium text-gray-900 dark:text-gray-100">No Amazon orders imported yet.</p>
-			<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Upload a CSV export to start matching orders.</p>
+		<div class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center">
+			<p class="font-medium text-ctp-text">No Amazon orders imported yet.</p>
+			<p class="mt-1 text-sm text-ctp-overlay1">Upload a CSV export to start matching orders.</p>
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
+		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
 			{#each $amazonOrders as order (order.id)}
 				{@const suggestions = suggestionsByOrderId[order.id] ?? []}
-				<li class="list-none border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-900" data-testid="amazon-order-row">
+				<li class="list-none border-b border-ctp-surface0 p-4 last:border-b-0" data-testid="amazon-order-row">
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div class="min-w-0 flex-1">
 							<div class="flex flex-wrap items-center gap-2">
-								<h2 class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{orderSummary(order)}</h2>
+								<h2 class="truncate text-sm font-semibold text-ctp-text">{orderSummary(order)}</h2>
 								<span class="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300">
 									{formatAmount(order.total, order.currency || $settings.currency)}
 								</span>
 							</div>
-							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+							<p class="mt-1 text-xs text-ctp-overlay1">
 								{order.orderDate} · <span class="font-mono">{order.id}</span>
 							</p>
 							{#if order.linkedExpenseIds.length > 0}
-								<div class="mt-2 flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-300">
+								<div class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
 									{#each order.linkedExpenseIds as expenseId}
 										{@const linkedExpense = expenseById.get(expenseId)}
 										<div class="flex flex-wrap items-center gap-2">
@@ -227,7 +227,7 @@
 												type="button"
 												onclick={() => void unlink(order.id, expenseId)}
 												disabled={actionOrderId === order.id}
-												class="rounded border border-gray-200 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-800"
+												class="rounded border border-ctp-surface1 px-2 py-0.5 text-xs hover:bg-ctp-surface1 disabled:opacity-60"
 											>
 												Unlink
 											</button>
@@ -241,7 +241,7 @@
 								type="button"
 								onclick={() => void loadSuggestions(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+								class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1 disabled:opacity-60"
 							>
 								Find matches
 							</button>
@@ -257,18 +257,18 @@
 					</div>
 
 					{#if suggestions.length > 0}
-						<div class="mt-3 rounded-md border border-gray-200 dark:border-gray-800">
+						<div class="mt-3 rounded-md border border-ctp-surface1">
 							{#each suggestions as expense (expense.id)}
-								<div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 text-sm last:border-b-0 dark:border-gray-900">
+								<div class="flex flex-wrap items-center justify-between gap-2 border-b border-ctp-surface0 px-3 py-2 text-sm last:border-b-0">
 									<div>
-										<p class="font-medium text-gray-900 dark:text-gray-100">{expense.displayName ?? expense.name}</p>
-										<p class="text-xs text-gray-500 dark:text-gray-400">{expense.date} · {formatAmount(expense.amount, $settings.currency)}</p>
+										<p class="font-medium text-ctp-text">{expense.displayName ?? expense.name}</p>
+										<p class="text-xs text-ctp-overlay1">{expense.date} · {formatAmount(expense.amount, $settings.currency)}</p>
 									</div>
 									<button
 										type="button"
 										onclick={() => void link(order.id, expense.id)}
 										disabled={actionOrderId === order.id}
-										class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+										class="rounded-md bg-ctp-accent px-3 py-1.5 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
 									>
 										Link
 									</button>

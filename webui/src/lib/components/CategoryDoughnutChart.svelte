@@ -16,7 +16,7 @@
 
 	const FALLBACK_LABEL = 'Uncategorized';
 
-	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
+	let themeVersion = $state(0);
 	let isWide = $state(browser && window.matchMedia('(min-width: 768px)').matches);
 
 	let themeObserver: MutationObserver | null = null;
@@ -28,14 +28,11 @@
 
 	if (browser) {
 		themeObserver = new MutationObserver(() => {
-			const next = document.documentElement.classList.contains('dark');
-			if (next !== isDark) {
-				isDark = next;
-			}
+			themeVersion++;
 		});
 		themeObserver.observe(document.documentElement, {
 			attributes: true,
-			attributeFilter: ['class']
+			attributeFilter: ['class', 'data-theme']
 		});
 
 		widthQuery = window.matchMedia('(min-width: 768px)');
@@ -82,7 +79,8 @@
 	});
 
 	const options: ChartOptions<'doughnut'> = $derived.by(() => {
-		const theme = chartThemeColors(isDark);
+		void themeVersion;
+		const theme = chartThemeColors();
 		return {
 			responsive: true,
 			maintainAspectRatio: false,
@@ -98,9 +96,7 @@
 
 <div data-testid="category-chart" class="h-64 w-full">
 	{#if slices.length === 0}
-		<div
-			class="flex h-full w-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-		>
+		<div class="flex h-full w-full items-center justify-center text-sm text-ctp-overlay1">
 			No expenses for this month — chart will populate as you add them.
 		</div>
 	{:else if browser}

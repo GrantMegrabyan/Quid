@@ -18,21 +18,21 @@
 </script>
 
 <div
-	class="inline-flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white text-sm shadow-sm dark:border-gray-800 dark:bg-[#111114]"
+	class="inline-flex items-center overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base text-sm shadow-sm"
 	aria-label="Selected month"
 >
 	<button
 		type="button"
 		data-testid="month-prev"
 		onclick={goPrevious}
-		class="px-3 py-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+		class="px-3 py-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
 		aria-label="Previous month"
 	>
 		‹
 	</button>
 	<div
 		data-testid="month-label"
-		class="min-w-36 border-x border-gray-200 px-4 py-2 text-center font-medium text-gray-900 dark:border-gray-800 dark:text-gray-100"
+		class="min-w-36 border-x border-ctp-surface1 px-4 py-2 text-center font-medium text-ctp-text"
 	>
 		{label}
 	</div>
@@ -41,7 +41,7 @@
 		data-testid="month-next"
 		onclick={goNext}
 		disabled={!canGoNext}
-		class="px-3 py-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-50 dark:disabled:text-gray-700"
+		class="px-3 py-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:cursor-not-allowed disabled:text-ctp-overlay0 disabled:hover:bg-transparent"
 		aria-label="Next month"
 	>
 		›

@@ -213,7 +213,7 @@
 					event.stopPropagation();
 					cancelDelete();
 				}}
-				class="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+				class="rounded-md border border-ctp-surface2 px-2.5 py-1 text-xs font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
 			>
 				Cancel
 			</button>
@@ -228,7 +228,7 @@
 					event.stopPropagation();
 					handleEdit(expense);
 				}}
-				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
 			>
 				✎
 			</button>
@@ -240,7 +240,7 @@
 					event.stopPropagation();
 					requestDelete(expense.id);
 				}}
-				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
 			>
 				🗑
 			</button>
@@ -251,16 +251,16 @@
 {#if !hasRows}
 	<div
 		data-testid="empty-state"
-		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-6 py-16 text-center dark:border-gray-700"
+		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center"
 	>
-		<p class="text-base font-medium text-gray-900 dark:text-gray-100">{emptyMessage}</p>
-		<p class="text-sm text-gray-500 dark:text-gray-400">
+		<p class="text-base font-medium text-ctp-text">{emptyMessage}</p>
+		<p class="text-sm text-ctp-overlay1">
 			Click + Add expense to add one for this month.
 		</p>
 	</div>
 {:else}
 	<ul
-		class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]"
+		class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base"
 	>
 		{#if !isGrouped}
 			{#each visibleExpenses as expense (expense.id)}
@@ -271,7 +271,7 @@
 				<li
 					data-testid="expense-row"
 					data-expense-id={expense.id}
-					class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-2 last:border-b-0 sm:px-3.5 dark:border-gray-900"
+					class="flex items-center gap-2.5 border-b border-ctp-surface0 px-3 py-2 last:border-b-0 sm:px-3.5"
 				>
 					<div
 						data-testid="expense-category-icon"
@@ -285,11 +285,11 @@
 
 					<div class="min-w-0 flex-1">
 						<p
-							class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
+							class="truncate text-sm font-semibold leading-tight text-ctp-text sm:text-base"
 						>
 							{expense.displayName ?? expense.name}
 						</p>
-						<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+						<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
 							{formatDate(expense.date)}
 						</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -313,7 +313,7 @@
 
 					<div class="ml-auto flex shrink-0 items-center gap-2">
 						<span
-							class="text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100"
+							class="text-right text-sm font-semibold tabular-nums text-ctp-text sm:text-base"
 						>
 							{formatAmount(expense.amount, $settings.currency)}
 						</span>
@@ -332,7 +332,7 @@
 					data-testid="expense-row"
 					data-group-id={group.id}
 					data-group-expanded={expanded}
-					class="border-b border-gray-100 last:border-b-0 dark:border-gray-900"
+					class="border-b border-ctp-surface0 last:border-b-0"
 					animate:flip={{ duration: FLIP_DURATION }}
 					transition:slide={{ duration: SLIDE_DURATION, easing: cubicOut }}
 				>
@@ -342,10 +342,10 @@
 						aria-expanded={expanded}
 						aria-controls={panelId}
 						onclick={() => toggleGroup(group.id)}
-						class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-gray-50 sm:px-3.5 dark:hover:bg-gray-900/60"
+						class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-ctp-surface0 sm:px-3.5"
 					>
 						<svg
-							class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 ease-out dark:text-gray-500"
+							class="h-3.5 w-3.5 shrink-0 text-ctp-overlay0 transition-transform duration-200 ease-out"
 							style:transform={expanded ? 'rotate(90deg)' : 'rotate(0deg)'}
 							viewBox="0 0 12 12"
 							fill="none"
@@ -371,11 +371,11 @@
 
 						<div class="min-w-0 flex-1">
 							<p
-								class="truncate text-sm font-semibold leading-tight text-gray-900 sm:text-base dark:text-gray-100"
+								class="truncate text-sm font-semibold leading-tight text-ctp-text sm:text-base"
 							>
 								{group.name}
 							</p>
-							<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+							<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
 								{group.count}
 								{group.count === 1 ? 'transaction' : 'transactions'}
 							</p>
@@ -385,7 +385,7 @@
 							value={group.amount}
 							currency={$settings.currency}
 							testid="expense-group-amount"
-							class="ml-auto text-right text-sm font-semibold tabular-nums text-gray-900 sm:text-base dark:text-gray-100"
+							class="ml-auto text-right text-sm font-semibold tabular-nums text-ctp-text sm:text-base"
 						/>
 					</button>
 
@@ -394,7 +394,7 @@
 							id={panelId}
 							data-testid="expense-group-panel"
 							transition:slide={{ duration: SLIDE_DURATION, easing: cubicOut }}
-							class="border-t border-gray-100 bg-gray-50/60 dark:border-gray-900 dark:bg-gray-950/40"
+							class="border-t border-ctp-surface0 bg-ctp-surface0/60"
 						>
 							<ul class="pl-8 sm:pl-10">
 								{#each items as expense (expense.id)}
@@ -405,7 +405,7 @@
 									<li
 										data-testid="expense-nested-row"
 										data-expense-id={expense.id}
-										class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-1.5 last:border-b-0 sm:px-3.5 dark:border-gray-900"
+										class="flex items-center gap-2.5 border-b border-ctp-surface0 px-3 py-1.5 last:border-b-0 sm:px-3.5"
 										animate:flip={{ duration: FLIP_DURATION }}
 										transition:slide={{ duration: SLIDE_DURATION, easing: cubicOut }}
 									>
@@ -424,20 +424,20 @@
 										<div class="min-w-0 flex-1">
 										{#if groupBy === 'category' || groupBy === 'importance'}
 											<p
-												class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
+												class="truncate text-sm font-medium leading-tight text-ctp-text"
 											>
 												{expense.displayName ?? expense.name}
 											</p>
-										<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+										<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
 											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}
 										</p>
 										{:else}
 												<p
-													class="truncate text-sm font-medium leading-tight text-gray-900 dark:text-gray-100"
+													class="truncate text-sm font-medium leading-tight text-ctp-text"
 												>
 													{itemCategoryName}
 												</p>
-												<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+												<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
 													{formatDate(expense.date)}
 												</p>
 									{/if}
@@ -455,13 +455,13 @@
 										{/if}
 									</div>
 									{#if expense.note}
-												<span class="sr-only">{expense.note}</span>
-											{/if}
+											<span class="sr-only">{expense.note}</span>
+										{/if}
 										</div>
 
 										<div class="ml-auto flex shrink-0 items-center gap-2">
 											<span
-												class="text-right text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100"
+												class="text-right text-sm font-semibold tabular-nums text-ctp-text"
 											>
 										{formatAmount(expense.amount, $settings.currency)}
 											</span>

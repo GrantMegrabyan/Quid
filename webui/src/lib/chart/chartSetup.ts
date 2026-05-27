@@ -9,18 +9,12 @@ export function ensureChartJsRegistered() {
 	registered = true;
 }
 
-export function chartThemeColors(isDark: boolean) {
-	if (isDark) {
-		return {
-			tick: '#d1d5db',
-			grid: '#374151',
-			legend: '#d1d5db'
-		};
-	}
-
+export function chartThemeColors() {
+	const s = getComputedStyle(document.documentElement);
+	const get = (v: string) => s.getPropertyValue(v).trim();
 	return {
-		tick: '#374151',
-		grid: '#e5e7eb',
-		legend: '#374151'
+		tick: get('--ctp-subtext0') || '#a6adc8',
+		grid: get('--ctp-surface1') || '#45475a',
+		legend: get('--ctp-subtext0') || '#a6adc8'
 	};
 }

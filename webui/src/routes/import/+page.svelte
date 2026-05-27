@@ -147,22 +147,22 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
 				Import transactions
 			</h1>
-			<p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
 				Preview CSV transactions before saving. Existing transactions with unchanged categories are
 				hidden; category changes are shown for approval.
 			</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
-			<label class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-[#111114] dark:text-gray-300">
+			<label class="inline-flex items-center gap-2 rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-subtext0">
 				<input
 					type="checkbox"
 					data-testid="ai-categorize-toggle"
 					bind:checked={aiCategorize}
 					disabled={loading || saving}
-					class="h-4 w-4 accent-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:accent-gray-100"
+					class="h-4 w-4 accent-ctp-accent disabled:cursor-not-allowed disabled:opacity-60"
 				/>
 				AI categorise
 			</label>
@@ -180,7 +180,7 @@
 				data-testid="select-import-files"
 				onclick={openFilePicker}
 				disabled={loading || saving}
-				class="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
 			>
 				{loading ? 'Previewing…' : 'Select CSV'}
 			</button>
@@ -200,7 +200,7 @@
 	{/if}
 
 	{#if preview}
-		<div class="import-summary rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-800 dark:bg-[#111114]">
+		<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
 			<div><strong>{preview.summary.creates}</strong><br />new</div>
 			<div><strong>{preview.summary.categoryUpdates}</strong><br />category changes</div>
 			<div><strong>{preview.summary.hiddenDuplicates}</strong><br />unchanged hidden</div>
@@ -210,8 +210,8 @@
 		</div>
 
 		{#if visibleRows.length > 0}
-			<div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
-				<div class="import-row import-row-header border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+			<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
+				<div class="import-row import-row-header border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
 					<div>Transaction</div>
 					<div>Amount</div>
 					<div>Category</div>
@@ -219,22 +219,22 @@
 					<div>Decision</div>
 				</div>
 				{#each visibleRows as row (row.previewRowId)}
-					<div class="import-row border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-800">
+					<div class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
 						<div>
-							<div class="font-medium text-gray-900 dark:text-gray-100">{row.name}</div>
-							<div class="text-xs text-gray-500 dark:text-gray-400">
+							<div class="font-medium text-ctp-text">{row.name}</div>
+							<div class="text-xs text-ctp-overlay1">
 								{row.date} · {row.filename}:{row.sourceRow}
 							</div>
 							{#if row.note}
-								<div class="text-xs text-gray-500 dark:text-gray-400">{row.note}</div>
+								<div class="text-xs text-ctp-overlay1">{row.note}</div>
 							{/if}
 						</div>
-						<div class="text-gray-700 dark:text-gray-300">{formatAmount(row.amount, $settings.currency)}</div>
+						<div class="text-ctp-subtext0">{formatAmount(row.amount, $settings.currency)}</div>
 						<div>
 							<select
 								bind:value={row.selectedCategoryName}
 								disabled={row.kind === 'category_update' && !row.acceptUpdate}
-								class="h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-800 dark:bg-[#0b0b0c] dark:text-gray-100"
+								class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
 							>
 								{#each categoryOptions(row) as category (category.id)}
 									<option value={category.name}>{category.name}</option>
@@ -245,14 +245,14 @@
 							<select
 								bind:value={row.selectedImportance}
 								disabled={row.kind === 'category_update' && !row.acceptUpdate}
-								class="h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:opacity-50 dark:border-gray-800 dark:bg-[#0b0b0c] dark:text-gray-100"
+								class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
 							>
 								<option value="essential">Essential</option>
 								<option value="important">Important</option>
 								<option value="discretionary">Discretionary</option>
 							</select>
 							{#if row.existingImportance && row.existingImportance !== row.selectedImportance}
-								<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								<p class="mt-1 text-xs text-ctp-overlay1">
 									Was {importanceLabel(row.existingImportance)}
 								</p>
 							{/if}
@@ -261,12 +261,12 @@
 							{#if row.kind === 'create'}
 								<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">New transaction</span>
 							{:else if row.kind === 'category_update'}
-								<label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-									<input type="checkbox" bind:checked={row.acceptUpdate} class="mt-1 h-4 w-4 accent-gray-900 dark:accent-gray-100" />
+								<label class="flex items-start gap-2 text-sm text-ctp-subtext0">
+									<input type="checkbox" bind:checked={row.acceptUpdate} class="mt-1 h-4 w-4 accent-ctp-accent" />
 									<span>Apply category / importance changes</span>
 								</label>
 							{:else}
-								<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">Excluded</span>
+								<span class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0">Excluded</span>
 							{/if}
 						</div>
 					</div>
@@ -281,7 +281,7 @@
 						rows = [];
 					}}
 					disabled={saving}
-					class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:bg-[#111114] dark:text-gray-100 dark:hover:bg-gray-800"
+					class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text hover:bg-ctp-surface1 disabled:opacity-60"
 				>
 					Cancel
 				</button>
@@ -290,7 +290,7 @@
 					data-testid="confirm-import"
 					onclick={confirmImport}
 					disabled={saving}
-					class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+					class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
 				>
 					{saving ? 'Saving…' : `Save ${createRows.length} new and review ${updateRows.length} updates`}
 				</button>
@@ -299,11 +299,11 @@
 	{/if}
 
 	{#if importLogs.length > 0}
-		<div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111114]">
-			<div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-				<h2 class="text-sm font-medium text-gray-900 dark:text-gray-100">Import history</h2>
+		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
+			<div class="border-b border-ctp-surface1 px-4 py-3">
+				<h2 class="text-sm font-medium text-ctp-text">Import history</h2>
 			</div>
-			<div class="import-log-row border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+			<div class="import-log-row border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
 				<div>Date / Time</div>
 				<div>Files</div>
 				<div>Imported</div>
@@ -311,16 +311,16 @@
 				<div>Skipped</div>
 			</div>
 			{#each importLogs as log (log.id)}
-				<div class="import-log-row border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-800">
-					<div class="text-gray-700 dark:text-gray-300">
+				<div class="import-log-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
+					<div class="text-ctp-subtext0">
 						{new Date(log.importedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
 					</div>
-					<div class="text-gray-600 dark:text-gray-400">
+					<div class="text-ctp-overlay1">
 						{log.files.length > 0 ? log.files.join(', ') : '—'}
 					</div>
-					<div class="text-gray-700 dark:text-gray-300">{log.imported}</div>
-					<div class="text-gray-700 dark:text-gray-300">{log.updated}</div>
-					<div class="text-gray-500 dark:text-gray-400 text-xs">
+					<div class="text-ctp-subtext0">{log.imported}</div>
+					<div class="text-ctp-subtext0">{log.updated}</div>
+					<div class="text-xs text-ctp-overlay1">
 						{#if log.skippedDuplicates > 0}
 							<span>{log.skippedDuplicates} dup</span>
 						{/if}
