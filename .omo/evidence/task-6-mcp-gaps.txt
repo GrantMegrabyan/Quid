@@ -1,0 +1,2 @@
+server-brave-search: empty stdout; stderr: Error: BRAVE_API_KEY environment variable is required
+

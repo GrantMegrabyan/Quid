@@ -1,0 +1,16 @@
+/playwright: Built into opencode binary; no source file in plugin tree
+/frontend-ui-ux: Built into opencode binary; no source file in plugin tree
+/git-master: Built into opencode binary; no source file in plugin tree
+/review-work: Built into opencode binary; no source file in plugin tree
+/ai-slop-remover: Built into opencode binary; no source file in plugin tree
+/commit: Built into opencode binary; no source file in plugin tree
+/init-deep: Built into opencode binary; no source file in plugin tree
+/ralph-loop: Built into opencode binary; no source file in plugin tree
+/ulw-loop: Built into opencode binary; no source file in plugin tree
+/cancel-ralph: Built into opencode binary; no source file in plugin tree
+/refactor: Built into opencode binary; no source file in plugin tree
+/start-work: Built into opencode binary; no source file in plugin tree
+/stop-continuation: Built into opencode binary; no source file in plugin tree
+/remove-ai-slops: Built into opencode binary; no source file in plugin tree
+/handoff: Built into opencode binary; no source file in plugin tree
+/hyperplan: Built into opencode binary; no source file in plugin tree

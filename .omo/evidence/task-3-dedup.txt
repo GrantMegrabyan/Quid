@@ -1,0 +1,1 @@
+Both queries above should return 2

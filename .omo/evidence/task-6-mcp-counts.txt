@@ -1,0 +1,33 @@
+3
+pencil: 13 tools
+server-filesystem: 11 tools
+server-sequential-thinking: 1 tools
+=== tool names per server ===
+--- pencil ---
+  batch_design
+  batch_get
+  export_nodes
+  find_empty_space_on_canvas
+  get_editor_state
+  get_guidelines
+  get_screenshot
+  get_variables
+  open_document
+  replace_all_matching_properties
+  search_all_unique_properties
+  set_variables
+  snapshot_layout
+--- server-filesystem ---
+  read_file
+  read_multiple_files
+  write_file
+  edit_file
+  create_directory
+  list_directory
+  directory_tree
+  move_file
+  search_files
+  get_file_info
+  list_allowed_directories
+--- server-sequential-thinking ---
+  sequentialthinking
