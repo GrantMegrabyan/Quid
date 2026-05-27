@@ -15,6 +15,7 @@ samples/
 .omo/boulder.json
 .omo/run-continuation/
 .omo/drafts/
+.omo/evidence/
 
 # --- webui (SvelteKit) ---
 webui/node_modules/
