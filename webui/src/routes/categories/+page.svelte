@@ -23,6 +23,7 @@
 	let newColor = $state(FALLBACK_COLOR);
 	let newIcon = $state(FALLBACK_CATEGORY_ICON);
 	let newError = $state('');
+	let newDescription = $state('');
 	let submittingNew = $state(false);
 
 	let editingId: string | null = $state(null);
@@ -30,6 +31,7 @@
 	let editColor = $state('');
 	let editIcon = $state(FALLBACK_CATEGORY_ICON);
 	let editError = $state('');
+	let editDescription = $state('');
 	let savingEdit = $state(false);
 
 	let confirmingDeleteId: string | null = $state(null);
@@ -95,10 +97,11 @@
 		submittingNew = true;
 		newError = '';
 		try {
-			await addCategory({ name: newName.trim(), color: newColor, icon: newIcon });
+			await addCategory({ name: newName.trim(), color: newColor, icon: newIcon, description: newDescription.replace(/\s+/g, ' ').trim() });
 			newName = '';
 			newColor = pickRandomDefaultColor();
 			newIcon = FALLBACK_CATEGORY_ICON;
+			newDescription = '';
 		} catch (error) {
 			newError = error instanceof Error ? error.message : 'Could not add category.';
 		} finally {
@@ -111,6 +114,7 @@
 		editName = cat.name;
 		editColor = cat.color || (cat.id === UNCATEGORIZED_ID ? UNCATEGORIZED_COLOR : FALLBACK_COLOR);
 		editIcon = normalizeCategoryIcon(cat.icon);
+		editDescription = cat.description ?? '';
 		editError = '';
 		confirmingDeleteId = null;
 	}
@@ -120,6 +124,7 @@
 		editName = '';
 		editColor = '';
 		editIcon = FALLBACK_CATEGORY_ICON;
+		editDescription = '';
 		editError = '';
 	}
 
@@ -150,7 +155,8 @@
 		try {
 			const patch: Partial<Omit<Category, 'id'>> = {
 				color: editColor,
-				icon: editIcon
+				icon: editIcon,
+				description: editDescription.replace(/\s+/g, ' ').trim()
 			};
 			if (id !== UNCATEGORIZED_ID) {
 				patch.name = trimmed;
@@ -292,6 +298,26 @@
 			>
 				Add category
 			</button>
+		</div>
+
+		<div class="flex flex-col gap-1">
+			<label
+				for="new-category-description"
+				class="text-sm font-medium text-ctp-subtext0"
+			>
+				Description
+			</label>
+				<textarea
+					id="new-category-description"
+					data-testid="new-category-description"
+					name="description"
+					rows="3"
+					maxlength="1000"
+					placeholder="e.g. Daily food shopping. Excludes restaurants."
+					bind:value={newDescription}
+					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+				></textarea>
+			<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 		</div>
 
 		{#if newError}
@@ -476,6 +502,25 @@
 									Cancel
 								</button>
 							</div>
+						</div>
+						<div class="flex flex-col gap-1">
+							<label
+								for={`edit-description-${category.id}`}
+								class="text-xs font-medium text-ctp-subtext0"
+							>
+								Description
+							</label>
+					<textarea
+						id={`edit-description-${category.id}`}
+						data-testid="category-edit-description"
+						name="description"
+						rows="3"
+						maxlength="1000"
+						placeholder="e.g. Daily food shopping. Excludes restaurants."
+						bind:value={editDescription}
+						class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+					></textarea>
+							<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 						</div>
 						{#if editError}
 							<p

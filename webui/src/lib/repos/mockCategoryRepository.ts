@@ -30,7 +30,7 @@ export class MockCategoryRepository implements CategoryRepository {
 		const icon = normalizeCategoryIcon(input.icon);
 
 		const newState = setStore((s) => {
-			s.categories.push({ id, name, color, icon });
+			s.categories.push({ id, name, color, icon, description: input.description ?? '' });
 		});
 
 		const created = newState.categories.find((c) => c.id === id);
@@ -79,6 +79,10 @@ export class MockCategoryRepository implements CategoryRepository {
 
 			if (patch.icon !== undefined) {
 				s.categories[idx].icon = normalizeCategoryIcon(patch.icon);
+			}
+
+			if (patch.description !== undefined) {
+				s.categories[idx].description = patch.description;
 			}
 		});
 
