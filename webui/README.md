@@ -26,6 +26,22 @@ npm run dev
 
 The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhost:8000`.
 
+## Pages
+
+- **Dashboard** (`/`) — transaction list and charts. Each transaction's
+  subheading shows the date and, when present, its note (a linked Amazon order's
+  short name is used as the note when the expense has none).
+- **Import** (`/import`) — CSV import preview/confirm. AI categorisation is no
+  longer a per-import checkbox; it follows the **Settings** toggle.
+- **Amazon orders** (`/amazon`) — import Amazon order CSVs, see which orders are
+  linked vs unlinked, link/unlink to transactions, and edit each order's
+  AI-generated **short name** inline.
+- **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
+  **AI categorisation** and **AI Amazon short names** (both persisted, default
+  on).
+- **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
+  (`/ai-rules`).
+
 ## Scripts
 
 ```sh

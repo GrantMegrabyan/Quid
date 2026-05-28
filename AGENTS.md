@@ -7,6 +7,34 @@
 - Ask before destructive or shared-impact operations, especially database wipes, branch resets, force pushes, or deleting files.
 - Prefer small, direct changes that match existing patterns over broad refactors.
 
+## Documentation policy (REQUIRED — always document when work is done)
+
+Documentation is part of "done", not an optional follow-up. Update docs in the
+SAME chunk/commit as the code change that makes them necessary — never leave the
+READMEs describing behaviour the code no longer has.
+
+When finishing a chunk of work, before committing, check whether it changed any
+of the following and update docs accordingly:
+
+- New or changed user-facing feature, page, or flow → update the relevant
+  `README.md` (`api/README.md` for backend/API/CLI behaviour, `webui/README.md`
+  for frontend setup/flows). Document new pages, settings, and what they do.
+- New, removed, or changed API endpoint, request/response field, query/form
+  param, or default behaviour → fix `api/README.md` (endpoint list, curl
+  examples, accepted-shapes tables). Remove examples that would now error.
+- New or changed CLI command, env var, or config setting → update the CLI and
+  Configuration sections of `api/README.md`.
+- New schema/migration, model, or persisted setting → mention it where users
+  would look for it (Configuration / feature section), and add any non-obvious
+  context (defaults, gating behaviour, idempotency) to this file (AGENTS.md) if
+  future sessions would need it.
+- A non-obvious finding, gotcha, workflow, or constraint discovered while
+  working → add a short note to the relevant section of AGENTS.md so the next
+  session inherits it.
+
+Rule of thumb: if a teammate reading only the README would be surprised or
+misled by the new behaviour, the README must be updated in this commit.
+
 ## Commit policy (REQUIRED — overrides default "ask before committing")
 
 This repo expects the assistant to commit autonomously. Treat the following as
@@ -110,3 +138,26 @@ Verification checklist for any user-facing change:
 - Default categories live in both `api/src/quid_api/seed.py` and `webui/src/lib/repos/seed.ts`; keep them aligned.
 - Category descriptions are sent to AI categorisation. Keep descriptions concise and include both "belongs here" and "does not include" guidance when useful.
 - AI categorisation should strongly prefer existing categories and only create a new category when no existing guided category reasonably fits.
+- The two AI features are gated by persisted app settings, not per-request flags:
+  `ai_categorize_enabled` and `ai_short_names_enabled` (both default true, on the
+  `app_settings` singleton, edited via the Settings page / `PATCH /api/v1/settings`).
+  CSV import (`/api/v1/expenses/import-csv[/preview]`) reads `ai_categorize_enabled`
+  server-side — there is no longer an `ai_categorize` form param (passing it 422s).
+- Both AI features reuse the same OpenRouter provider/model
+  (`QUID_OPENROUTER_*`); short names live in `api/src/quid_api/ai_short_names.py`.
+
+## Amazon orders context
+
+- Amazon orders are imported from CSV (`POST /api/v1/amazon-orders/import-csv`) and
+  linked to `expenses` via the `expense_amazon_orders` many-to-many table.
+  Auto-matching runs on import and via `/match-all`.
+- Each order has a `short_name` (≤60 chars): a brief AI-generated description of what
+  was purchased, generated ONCE at import time (only when `ai_short_names_enabled`)
+  and stored. Re-importing the same order id never overwrites it. Users edit it via
+  `PATCH /api/v1/amazon-orders/{id}/short-name`. When AI short names are disabled the
+  field is left blank on import (no AI call, no title fallback).
+- A linked Amazon order's `short_name` surfaces as the transaction's note in the
+  expense list when the expense has no note of its own.
+- Backfill names for already-imported orders missing one with
+  `uv run quid-api backfill-amazon-short-names` (idempotent; never overwrites). It
+  calls OpenRouter, so it needs `QUID_OPENROUTER_API_KEY`.
