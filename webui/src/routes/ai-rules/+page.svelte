@@ -13,6 +13,7 @@
 
 	let form = $state<FormState>(emptyForm());
 	let editingId: string | null = $state(null);
+	let showAddForm = $state(false);
 	let error = $state('');
 	let message = $state('');
 	let saving = $state(false);
@@ -26,6 +27,18 @@
 
 	function cancelEdit(): void {
 		editingId = null;
+		form = emptyForm();
+		error = '';
+	}
+
+	function openAddForm(): void {
+		showAddForm = true;
+		form = emptyForm();
+		error = '';
+	}
+
+	function closeAddForm(): void {
+		showAddForm = false;
 		form = emptyForm();
 		error = '';
 	}
@@ -47,11 +60,12 @@
 			if (editingId) {
 				await editAiRule(editingId, payload);
 				message = 'AI rule saved.';
+				cancelEdit();
 			} else {
 				await addAiRule(payload);
 				message = 'AI rule added.';
+				closeAddForm();
 			}
-			cancelEdit();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Could not save AI rule.';
 		} finally {
@@ -94,11 +108,25 @@
 		</div>
 	{/if}
 
+	{#if !editingId && !showAddForm}
+		<div>
+			<button
+				type="button"
+				data-testid="show-new-ai-rule-form"
+				onclick={openAddForm}
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
+			>
+				+ Add AI rule
+			</button>
+		</div>
+	{:else}
 	<form onsubmit={saveRule} class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 		<div class="mb-4 flex items-center justify-between gap-3">
 			<h2 class="text-lg font-medium text-ctp-text">{editingId ? 'Edit AI rule' : 'Add AI rule'}</h2>
 			{#if editingId}
 				<button type="button" class="text-sm text-ctp-blue underline" onclick={cancelEdit}>Cancel edit</button>
+			{:else}
+				<button type="button" class="text-sm text-ctp-blue underline" onclick={closeAddForm}>Cancel</button>
 			{/if}
 		</div>
 
@@ -137,6 +165,7 @@
 			</button>
 		</div>
 	</form>
+	{/if}
 
 	<div class="rounded-lg border border-ctp-surface1 bg-ctp-base">
 		<div class="border-b border-ctp-surface1 px-4 py-3">

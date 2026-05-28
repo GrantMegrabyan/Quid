@@ -34,6 +34,7 @@ test.describe('categories page', () => {
 	test('add new category appends a row', async ({ page }) => {
 		await page.goto('/categories');
 
+		await page.getByTestId('show-new-category-form').click();
 		await chooseIcon(page.getByTestId('new-category-icon'), 'ticket');
 		await page.getByTestId('new-category-name').fill('Coffee');
 		await page.getByTestId('new-category-submit').click();
@@ -51,6 +52,7 @@ test.describe('categories page', () => {
 	test('duplicate category name is rejected with inline error', async ({ page }) => {
 		await page.goto('/categories');
 
+		await page.getByTestId('show-new-category-form').click();
 		await page.getByTestId('new-category-name').fill('groceries');
 		await page.getByTestId('new-category-submit').click();
 
@@ -102,6 +104,7 @@ test.describe('categories page', () => {
 	test('icon picker exposes the Lucide catalog and searchable seed icons', async ({ page }) => {
 		await page.goto('/categories');
 
+		await page.getByTestId('show-new-category-form').click();
 		const picker = page.getByTestId('new-category-icon');
 		const summary = await picker.getByTestId('icon-picker-summary').innerText();
 		const total = Number(summary.match(/of (\d+)/)?.[1] ?? 0);

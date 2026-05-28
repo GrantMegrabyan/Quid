@@ -19,12 +19,27 @@
 	const CASCADE_NOTICE_MS = 5000;
 	const FALLBACK_COLOR = '#6b7280';
 
+	let showAddForm = $state(false);
 	let newName = $state('');
 	let newColor = $state(FALLBACK_COLOR);
 	let newIcon = $state(FALLBACK_CATEGORY_ICON);
 	let newError = $state('');
 	let newDescription = $state('');
 	let submittingNew = $state(false);
+
+	function openAddForm(): void {
+		showAddForm = true;
+		newError = '';
+	}
+
+	function closeAddForm(): void {
+		showAddForm = false;
+		newName = '';
+		newIcon = FALLBACK_CATEGORY_ICON;
+		newDescription = '';
+		newError = '';
+		newColor = pickRandomDefaultColor();
+	}
 
 	let editingId: string | null = $state(null);
 	let editName = $state('');
@@ -102,6 +117,7 @@
 			newColor = pickRandomDefaultColor();
 			newIcon = FALLBACK_CATEGORY_ICON;
 			newDescription = '';
+			showAddForm = false;
 		} catch (error) {
 			newError = error instanceof Error ? error.message : 'Could not add category.';
 		} finally {
@@ -214,15 +230,28 @@
 </svelte:head>
 
 <section class="flex flex-col gap-6">
-	<header class="flex flex-col gap-1">
-		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
-			Categories
-		</h1>
-		<p class="text-sm text-ctp-overlay1">
-			Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.
-		</p>
+	<header class="flex flex-wrap items-start justify-between gap-3">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
+				Categories
+			</h1>
+			<p class="text-sm text-ctp-overlay1">
+				Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.
+			</p>
+		</div>
+		{#if !showAddForm}
+			<button
+				type="button"
+				data-testid="show-new-category-form"
+				onclick={openAddForm}
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
+			>
+				+ Add category
+			</button>
+		{/if}
 	</header>
 
+	{#if showAddForm}
 	<form
 		onsubmit={handleAdd}
 		novalidate
@@ -311,14 +340,24 @@
 				/>
 			</div>
 
-			<button
-				type="submit"
-				data-testid="new-category-submit"
-				disabled={submittingNew}
-				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60 sm:self-start"
-			>
-				Add category
-			</button>
+			<div class="flex flex-wrap items-center gap-2 sm:self-start">
+				<button
+					type="submit"
+					data-testid="new-category-submit"
+					disabled={submittingNew}
+					class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
+				>
+					Add category
+				</button>
+				<button
+					type="button"
+					data-testid="new-category-cancel"
+					onclick={closeAddForm}
+					class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
+				>
+					Cancel
+				</button>
+			</div>
 		</div>
 
 		{#if newError}
@@ -330,6 +369,7 @@
 			</p>
 		{/if}
 	</form>
+	{/if}
 
 	{#if cascadeMessage}
 		<div

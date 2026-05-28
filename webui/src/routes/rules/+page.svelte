@@ -58,6 +58,7 @@
 
 	let form = $state<FormState>(emptyForm());
 	let editingId: string | null = $state(null);
+	let showAddForm = $state(false);
 	let error = $state('');
 	let message = $state('');
 	let saving = $state(false);
@@ -119,6 +120,18 @@
 		error = '';
 	}
 
+	function openAddForm(): void {
+		showAddForm = true;
+		form = emptyForm();
+		error = '';
+	}
+
+	function closeAddForm(): void {
+		showAddForm = false;
+		form = emptyForm();
+		error = '';
+	}
+
 	function toPayload(): ImportRuleCreate {
 		const name = form.name.trim();
 		if (!name) throw new Error('Rule name is required.');
@@ -173,11 +186,12 @@
 			if (editingId) {
 				await editImportRule(editingId, payload);
 				message = 'Rule saved.';
+				cancelEdit();
 			} else {
 				await addImportRule(payload);
 				message = 'Rule added.';
+				closeAddForm();
 			}
-			cancelEdit();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Could not save rule.';
 		} finally {
@@ -250,6 +264,8 @@
 			<h2 class="text-lg font-medium text-ctp-text">{headingText}</h2>
 			{#if editingId}
 				<button type="button" class="text-sm text-ctp-blue underline" onclick={cancelEdit}>Cancel edit</button>
+			{:else}
+				<button type="button" class="text-sm text-ctp-blue underline" onclick={closeAddForm}>Cancel</button>
 			{/if}
 		</div>
 
@@ -409,7 +425,20 @@
 	{/if}
 
 	{#if editingId === null}
-		{@render ruleForm('Add rule')}
+		{#if showAddForm}
+			{@render ruleForm('Add rule')}
+		{:else}
+			<div>
+				<button
+					type="button"
+					data-testid="show-new-rule-form"
+					onclick={openAddForm}
+					class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
+				>
+					+ Add rule
+				</button>
+			</div>
+		{/if}
 	{/if}
 
 	<div class="flex flex-col gap-3">
