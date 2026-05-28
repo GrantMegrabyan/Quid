@@ -228,7 +228,7 @@
 		novalidate
 		class="flex flex-col gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base p-4 sm:p-5"
 	>
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-stretch">
 			<div class="flex flex-col gap-1 sm:w-80">
 				<label
 					for="new-category-icon"
@@ -254,24 +254,45 @@
 				</div>
 			</div>
 
-			<div class="flex min-w-0 flex-1 flex-col gap-1">
-				<label
-					for="new-category-name"
-					class="text-sm font-medium text-ctp-subtext0"
-				>
-					Name
-				</label>
-				<input
-					id="new-category-name"
-					data-testid="new-category-name"
-					type="text"
-					maxlength={NAME_MAX}
-					autocomplete="off"
-					placeholder="e.g. Coffee"
-					bind:value={newName}
-					oninput={() => (newError = '')}
-					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
-				/>
+			<div class="flex min-w-0 flex-1 flex-col gap-3">
+				<div class="flex flex-col gap-1">
+					<label
+						for="new-category-name"
+						class="text-sm font-medium text-ctp-subtext0"
+					>
+						Name
+					</label>
+					<input
+						id="new-category-name"
+						data-testid="new-category-name"
+						type="text"
+						maxlength={NAME_MAX}
+						autocomplete="off"
+						placeholder="e.g. Coffee"
+						bind:value={newName}
+						oninput={() => (newError = '')}
+						class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					/>
+				</div>
+
+				<div class="flex min-h-0 flex-1 flex-col gap-1">
+					<label
+						for="new-category-description"
+						class="text-sm font-medium text-ctp-subtext0"
+					>
+						Description
+					</label>
+					<textarea
+						id="new-category-description"
+						data-testid="new-category-description"
+						name="description"
+						maxlength="1000"
+						placeholder="e.g. Daily food shopping. Excludes restaurants."
+						bind:value={newDescription}
+						class="min-h-[80px] w-full flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+					></textarea>
+					<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-1">
@@ -294,30 +315,10 @@
 				type="submit"
 				data-testid="new-category-submit"
 				disabled={submittingNew}
-				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60 sm:self-end"
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60 sm:self-start"
 			>
 				Add category
 			</button>
-		</div>
-
-		<div class="flex flex-col gap-1">
-			<label
-				for="new-category-description"
-				class="text-sm font-medium text-ctp-subtext0"
-			>
-				Description
-			</label>
-				<textarea
-					id="new-category-description"
-					data-testid="new-category-description"
-					name="description"
-					rows="3"
-					maxlength="1000"
-					placeholder="e.g. Daily food shopping. Excludes restaurants."
-					bind:value={newDescription}
-					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
-				></textarea>
-			<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 		</div>
 
 		{#if newError}
@@ -426,8 +427,8 @@
 				</div>
 
 				{#if isEditing}
-						<div class="flex flex-col gap-2 rounded-md border border-ctp-surface1 bg-ctp-surface0 p-3">
-						<div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+					<div class="flex flex-col gap-2 rounded-md border border-ctp-surface1 bg-ctp-surface0 p-3">
+						<div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
 							<div class="flex flex-col gap-1 sm:w-72">
 								<label
 									for={`edit-icon-${category.id}`}
@@ -449,25 +450,47 @@
 								</div>
 							</div>
 
-							<div class="flex min-w-0 flex-1 flex-col gap-1">
-								<label
-									for={`edit-name-${category.id}`}
-									class="text-xs font-medium text-ctp-subtext0"
-								>
-									Name
-								</label>
-								<input
-									id={`edit-name-${category.id}`}
-									data-testid="category-edit-name"
-									type="text"
-									maxlength={NAME_MAX}
-									autocomplete="off"
-									disabled={isUncategorized}
-									bind:value={editName}
-									oninput={() => (editError = '')}
-									class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none disabled:cursor-not-allowed disabled:bg-ctp-surface0 disabled:text-ctp-overlay1"
-								/>
+							<div class="flex min-w-0 flex-1 flex-col gap-2">
+								<div class="flex flex-col gap-1">
+									<label
+										for={`edit-name-${category.id}`}
+										class="text-xs font-medium text-ctp-subtext0"
+									>
+										Name
+									</label>
+									<input
+										id={`edit-name-${category.id}`}
+										data-testid="category-edit-name"
+										type="text"
+										maxlength={NAME_MAX}
+										autocomplete="off"
+										disabled={isUncategorized}
+										bind:value={editName}
+										oninput={() => (editError = '')}
+										class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none disabled:cursor-not-allowed disabled:bg-ctp-surface0 disabled:text-ctp-overlay1"
+									/>
+								</div>
+
+								<div class="flex min-h-0 flex-1 flex-col gap-1">
+									<label
+										for={`edit-description-${category.id}`}
+										class="text-xs font-medium text-ctp-subtext0"
+									>
+										Description
+									</label>
+									<textarea
+										id={`edit-description-${category.id}`}
+										data-testid="category-edit-description"
+										name="description"
+										maxlength="1000"
+										placeholder="e.g. Daily food shopping. Excludes restaurants."
+										bind:value={editDescription}
+										class="min-h-[80px] w-full flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+									></textarea>
+									<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
+								</div>
 							</div>
+
 							<div class="flex flex-col gap-1">
 								<label
 									for={`edit-color-${category.id}`}
@@ -483,7 +506,8 @@
 									class="h-10 w-14 cursor-pointer rounded-md border border-ctp-surface2 bg-ctp-base p-1"
 								/>
 							</div>
-							<div class="flex items-center gap-1.5 sm:self-end">
+
+							<div class="flex items-center gap-1.5 sm:self-start">
 								<button
 									type="button"
 									data-testid="category-edit-save-btn"
@@ -502,25 +526,6 @@
 									Cancel
 								</button>
 							</div>
-						</div>
-						<div class="flex flex-col gap-1">
-							<label
-								for={`edit-description-${category.id}`}
-								class="text-xs font-medium text-ctp-subtext0"
-							>
-								Description
-							</label>
-					<textarea
-						id={`edit-description-${category.id}`}
-						data-testid="category-edit-description"
-						name="description"
-						rows="3"
-						maxlength="1000"
-						placeholder="e.g. Daily food shopping. Excludes restaurants."
-						bind:value={editDescription}
-						class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
-					></textarea>
-							<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 						</div>
 						{#if editError}
 							<p
