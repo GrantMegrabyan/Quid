@@ -314,7 +314,7 @@
 							{expense.displayName ?? expense.name}
 						</p>
 						<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
-							{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
+							{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> · </span>{noteText}{/if}
 						</p>
 						{#if $settings.showImportanceBadge}
 							<div class="mt-1 flex flex-wrap items-center gap-1.5">
@@ -443,7 +443,7 @@
 												{expense.displayName ?? expense.name}
 											</p>
 										<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
-											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
+											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}{#if noteText}<span class="text-ctp-overlay0"> · </span>{noteText}{/if}
 										</p>
 										{:else}
 												<p
@@ -452,7 +452,7 @@
 													{itemCategoryName}
 												</p>
 												<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
-													{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
+													{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> · </span>{noteText}{/if}
 												</p>
 									{/if}
 									{#if $settings.showImportanceBadge}

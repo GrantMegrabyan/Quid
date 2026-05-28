@@ -7,10 +7,10 @@ test('transaction subheading shows date and note on one line', async ({ page }) 
 
 	const wholeFoodsRow = page.getByTestId('expense-row').filter({ hasText: 'Whole Foods' });
 	await expect(wholeFoodsRow.getByTestId('expense-subheading')).toContainText('Weekly groceries');
-	await expect(wholeFoodsRow.getByTestId('expense-subheading')).toContainText('●');
+	await expect(wholeFoodsRow.getByTestId('expense-subheading')).toContainText(' · ');
 
 	const uberRow = page.getByTestId('expense-row').filter({ hasText: 'Uber' });
-	await expect(uberRow.getByTestId('expense-subheading')).not.toContainText('●');
+	await expect(uberRow.getByTestId('expense-subheading')).not.toContainText(' · ');
 	await expect(page.getByTestId('amazon-linked-badge')).toHaveCount(0);
 });
 
@@ -59,5 +59,5 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 	await page.goto('/');
 	const expenseRow = page.getByTestId('expense-row').filter({ hasText: 'AMZN Mktp' });
 	await expect(expenseRow.getByTestId('expense-subheading')).toContainText('Gaming mouse');
-	await expect(expenseRow.getByTestId('expense-subheading')).toContainText('●');
+	await expect(expenseRow.getByTestId('expense-subheading')).toContainText(' · ');
 });
