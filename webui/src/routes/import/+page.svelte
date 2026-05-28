@@ -95,6 +95,7 @@
 		try {
 			const result = await expenseRepository.confirmImportCsv({
 				importId: preview.importId,
+				files: preview.files.map((file) => file.filename),
 				creates: createRows.map((row) => ({
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,

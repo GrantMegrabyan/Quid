@@ -212,6 +212,7 @@ class ImportCsvConfirmCategoryUpdateRow(_Camel):
 
 class ImportCsvConfirmRequest(_Camel):
     import_id: str
+    files: list[str] = Field(default_factory=list)
     creates: list[ImportCsvConfirmCreateRow] = Field(default_factory=list)
     category_updates: list[ImportCsvConfirmCategoryUpdateRow] = Field(default_factory=list)
 

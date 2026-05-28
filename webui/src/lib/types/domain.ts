@@ -114,6 +114,7 @@ export interface ImportCsvConfirmCategoryUpdateRow {
 
 export interface ImportCsvConfirmRequest {
  	importId: string;
+ 	files: string[];
  	creates: ImportCsvConfirmCreateRow[];
  	categoryUpdates: ImportCsvConfirmCategoryUpdateRow[];
 }

@@ -600,7 +600,7 @@ async def confirm_import_csv(
 
     log_repo = ImportLogRepository(session)
     await log_repo.create(
-        files=[],
+        files=payload.files,
         imported=len(created_expenses),
         updated=updated,
         skipped_duplicates=skipped_duplicates,
