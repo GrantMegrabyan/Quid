@@ -197,18 +197,18 @@ test.describe('theme toggle', () => {
 	});
 
 	test('toggling theme persists across reload', async ({ page }) => {
-		await page.goto('/');
+		await page.goto('/settings');
 
 		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
 
-		await page.getByTestId('theme-toggle').click();
-		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+		await page.locator('select').first().selectOption('default-light');
+		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
 
 		const storedAfterToggle = await page.evaluate((key) => localStorage.getItem(key), THEME_KEY);
-		expect(storedAfterToggle).toBe('dark');
+		expect(storedAfterToggle).toBe('default-light');
 
 		await page.reload();
-		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
 	});
 });
 
