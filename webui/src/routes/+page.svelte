@@ -28,6 +28,9 @@
 	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
 
 	const CHART_PREFS_KEY = 'expense-tracker:dashboard-charts:v1';
+	const GROUP_BY_KEY = 'expense-tracker:expense-group-by:v1';
+	const GROUP_BY_VALUES: ExpenseGroupBy[] = ['transaction', 'merchant', 'category', 'importance'];
+	let groupByLoaded = $state(false);
 	const selectedMonthLabel = $derived(formatMonthLabel($selectedMonth));
 	const selectedMonthTotal = $derived.by(() => {
 		let total = 0;
@@ -59,6 +62,12 @@
 		void refreshExpenses();
 		void refreshCategories();
 		void refreshSettings();
+
+		const savedGroupBy = localStorage.getItem(GROUP_BY_KEY);
+		if (savedGroupBy && GROUP_BY_VALUES.includes(savedGroupBy as ExpenseGroupBy)) {
+			expenseGroupBy = savedGroupBy as ExpenseGroupBy;
+		}
+		groupByLoaded = true;
 
 		const saved = localStorage.getItem(CHART_PREFS_KEY);
 		if (saved) {
@@ -95,6 +104,11 @@
 				categoryMonthlySelected: selectedCategoryIds
 			})
 		);
+	});
+
+	$effect(() => {
+		if (!groupByLoaded) return;
+		localStorage.setItem(GROUP_BY_KEY, expenseGroupBy);
 	});
 </script>
 
