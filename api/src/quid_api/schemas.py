@@ -363,6 +363,7 @@ class AmazonOrderOut(_Camel):
     shipments: list[AmazonOrderShipment] = Field(default_factory=list)
     payment_last4: str | None = None
     order_url: str | None = None
+    short_name: str | None = None
     imported_at: str
     linked_expense_ids: list[str] = Field(default_factory=list)
 
@@ -395,6 +396,10 @@ class AmazonMatchAllResponse(_Camel):
 
 class AmazonLinkRequest(_Camel):
     expense_id: Annotated[str, Field(min_length=1)]
+
+
+class AmazonShortNameRequest(_Camel):
+    short_name: Annotated[str, Field(max_length=60)]
 
 
 class AppSettingsOut(_Camel):

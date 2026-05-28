@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 
+from quid_api.ai_short_names import ShortNameInput, generate_short_names
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
@@ -24,9 +25,11 @@ from quid_api.schemas import (
     AmazonOrderItem,
     AmazonOrderOut,
     AmazonOrderShipment,
+    AmazonShortNameRequest,
     ExpenseOut,
     Importance,
 )
+from quid_api.settings import get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,6 +79,7 @@ def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOr
         shipments=shipments,
         payment_last4=order.payment_last4,
         order_url=order.order_url,
+        short_name=order.short_name,
         imported_at=order.imported_at,
         linked_expense_ids=linked_expense_ids,
     )
@@ -120,6 +124,8 @@ async def import_amazon_csv(
     reports: list[AmazonImportFileReport] = []
     total_created = 0
     total_updated = 0
+    # Item titles per order id so we can generate short names once after upsert.
+    titles_by_order: dict[str, list[str]] = {}
     for upload in files:
         content = await upload.read()
         filename = upload.filename or "amazon.csv"
@@ -162,6 +168,8 @@ async def import_amazon_csv(
             )
             for order in parsed.orders
         ]
+        for order in parsed.orders:
+            titles_by_order[order.order_id] = [item.title for item in order.items]
         result = await repo.bulk_upsert(payloads)
         total_created += result.created
         total_updated += result.updated
@@ -180,6 +188,26 @@ async def import_amazon_csv(
             result.updated,
             parsed.skipped_rows,
         )
+
+    # Generate short names once for imported orders that don't have one yet.
+    settings = get_settings()
+    needs_name: list[ShortNameInput] = []
+    for order_id, titles in titles_by_order.items():
+        existing = await repo.get(order_id)
+        if existing.short_name:
+            continue
+        needs_name.append(ShortNameInput(order_id=order_id, item_titles=titles))
+    if needs_name:
+        try:
+            generated = await generate_short_names(
+                needs_name,
+                api_key=settings.openrouter_api_key,
+                model=settings.openrouter_model,
+                chunk_size=settings.openrouter_chunk_size,
+            )
+            await repo.set_generated_short_names(generated)
+        except RepositoryError:
+            logger.warning("amazon.import.short_names_failed", exc_info=True)
 
     match_result = await repo.auto_match_all()
     await session.commit()
@@ -206,9 +234,7 @@ async def match_all_amazon_orders(session: SessionDep) -> AmazonMatchAllResponse
     )
 
 
-async def _expense_with_links(
-    repo: AmazonOrderRepository, expense: Expense
-) -> ExpenseOut:
+async def _expense_with_links(repo: AmazonOrderRepository, expense: Expense) -> ExpenseOut:
     linked_map = await repo.expense_linked_orders([expense.id])
     return ExpenseOut(
         id=expense.id,
@@ -262,6 +288,18 @@ async def unlink_amazon_order(
     repo = AmazonOrderRepository(session)
     expense = await repo.unlink_expense(order_id, payload.expense_id)
     out = await _expense_with_links(repo, expense)
+    await session.commit()
+    return out
+
+
+@router.patch("/{order_id}/short-name", response_model=AmazonOrderOut)
+async def update_amazon_short_name(
+    order_id: str, payload: AmazonShortNameRequest, session: SessionDep
+) -> AmazonOrderOut:
+    repo = AmazonOrderRepository(session)
+    order = await repo.update_short_name(order_id, payload.short_name)
+    linked = await repo.linked_expense_ids(order.id)
+    out = _order_to_out(order, linked)
     await session.commit()
     return out
 

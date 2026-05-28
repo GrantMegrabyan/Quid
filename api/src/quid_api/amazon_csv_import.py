@@ -42,9 +42,13 @@ _PER_ROW_TOTAL_ALIASES = (
     "totalamount",
     "total amount",
 )
-_TOTAL_ALIASES = _PER_ORDER_TOTAL_ALIASES + _PER_ROW_TOTAL_ALIASES + (
-    "total",
-    "amount",
+_TOTAL_ALIASES = (
+    _PER_ORDER_TOTAL_ALIASES
+    + _PER_ROW_TOTAL_ALIASES
+    + (
+        "total",
+        "amount",
+    )
 )
 _CURRENCY_ALIASES = ("currency", "currency code")
 _TITLE_ALIASES = (
@@ -344,9 +348,7 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
         # Resolve the shipment bucket once per row so blob/title items both
         # attribute to the same shipment.
         tracking_raw = (raw.get(tracking_col) or "").strip() if tracking_col else ""
-        ship_date_raw = (
-            _normalize_date(raw.get(ship_date_col) or "") if ship_date_col else ""
-        )
+        ship_date_raw = _normalize_date(raw.get(ship_date_col) or "") if ship_date_col else ""
         if tracking_raw:
             shipment_key = f"track::{tracking_raw}"
         elif ship_date_raw:

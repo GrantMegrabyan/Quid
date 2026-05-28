@@ -233,6 +233,9 @@ class AmazonOrder(Base):
     )
     payment_last4: Mapped[str | None] = mapped_column(String, nullable=True)
     order_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Short AI-generated (or user-edited) description of what was purchased,
+    # generated once at import time and stored. Editable by the user.
+    short_name: Mapped[str | None] = mapped_column(String, nullable=True)
     imported_at: Mapped[str] = mapped_column(String, nullable=False)
 
     expense_links: Mapped[list[ExpenseAmazonOrderLink]] = relationship(

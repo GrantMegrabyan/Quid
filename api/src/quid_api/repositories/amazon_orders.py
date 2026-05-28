@@ -205,6 +205,9 @@ class AmazonOrderRepository:
             await self.session.flush()
             return row, True
 
+        # Re-importing keeps an existing short_name: it may have been edited by
+        # the user, and we only generate one once at first import.
+
         existing.order_date = payload.order_date
         existing.total = payload.total
         existing.currency = payload.currency
@@ -237,10 +240,25 @@ class AmazonOrderRepository:
         await self.session.delete(row)
         await self.session.flush()
 
+    async def set_generated_short_names(self, names: dict[str, str]) -> None:
+        """Store AI-generated short names, only for orders that don't yet have
+        one. Never overwrites an existing (possibly user-edited) value."""
+        for order_id, short_name in names.items():
+            order = await self.session.get(AmazonOrder, order_id)
+            if order is None or order.short_name:
+                continue
+            order.short_name = short_name
+        await self.session.flush()
+
+    async def update_short_name(self, order_id: str, short_name: str) -> AmazonOrder:
+        order = await self.get(order_id)
+        cleaned = " ".join(short_name.split())
+        order.short_name = cleaned or None
+        await self.session.flush()
+        return order
+
     async def _linked_expense_ids_set(self) -> set[str]:
-        rows = (
-            await self.session.scalars(select(ExpenseAmazonOrderLink.expense_id))
-        ).all()
+        rows = (await self.session.scalars(select(ExpenseAmazonOrderLink.expense_id))).all()
         return set(rows)
 
     def _charge_amounts(self, order: AmazonOrder) -> list[tuple[Decimal, date | None]]:
@@ -330,9 +348,7 @@ class AmazonOrderRepository:
             result.setdefault(amazon_order_id, []).append(expense_id)
         return result
 
-    async def expense_linked_orders(
-        self, expense_ids: list[str]
-    ) -> dict[str, list[str]]:
+    async def expense_linked_orders(self, expense_ids: list[str]) -> dict[str, list[str]]:
         """For each expense id, return the Amazon orders it is linked to."""
         if not expense_ids:
             return {}
@@ -352,16 +368,10 @@ class AmazonOrderRepository:
         return result
 
     async def _link_pair(self, order_id: str, expense_id: str) -> None:
-        existing = await self.session.get(
-            ExpenseAmazonOrderLink, (expense_id, order_id)
-        )
+        existing = await self.session.get(ExpenseAmazonOrderLink, (expense_id, order_id))
         if existing is not None:
             return
-        self.session.add(
-            ExpenseAmazonOrderLink(
-                expense_id=expense_id, amazon_order_id=order_id
-            )
-        )
+        self.session.add(ExpenseAmazonOrderLink(expense_id=expense_id, amazon_order_id=order_id))
 
     async def link_expense(self, order_id: str, expense_id: str) -> Expense:
         order = await self.get(order_id)
@@ -382,9 +392,7 @@ class AmazonOrderRepository:
                 RepositoryErrorCode.NOT_FOUND,
                 f"Expense not found: {expense_id}",
             )
-        link = await self.session.get(
-            ExpenseAmazonOrderLink, (expense_id, order_id)
-        )
+        link = await self.session.get(ExpenseAmazonOrderLink, (expense_id, order_id))
         if link is None:
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION,
@@ -428,8 +436,7 @@ class AmazonOrderRepository:
         # we re-collect candidates because a now-consumed expense may have
         # disambiguated other orders.
         candidates_by_order = {
-            o.id: await self.suggest_matches(o.id, window_days=window_days)
-            for o in unlinked_orders
+            o.id: await self.suggest_matches(o.id, window_days=window_days) for o in unlinked_orders
         }
         pending = {o.id: o for o in unlinked_orders}
         progress = True
@@ -438,24 +445,14 @@ class AmazonOrderRepository:
             ordered = sorted(
                 pending.values(),
                 key=lambda o: (
-                    len(
-                        [
-                            c
-                            for c in candidates_by_order[o.id]
-                            if c.id not in used_expense_ids
-                        ]
-                    )
+                    len([c for c in candidates_by_order[o.id] if c.id not in used_expense_ids])
                     or 9_999,
                     o.order_date,
                     o.id,
                 ),
             )
             for order in ordered:
-                fresh = [
-                    c
-                    for c in candidates_by_order[order.id]
-                    if c.id not in used_expense_ids
-                ]
+                fresh = [c for c in candidates_by_order[order.id] if c.id not in used_expense_ids]
                 if len(fresh) == 1:
                     await self._link_pair(order.id, fresh[0].id)
                     used_expense_ids.add(fresh[0].id)
@@ -466,9 +463,7 @@ class AmazonOrderRepository:
         still_unmatched = list(pending.values())
 
         # --- Pass 2: combined orders ----------------------------------------
-        combined_matched, _ = await self._run_combined_pass(
-            still_unmatched, used_expense_ids
-        )
+        combined_matched, _ = await self._run_combined_pass(still_unmatched, used_expense_ids)
         auto_matched += combined_matched
         # Orders still unlinked after both passes are "ambiguous" — either
         # no candidate found, or genuine ambiguity remained.
@@ -501,9 +496,7 @@ class AmazonOrderRepository:
         # filter by amount equality + date window in Python.
         rows = (
             await self.session.scalars(
-                select(Expense)
-                .where(Expense.amount >= _COMBINED_MIN_TOTAL)
-                .order_by(Expense.date)
+                select(Expense).where(Expense.amount >= _COMBINED_MIN_TOTAL).order_by(Expense.date)
             )
         ).all()
         candidate_expenses: list[Expense] = []
@@ -546,9 +539,7 @@ class AmazonOrderRepository:
                 combos.append((combo, total, max(dates)))
 
         # For each combo, find matching expenses within the expense window.
-        combo_matches: list[
-            tuple[tuple[AmazonOrder, ...], Decimal, date, Expense]
-        ] = []
+        combo_matches: list[tuple[tuple[AmazonOrder, ...], Decimal, date, Expense]] = []
         for combo, total, anchor_date in combos:
             for expense in by_amount.get(total, []):
                 if expense.id in used_expense_ids:
@@ -557,9 +548,7 @@ class AmazonOrderRepository:
                 if abs((edate - anchor_date).days) > _COMBINED_EXPENSE_WINDOW_DAYS:
                     continue
                 # Payment-last4 alignment when both sides have it.
-                combo_last4 = next(
-                    (o.payment_last4 for o in combo if o.payment_last4), None
-                )
+                combo_last4 = next((o.payment_last4 for o in combo if o.payment_last4), None)
                 # We don't currently carry payment_last4 on Expense rows, so
                 # this is informational only — left here as a hook for when
                 # we do, without changing match outcomes.
@@ -584,9 +573,7 @@ class AmazonOrderRepository:
         linked_count = 0
         ambiguous_count = 0
         # Sort combo_matches so we resolve the tightest, lex-smallest first.
-        combo_matches.sort(
-            key=lambda m: (_combo_key(m[0]), m[3].date, m[3].id)
-        )
+        combo_matches.sort(key=lambda m: (_combo_key(m[0]), m[3].date, m[3].id))
 
         consumed_order_ids: set[str] = set()
         for combo, _total, _anchor, expense in combo_matches:
