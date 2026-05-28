@@ -1,0 +1,61 @@
+import { expect, test } from '@playwright/test';
+import { buildSeed, seedApiState } from './helpers.js';
+
+test.describe('settings page', () => {
+	test.beforeEach(async ({ page }) => {
+		await seedApiState(page, buildSeed());
+	});
+
+	test('AI toggles render and default on', async ({ page }) => {
+		await page.goto('/settings');
+
+		await expect(page.getByTestId('settings-ai-categorize-toggle')).toBeVisible();
+		await expect(page.getByTestId('settings-ai-short-names-toggle')).toBeVisible();
+		await expect(page.getByTestId('settings-ai-categorize-toggle')).toBeChecked();
+		await expect(page.getByTestId('settings-ai-short-names-toggle')).toBeChecked();
+	});
+
+	test('AI categorisation toggle persists across reload', async ({ page }) => {
+		await page.goto('/settings');
+
+		const toggle = page.getByTestId('settings-ai-categorize-toggle');
+		if (await toggle.isChecked()) {
+			await toggle.uncheck();
+		} else {
+			await toggle.check();
+		}
+
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+
+		const expectedChecked = await toggle.isChecked();
+		await page.reload();
+		if (expectedChecked) {
+			await expect(page.getByTestId('settings-ai-categorize-toggle')).toBeChecked();
+		} else {
+			await expect(page.getByTestId('settings-ai-categorize-toggle')).not.toBeChecked();
+		}
+	});
+
+	test('AI short names toggle persists across reload', async ({ page }) => {
+		await page.goto('/settings');
+
+		const toggle = page.getByTestId('settings-ai-short-names-toggle');
+		if (await toggle.isChecked()) {
+			await toggle.uncheck();
+		} else {
+			await toggle.check();
+		}
+
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+
+		const expectedChecked = await toggle.isChecked();
+		await page.reload();
+		if (expectedChecked) {
+			await expect(page.getByTestId('settings-ai-short-names-toggle')).toBeChecked();
+		} else {
+			await expect(page.getByTestId('settings-ai-short-names-toggle')).not.toBeChecked();
+		}
+	});
+});
