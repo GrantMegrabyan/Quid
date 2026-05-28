@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import json
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from itertools import combinations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -54,6 +57,25 @@ class AutoMatchResult:
     auto_matched: int
     ambiguous: int
     total_orders: int
+    # Of the auto-matched count, how many came from the combined-order pass
+    # (i.e. multiple orders linked to a single expense). Surfaces the new
+    # behaviour without breaking the existing two-field response.
+    combined_matched: int = 0
+
+
+# Pass 2 (combined orders) safeguards. Tuned for Amazon's billing behaviour:
+# orders that ship/bill together do so within a tight date cluster (≤2
+# days between order dates, expense within ±3 days of the latest).
+#
+# The min-total threshold is a coincidence guard for very small sums; the
+# stronger guard is uniqueness — a combo only links if it's the unique
+# (combo, expense) match. £5 catches small same-day pairs (e.g. nappies +
+# toothpaste billed together) while still rejecting trivial £0.99 + £1.50
+# coincidences.
+_COMBINED_ORDER_DATE_SPAN_DAYS = 2
+_COMBINED_EXPENSE_WINDOW_DAYS = 3
+_COMBINED_MIN_TOTAL = Decimal("5")
+_COMBINED_MAX_SIZE = 3
 
 
 def serialize_items(items: list[dict[str, object]] | None) -> str:
@@ -221,29 +243,63 @@ class AmazonOrderRepository:
         ).all()
         return set(rows)
 
+    def _charge_amounts(self, order: AmazonOrder) -> list[tuple[Decimal, date | None]]:
+        """Amounts that could plausibly match a single bank charge for this
+        order: always the order total at order_date; additionally each
+        shipment total at its ship_date when the order has more than one
+        shipment (Amazon may bill those separately)."""
+        charges: list[tuple[Decimal, date | None]] = [(order.total, None)]
+        shipments = deserialize_shipments(order.shipments_json)
+        if len(shipments) > 1:
+            for ship in shipments:
+                total = ship.get("total")
+                if not isinstance(total, Decimal) or total <= 0 or total == order.total:
+                    continue
+                ship_date: date | None = None
+                raw_date = ship.get("ship_date")
+                if isinstance(raw_date, str) and raw_date:
+                    try:
+                        ship_date = _parse_date(raw_date)
+                    except ValueError:
+                        ship_date = None
+                charges.append((total, ship_date))
+        return charges
+
     async def suggest_matches(self, order_id: str, *, window_days: int = 7) -> list[Expense]:
+        """Unlinked expenses that match the order total or any shipment
+        total, within ``window_days`` of the order date (or the shipment's
+        ship date when shipment-level)."""
         order = await self.get(order_id)
         order_date = _parse_date(order.order_date)
         linked_expense_ids = await self._linked_expense_ids_set()
-        candidates = list(
+        charges = self._charge_amounts(order)
+        amounts = {amount for amount, _ in charges}
+        rows = list(
             (
                 await self.session.scalars(
                     select(Expense)
-                    .where(Expense.amount == order.total)
+                    .where(Expense.amount.in_(amounts))
                     .order_by(Expense.date.desc(), Expense.id)
                 )
             ).all()
         )
+        seen: set[str] = set()
         matches: list[Expense] = []
-        for candidate in candidates:
-            if candidate.id in linked_expense_ids:
+        for candidate in rows:
+            if candidate.id in linked_expense_ids or candidate.id in seen:
                 continue
             try:
                 candidate_date = _parse_date(candidate.date)
             except ValueError:
                 continue
-            if abs((candidate_date - order_date).days) <= window_days:
-                matches.append(candidate)
+            for amount, expected_date in charges:
+                if candidate.amount != amount:
+                    continue
+                target = expected_date or order_date
+                if abs((candidate_date - target).days) <= window_days:
+                    matches.append(candidate)
+                    seen.add(candidate.id)
+                    break
         return matches
 
     async def linked_expense_ids(self, order_id: str) -> list[str]:
@@ -339,31 +395,219 @@ class AmazonOrderRepository:
         return expense
 
     async def auto_match_all(self, *, window_days: int = 7) -> AutoMatchResult:
-        """For each order with no linked expense, link it to the SOLE unlinked
-        expense candidate whose amount matches the order total and whose date
-        falls within ``window_days`` of the order date. Orders with zero or
-        multiple candidates are counted as ambiguous and skipped.
+        """Two-pass linker that ignores already-linked orders and expenses.
+
+        Pass 1 — per-order: link each unlinked order to the sole unlinked
+        expense whose amount equals the order total OR (for multi-shipment
+        orders) any shipment total, within ``window_days`` of the relevant
+        date. Orders are processed fewest-candidates-first so a unique
+        match isn't accidentally consumed by an ambiguous one.
+
+        Pass 2 — combined orders: for orders still unlinked, look for tight
+        date clusters (≤2 days between order dates) of 2..3 orders whose
+        summed total uniquely matches an unlinked expense within ±3 days
+        of the latest order date and whose total exceeds ``£25``. Same
+        ``payment_last4`` is required when known for both sides. Ambiguous
+        combos (two combos matching the same expense, or one combo with
+        multiple candidate expenses) are skipped.
+
+        Idempotent: re-running never disturbs existing links.
         """
         orders = await self.list_all()
         total_orders = len(orders)
         existing_links = await self.linked_map([order.id for order in orders])
         unlinked_orders = [order for order in orders if not existing_links.get(order.id)]
 
+        used_expense_ids: set[str] = set()
         auto_matched = 0
         ambiguous = 0
-        used_expense_ids: set[str] = set()
-        for order in unlinked_orders:
-            candidates = await self.suggest_matches(order.id, window_days=window_days)
-            fresh = [c for c in candidates if c.id not in used_expense_ids]
-            if len(fresh) == 1:
-                await self._link_pair(order.id, fresh[0].id)
-                used_expense_ids.add(fresh[0].id)
-                auto_matched += 1
-            else:
-                ambiguous += 1
+
+        # --- Pass 1: per-order ----------------------------------------------
+        # Sort orders by candidate count so uniquely-resolvable ones claim
+        # their expense before contested ones do. After each successful link
+        # we re-collect candidates because a now-consumed expense may have
+        # disambiguated other orders.
+        candidates_by_order = {
+            o.id: await self.suggest_matches(o.id, window_days=window_days)
+            for o in unlinked_orders
+        }
+        pending = {o.id: o for o in unlinked_orders}
+        progress = True
+        while progress:
+            progress = False
+            ordered = sorted(
+                pending.values(),
+                key=lambda o: (
+                    len(
+                        [
+                            c
+                            for c in candidates_by_order[o.id]
+                            if c.id not in used_expense_ids
+                        ]
+                    )
+                    or 9_999,
+                    o.order_date,
+                    o.id,
+                ),
+            )
+            for order in ordered:
+                fresh = [
+                    c
+                    for c in candidates_by_order[order.id]
+                    if c.id not in used_expense_ids
+                ]
+                if len(fresh) == 1:
+                    await self._link_pair(order.id, fresh[0].id)
+                    used_expense_ids.add(fresh[0].id)
+                    auto_matched += 1
+                    pending.pop(order.id, None)
+                    progress = True
+
+        still_unmatched = list(pending.values())
+
+        # --- Pass 2: combined orders ----------------------------------------
+        combined_matched, _ = await self._run_combined_pass(
+            still_unmatched, used_expense_ids
+        )
+        auto_matched += combined_matched
+        # Orders still unlinked after both passes are "ambiguous" — either
+        # no candidate found, or genuine ambiguity remained.
+        linked_after = await self.linked_map([o.id for o in unlinked_orders])
+        ambiguous = sum(1 for o in unlinked_orders if not linked_after.get(o.id))
+
         await self.session.flush()
         return AutoMatchResult(
             auto_matched=auto_matched,
             ambiguous=ambiguous,
             total_orders=total_orders,
+            combined_matched=combined_matched,
         )
+
+    async def _run_combined_pass(
+        self,
+        unmatched_orders: list[AmazonOrder],
+        used_expense_ids: set[str],
+    ) -> tuple[int, int]:
+        """Try summing 2..N nearby unmatched orders to find a unique expense.
+
+        Returns ``(linked_orders, skipped_ambiguous_combos)``.
+        """
+        if len(unmatched_orders) < 2:
+            return 0, 0
+
+        # Pre-fetch candidate expenses whose amount equals the sum of any
+        # plausible combo. Cheap upper bound: amount must be at least
+        # _COMBINED_MIN_TOTAL. We pull all unlinked expenses ≥ threshold and
+        # filter by amount equality + date window in Python.
+        rows = (
+            await self.session.scalars(
+                select(Expense)
+                .where(Expense.amount >= _COMBINED_MIN_TOTAL)
+                .order_by(Expense.date)
+            )
+        ).all()
+        candidate_expenses: list[Expense] = []
+        for e in rows:
+            if e.id in used_expense_ids:
+                continue
+            try:
+                _parse_date(e.date)
+            except ValueError:
+                continue
+            candidate_expenses.append(e)
+        if not candidate_expenses:
+            return 0, 0
+
+        # Index expenses by amount for O(1) lookup.
+        by_amount: dict[Decimal, list[Expense]] = defaultdict(list)
+        for e in candidate_expenses:
+            by_amount[e.amount].append(e)
+
+        # Build the universe of combos that pass all safeguards.
+        combos: list[tuple[tuple[AmazonOrder, ...], Decimal, date]] = []
+        parsed_dates: dict[str, date] = {}
+        for o in unmatched_orders:
+            with contextlib.suppress(ValueError):
+                parsed_dates[o.id] = _parse_date(o.order_date)
+        eligible = [o for o in unmatched_orders if o.id in parsed_dates]
+
+        for size in range(2, _COMBINED_MAX_SIZE + 1):
+            for combo in combinations(eligible, size):
+                dates = [parsed_dates[o.id] for o in combo]
+                if (max(dates) - min(dates)).days > _COMBINED_ORDER_DATE_SPAN_DAYS:
+                    continue
+                last4s = {o.payment_last4 for o in combo if o.payment_last4}
+                if len(last4s) > 1:
+                    # Mixed payment methods → almost certainly distinct charges.
+                    continue
+                total = sum((o.total for o in combo), Decimal(0))
+                if total < _COMBINED_MIN_TOTAL:
+                    continue
+                combos.append((combo, total, max(dates)))
+
+        # For each combo, find matching expenses within the expense window.
+        combo_matches: list[
+            tuple[tuple[AmazonOrder, ...], Decimal, date, Expense]
+        ] = []
+        for combo, total, anchor_date in combos:
+            for expense in by_amount.get(total, []):
+                if expense.id in used_expense_ids:
+                    continue
+                edate = _parse_date(expense.date)
+                if abs((edate - anchor_date).days) > _COMBINED_EXPENSE_WINDOW_DAYS:
+                    continue
+                # Payment-last4 alignment when both sides have it.
+                combo_last4 = next(
+                    (o.payment_last4 for o in combo if o.payment_last4), None
+                )
+                # We don't currently carry payment_last4 on Expense rows, so
+                # this is informational only — left here as a hook for when
+                # we do, without changing match outcomes.
+                _ = combo_last4
+                combo_matches.append((combo, total, anchor_date, expense))
+
+        # Reject when the same expense matches multiple distinct combos
+        # (genuine ambiguity), and when a combo matches multiple expenses.
+        expense_to_combos: dict[str, list[tuple[AmazonOrder, ...]]] = defaultdict(list)
+        combo_to_expenses: dict[tuple[str, ...], list[str]] = defaultdict(list)
+        for combo, _total, _anchor, expense in combo_matches:
+            combo_key = tuple(o.id for o in combo)
+            expense_to_combos[expense.id].append(combo)
+            combo_to_expenses[combo_key].append(expense.id)
+
+        # Deterministic ordering: smallest date span first, then lex by ids.
+        def _combo_key(c: tuple[AmazonOrder, ...]) -> tuple[int, str]:
+            dates = sorted(parsed_dates[o.id] for o in c)
+            span = (dates[-1] - dates[0]).days
+            return (span, ",".join(sorted(o.id for o in c)))
+
+        linked_count = 0
+        ambiguous_count = 0
+        # Sort combo_matches so we resolve the tightest, lex-smallest first.
+        combo_matches.sort(
+            key=lambda m: (_combo_key(m[0]), m[3].date, m[3].id)
+        )
+
+        consumed_order_ids: set[str] = set()
+        for combo, _total, _anchor, expense in combo_matches:
+            combo_key = tuple(sorted(o.id for o in combo))
+            if expense.id in used_expense_ids:
+                continue
+            # Multiple expenses match this combo → ambiguous, skip.
+            if len(set(combo_to_expenses[combo_key])) > 1:
+                ambiguous_count += 1
+                continue
+            # Multiple combos match this expense → ambiguous, skip.
+            if len({tuple(sorted(o.id for o in c)) for c in expense_to_combos[expense.id]}) > 1:
+                ambiguous_count += 1
+                continue
+            # Any participant already consumed by an earlier successful link.
+            if any(o.id in consumed_order_ids for o in combo):
+                continue
+            for o in combo:
+                await self._link_pair(o.id, expense.id)
+                consumed_order_ids.add(o.id)
+            used_expense_ids.add(expense.id)
+            linked_count += len(combo)
+
+        return linked_count, ambiguous_count

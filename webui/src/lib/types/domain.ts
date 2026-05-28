@@ -234,6 +234,9 @@ export interface AmazonImportResult {
 	updated: number;
 	autoMatched: number;
 	ambiguous: number;
+	/** Of the auto-matched count, how many came from the combined-order
+	 *  pass (multiple Amazon orders linked to one bank charge). */
+	combinedMatched?: number;
 	files: AmazonImportFileReport[];
 }
 
@@ -241,4 +244,5 @@ export interface AmazonMatchAllResult {
 	autoMatched: number;
 	ambiguous: number;
 	totalOrders: number;
+	combinedMatched?: number;
 }

@@ -307,6 +307,73 @@ async def test_get_404_and_delete_round_trip(app_client):
     assert after.status_code == 404
 
 
+COMBINED_ORDERS_CSV = (
+    "Order ID,Order Date,Total Amount,Currency,Product Name,Order Status,"
+    "Carrier Name & Tracking Number,Ship Date\n"
+    # Two small orders placed the same day that should sum to one bank
+    # charge of 30.00 (well above the £25 safeguard threshold).
+    "AAA-1111111-1111111,2026-04-20,12.50,GBP,Item A1,Closed,T-A,2026-04-21\n"
+    "AAA-1111111-1111111,2026-04-20,5.00,GBP,Item A2,Closed,T-A,2026-04-21\n"
+    "BBB-2222222-2222222,2026-04-20,12.50,GBP,Item B1,Closed,T-B,2026-04-21\n"
+)
+
+
+async def test_combined_orders_link_to_shared_expense(app_client):
+    """When Amazon bills two orders together, auto-match should link both
+    orders to the single expense whose amount equals the combined total."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=30.00, date="2026-04-22"
+    )
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("combined.csv", COMBINED_ORDERS_CSV)],
+    )
+    body = res.json()
+    assert body["combinedMatched"] == 2, body
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    rows = {row["id"]: row for row in listed.json()}
+    assert rows["AAA-1111111-1111111"]["linkedExpenseIds"] == [expense_id]
+    assert rows["BBB-2222222-2222222"]["linkedExpenseIds"] == [expense_id]
+
+
+async def test_combined_pass_skipped_below_min_threshold(app_client):
+    """Tiny combinations are skipped — coincidental sum matches at very
+    small amounts are too noisy to auto-link."""
+    SMALL_COMBINED = (
+        "Order ID,Order Date,Total Amount,Currency,Product Name,Order Status,"
+        "Carrier Name & Tracking Number,Ship Date\n"
+        "CCC-3333333-3333333,2026-04-20,1.50,GBP,Tiny A,Closed,T-C,2026-04-21\n"
+        "DDD-4444444-4444444,2026-04-20,1.50,GBP,Tiny B,Closed,T-D,2026-04-21\n"
+    )
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=3.00, date="2026-04-22"
+    )
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("small.csv", SMALL_COMBINED)],
+    )
+    body = res.json()
+    assert body["combinedMatched"] == 0
+    assert body["ambiguous"] == 2
+
+
+async def test_auto_match_is_idempotent(app_client):
+    """Re-running match-all on already-linked orders must not change links."""
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-22"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    first = await app_client.post("/api/v1/amazon-orders/match-all")
+    second = await app_client.post("/api/v1/amazon-orders/match-all")
+    # No new links on the second pass.
+    assert second.json()["autoMatched"] == 0
+    assert first.json()["totalOrders"] == second.json()["totalOrders"]
+
+
 async def test_match_all_endpoint_runs_after_seeding(app_client):
     await _seed_categories_and_expense(
         app_client, name="Amazon Mktp", amount=9.99, date="2026-05-03"

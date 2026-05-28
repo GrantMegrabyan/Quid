@@ -382,6 +382,7 @@ class AmazonImportResponse(_Camel):
     updated: int
     auto_matched: int
     ambiguous: int
+    combined_matched: int = 0
     files: list[AmazonImportFileReport]
 
 
@@ -389,6 +390,7 @@ class AmazonMatchAllResponse(_Camel):
     auto_matched: int
     ambiguous: int
     total_orders: int
+    combined_matched: int = 0
 
 
 class AmazonLinkRequest(_Camel):

@@ -188,6 +188,7 @@ async def import_amazon_csv(
         updated=total_updated,
         auto_matched=match_result.auto_matched,
         ambiguous=match_result.ambiguous,
+        combined_matched=match_result.combined_matched,
         files=reports,
     )
 
@@ -201,6 +202,7 @@ async def match_all_amazon_orders(session: SessionDep) -> AmazonMatchAllResponse
         auto_matched=result.auto_matched,
         ambiguous=result.ambiguous,
         total_orders=result.total_orders,
+        combined_matched=result.combined_matched,
     )
 
 
