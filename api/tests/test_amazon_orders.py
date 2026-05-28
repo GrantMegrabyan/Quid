@@ -172,6 +172,36 @@ async def test_import_generates_short_name_fallback(app_client, monkeypatch):
     assert single_item["shortName"] == "Pen Set"
 
 
+async def test_short_names_skipped_when_ai_disabled(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiShortNamesEnabled": False})
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.status_code == 201, res.text
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    assert listed.status_code == 200
+    rows = listed.json()
+    assert all(row["shortName"] is None for row in rows)
+
+
+async def test_short_names_generated_when_ai_enabled(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiShortNamesEnabled": True})
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.status_code == 201, res.text
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    assert listed.status_code == 200
+    rows = listed.json()
+    assert all(row["shortName"] for row in rows)
+    single_item = next(row for row in rows if row["id"] == "333-9999999-1111111")
+    assert single_item["shortName"] == "Pen Set"
+
+
 async def test_update_short_name_endpoint(app_client):
     await app_client.post(
         "/api/v1/amazon-orders/import-csv",

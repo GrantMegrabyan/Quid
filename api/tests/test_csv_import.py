@@ -38,6 +38,7 @@ def _upload(name: str, body: str) -> tuple[str, tuple[str, bytes, str]]:
 
 
 async def test_import_canonical_csv(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[_upload("monzo.csv", CANONICAL)],
@@ -53,6 +54,7 @@ async def test_import_canonical_csv(app_client):
 
 
 async def test_import_tolerates_extra_columns(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[_upload("with-extras.csv", WITH_EXTRA_COLUMNS)],
@@ -62,6 +64,7 @@ async def test_import_tolerates_extra_columns(app_client):
 
 
 async def test_import_revolut_bank_statement_format(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[_upload("revolut.csv", REVOLUT_BANK_STATEMENT)],
@@ -76,6 +79,7 @@ async def test_import_revolut_bank_statement_format(app_client):
 
 
 async def test_import_is_idempotent_on_same_file(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     first = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[_upload("monzo.csv", CANONICAL)],
@@ -99,6 +103,7 @@ async def test_import_is_idempotent_on_same_file(app_client):
 
 
 async def test_import_allows_intentional_duplicates_across_uploads(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     one_row = "name,category,amount,date,note\nM&S,groceries,-2.10,2026-04-01,\n"
     r1 = await app_client.post(
         "/api/v1/expenses/import-csv",
@@ -121,6 +126,7 @@ async def test_import_allows_intentional_duplicates_across_uploads(app_client):
 
 
 async def test_import_inserts_two_identical_rows_from_same_file(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[_upload("dupes.csv", CANONICAL_WITH_DUPES)],
@@ -140,6 +146,7 @@ async def test_import_inserts_two_identical_rows_from_same_file(app_client):
 
 
 async def test_import_multiple_files_combined(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     monzo = "name,category,amount,date,note\nPret,eating_out,-3.50,2026-04-01,\n"
     revolut = "name,category,amount,date,note\nStarbucks,eating_out,10.00,2026-04-01,\n"
     res = await app_client.post(
@@ -159,6 +166,7 @@ async def test_import_multiple_files_combined(app_client):
 
 
 async def test_import_rejects_csv_missing_required_columns(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     bad = "foo,bar\n1,2\n"
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
@@ -171,11 +179,13 @@ async def test_import_rejects_csv_missing_required_columns(app_client):
 
 
 async def test_import_rejects_empty_file_list(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post("/api/v1/expenses/import-csv")
     assert res.status_code == 422
 
 
 async def test_import_skips_invalid_rows_within_file(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     mixed = (
         "name,category,amount,date,note\n"
         "Pret,eating_out,-3.50,2026-04-01,\n"
@@ -203,12 +213,12 @@ async def test_import_dedupes_across_uploads_with_category_drift(app_client, mon
         )
 
     monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
 
     csv = "name,amount,date\nGg Platform,-4.31,2026-04-25\n"
 
     first = await app_client.post(
         "/api/v1/expenses/import-csv",
-        data={"ai_categorize": "true"},
         files=[_upload("revolut.csv", csv)],
     )
     assert first.status_code == 201, first.text
@@ -217,7 +227,6 @@ async def test_import_dedupes_across_uploads_with_category_drift(app_client, mon
     drift["category"] = "transport"
     second = await app_client.post(
         "/api/v1/expenses/import-csv",
-        data={"ai_categorize": "true"},
         files=[_upload("revolut.csv", csv)],
     )
     assert second.status_code == 201, second.text
@@ -230,6 +239,7 @@ async def test_import_dedupes_across_uploads_with_category_drift(app_client, mon
 
 
 async def test_import_preview_shows_category_drift_without_saving(app_client, monkeypatch):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     first = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[
@@ -249,9 +259,9 @@ async def test_import_preview_shows_category_drift_without_saving(app_client, mo
         )
 
     monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
     preview = await app_client.post(
         "/api/v1/expenses/import-csv/preview",
-        data={"ai_categorize": "true"},
         files=[_upload("again.csv", "name,amount,date\nGg Platform,-4.31,2026-04-25\n")],
     )
     assert preview.status_code == 200, preview.text
@@ -270,6 +280,7 @@ async def test_import_preview_shows_category_drift_without_saving(app_client, mo
 
 
 async def test_import_preview_confirm_updates_importance_drift(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     first = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[
@@ -284,7 +295,6 @@ async def test_import_preview_confirm_updates_importance_drift(app_client):
 
     preview = await app_client.post(
         "/api/v1/expenses/import-csv/preview",
-        data={"ai_categorize": "false"},
         files=[
             _upload(
                 "again.csv",
@@ -327,6 +337,7 @@ async def test_import_preview_confirm_updates_importance_drift(app_client):
 
 
 async def test_import_confirm_creates_and_updates_categories(app_client, monkeypatch):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[
@@ -344,10 +355,10 @@ async def test_import_confirm_creates_and_updates_categories(app_client, monkeyp
         return CategorizedBulkItems(items=updated, categorized=len(updated))
 
     monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
     csv = "name,amount,date\nGg Platform,-4.31,2026-04-25\nPret,-3.50,2026-04-26\n"
     preview = await app_client.post(
         "/api/v1/expenses/import-csv/preview",
-        data={"ai_categorize": "true"},
         files=[_upload("again.csv", csv)],
     )
     body = preview.json()
@@ -393,6 +404,7 @@ async def test_import_confirm_creates_and_updates_categories(app_client, monkeyp
 
 
 async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     upper = "name,category,amount,date,note\nGG PLATFORM,travel,-4.31,2026-04-25,\n"
     mixed = "name,category,amount,date,note\nGg Platform,travel,-4.31,2026-04-25,\n"
 
@@ -408,6 +420,7 @@ async def test_import_dedupes_across_uploads_with_name_case_drift(app_client):
 
 
 async def test_import_dedupes_across_uploads_with_internal_whitespace_drift(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     spaced = "name,category,amount,date,note\nGg   Platform,travel,-4.31,2026-04-25,car   park\n"
     normal = "name,category,amount,date,note\nGg Platform,travel,-4.31,2026-04-25,car park\n"
 
@@ -434,10 +447,10 @@ async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
         return CategorizedBulkItems(items=updated, categorized=len(updated))
 
     monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
 
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
-        data={"ai_categorize": "true"},
         files=[_upload("monzo.csv", "name,amount,date\nPret,-3.50,2026-04-01\n")],
     )
 
@@ -458,10 +471,10 @@ async def test_import_can_ai_exclude_transactions(app_client, monkeypatch):
         )
 
     monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
 
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
-        data={"ai_categorize": "true"},
         files=[_upload("monzo.csv", "name,amount,date\nBank Transfer,-3.50,2026-04-01\n")],
     )
 

@@ -72,7 +72,14 @@ def test_seed_reset_replaces_data(tmp_path: Path) -> None:
 def test_help_lists_all_commands() -> None:
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0
-    for cmd in ("migrate", "seed", "clear-transactions", "serve", "import-csv"):
+    for cmd in (
+        "migrate",
+        "seed",
+        "clear-transactions",
+        "serve",
+        "import-csv",
+        "backfill-amazon-short-names",
+    ):
         assert cmd in result.output
 
 

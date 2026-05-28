@@ -30,6 +30,7 @@ async def test_transfer_rows_are_not_modified_on_import(app_client):
         "Transfer,2026-04-01 09:00:00,Pocket Withdrawal,-100.00,COMPLETED\n"
         "Card Payment,2026-04-01 10:00:00,Pret,-3.50,COMPLETED\n"
     )
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("bank.csv", csv)])
     assert res.status_code == 201, res.text
     body = res.json()
@@ -70,6 +71,7 @@ async def test_categorize_rule_by_name_amount_and_date(app_client):
         "Safeland Active Management Ltd,other,-20.00,2026-04-22,\n"
         "Safeland Active Management Ltd,other,-3445.00,2026-05-01,\n"
     )
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     imported = await app_client.post(
         "/api/v1/expenses/import-csv", files=[_upload("rent.csv", csv)]
     )
@@ -108,6 +110,7 @@ async def test_rule_priority_first_match_wins(app_client):
         },
     )
     csv = "name,category,amount,date,note\nM&S,other,-2.10,2026-04-01,\n"
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post("/api/v1/expenses/import-csv", files=[_upload("ms.csv", csv)])
     assert res.status_code == 201
     assert res.json()["skippedExcluded"] == 1
