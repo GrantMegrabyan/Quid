@@ -189,12 +189,16 @@ export interface ImportLog {
 export interface AppSettings {
 	currency: string;
 	showImportanceBadge: boolean;
+	aiCategorizeEnabled: boolean;
+	aiShortNamesEnabled: boolean;
 	updatedAt: string;
 }
 
 export interface AppSettingsUpdate {
 	currency?: string;
 	showImportanceBadge?: boolean;
+	aiCategorizeEnabled?: boolean;
+	aiShortNamesEnabled?: boolean;
 }
 
 export interface AmazonOrderItem {

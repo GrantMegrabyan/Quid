@@ -20,7 +20,6 @@
 	};
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
-	let aiCategorize = $state(true);
 	let loading = $state(false);
 	let saving = $state(false);
 	let preview: ImportCsvPreviewResult | null = $state(null);
@@ -66,7 +65,7 @@
 		rows = [];
 		banner = null;
 		try {
-			const result = await expenseRepository.previewImportCsv(picked, { aiCategorize });
+			const result = await expenseRepository.previewImportCsv(picked);
 			preview = result;
 			rows = result.rows.map((row) => ({
 				...row,
@@ -157,16 +156,6 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
-			<label class="inline-flex items-center gap-2 rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-subtext0">
-				<input
-					type="checkbox"
-					data-testid="ai-categorize-toggle"
-					bind:checked={aiCategorize}
-					disabled={loading || saving}
-					class="h-4 w-4 accent-ctp-accent disabled:cursor-not-allowed disabled:opacity-60"
-				/>
-				AI categorise
-			</label>
 			<input
 				bind:this={fileInputEl}
 				type="file"

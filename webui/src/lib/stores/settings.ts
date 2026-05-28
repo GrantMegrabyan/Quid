@@ -5,6 +5,8 @@ import type { AppSettings, AppSettingsUpdate } from '$types';
 const DEFAULTS: AppSettings = {
 	currency: 'GBP',
 	showImportanceBadge: true,
+	aiCategorizeEnabled: true,
+	aiShortNamesEnabled: true,
 	updatedAt: '1970-01-01T00:00:00Z'
 };
 

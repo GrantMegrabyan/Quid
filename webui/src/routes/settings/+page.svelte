@@ -7,6 +7,8 @@
 
 	let currency = $state('GBP');
 	let showImportanceBadge = $state(true);
+	let aiCategorizeEnabled = $state(true);
+	let aiShortNamesEnabled = $state(true);
 	let saving = $state(false);
 	let message = $state('');
 	let error = $state('');
@@ -15,6 +17,8 @@
 	$effect(() => {
 		currency = $settings.currency;
 		showImportanceBadge = $settings.showImportanceBadge;
+		aiCategorizeEnabled = $settings.aiCategorizeEnabled;
+		aiShortNamesEnabled = $settings.aiShortNamesEnabled;
 	});
 
 	onMount(() => {
@@ -27,7 +31,7 @@
 		message = '';
 		error = '';
 		try {
-			await updateSettings({ currency, showImportanceBadge });
+			await updateSettings({ currency, showImportanceBadge, aiCategorizeEnabled, aiShortNamesEnabled });
 			message = 'Settings saved.';
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Failed to save settings.';
@@ -102,6 +106,40 @@
 				</span>
 				<span class="mt-1 block text-sm text-ctp-overlay1">
 					Display Essential, Important, and Discretionary labels in transaction lists.
+				</span>
+			</span>
+		</label>
+
+		<label class="flex items-start gap-3 rounded-md border border-ctp-surface1 p-3">
+			<input
+				type="checkbox"
+				bind:checked={aiCategorizeEnabled}
+				data-testid="settings-ai-categorize-toggle"
+				class="mt-1 h-4 w-4 accent-ctp-accent"
+			/>
+			<span>
+				<span class="block text-sm font-medium text-ctp-text">
+					AI categorisation
+				</span>
+				<span class="mt-1 block text-sm text-ctp-overlay1">
+					Use AI to categorise transactions during CSV import.
+				</span>
+			</span>
+		</label>
+
+		<label class="flex items-start gap-3 rounded-md border border-ctp-surface1 p-3">
+			<input
+				type="checkbox"
+				bind:checked={aiShortNamesEnabled}
+				data-testid="settings-ai-short-names-toggle"
+				class="mt-1 h-4 w-4 accent-ctp-accent"
+			/>
+			<span>
+				<span class="block text-sm font-medium text-ctp-text">
+					AI Amazon short names
+				</span>
+				<span class="mt-1 block text-sm text-ctp-overlay1">
+					Generate a brief description of each Amazon order during import.
 				</span>
 			</span>
 		</label>
