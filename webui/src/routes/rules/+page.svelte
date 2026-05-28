@@ -402,15 +402,27 @@
 				Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
 			</p>
 		</div>
-		<button
-			type="button"
-			data-testid="reapply-all-rules-btn"
-			disabled={applyingAll || $importRules.length === 0}
-			onclick={applyAll}
-			class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 disabled:cursor-not-allowed disabled:opacity-60"
-		>
-			{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
-		</button>
+		<div class="flex flex-wrap items-center gap-2">
+			<button
+				type="button"
+				data-testid="reapply-all-rules-btn"
+				disabled={applyingAll || $importRules.length === 0}
+				onclick={applyAll}
+				class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 disabled:cursor-not-allowed disabled:opacity-60"
+			>
+				{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
+			</button>
+			{#if editingId === null && !showAddForm}
+				<button
+					type="button"
+					data-testid="show-new-rule-form"
+					onclick={openAddForm}
+					class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
+				>
+					+ Add rule
+				</button>
+			{/if}
+		</div>
 	</header>
 
 	{#if message}
@@ -424,21 +436,8 @@
 		</div>
 	{/if}
 
-	{#if editingId === null}
-		{#if showAddForm}
-			{@render ruleForm('Add rule')}
-		{:else}
-			<div>
-				<button
-					type="button"
-					data-testid="show-new-rule-form"
-					onclick={openAddForm}
-					class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
-				>
-					+ Add rule
-				</button>
-			</div>
-		{/if}
+	{#if editingId === null && showAddForm}
+		{@render ruleForm('Add rule')}
 	{/if}
 
 	<div class="flex flex-col gap-3">

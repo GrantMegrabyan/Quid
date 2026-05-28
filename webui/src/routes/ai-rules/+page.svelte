@@ -90,11 +90,23 @@
 <svelte:head><title>AI Rules</title></svelte:head>
 
 <section class="flex flex-col gap-6">
-	<header class="flex flex-col gap-1">
-		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">AI Rules</h1>
-		<p class="text-sm text-ctp-overlay1">
-			Plain-language instructions that are sent to AI categorisation during CSV import.
-		</p>
+	<header class="flex flex-wrap items-start justify-between gap-3">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">AI Rules</h1>
+			<p class="text-sm text-ctp-overlay1">
+				Plain-language instructions that are sent to AI categorisation during CSV import.
+			</p>
+		</div>
+		{#if !editingId && !showAddForm}
+			<button
+				type="button"
+				data-testid="show-new-ai-rule-form"
+				onclick={openAddForm}
+				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
+			>
+				+ Add AI rule
+			</button>
+		{/if}
 	</header>
 
 	{#if message}
@@ -108,18 +120,7 @@
 		</div>
 	{/if}
 
-	{#if !editingId && !showAddForm}
-		<div>
-			<button
-				type="button"
-				data-testid="show-new-ai-rule-form"
-				onclick={openAddForm}
-				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover"
-			>
-				+ Add AI rule
-			</button>
-		</div>
-	{:else}
+	{#if editingId || showAddForm}
 	<form onsubmit={saveRule} class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 		<div class="mb-4 flex items-center justify-between gap-3">
 			<h2 class="text-lg font-medium text-ctp-text">{editingId ? 'Edit AI rule' : 'Add AI rule'}</h2>
