@@ -313,6 +313,16 @@ class AppSettings(Base):
         server_default=text("1"),
         default=True,
     )
+    ai_categorize_enabled: Mapped[bool] = mapped_column(
+        nullable=False,
+        server_default=text("1"),
+        default=True,
+    )
+    ai_short_names_enabled: Mapped[bool] = mapped_column(
+        nullable=False,
+        server_default=text("1"),
+        default=True,
+    )
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
     __table_args__ = (

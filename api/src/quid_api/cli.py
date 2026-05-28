@@ -115,6 +115,59 @@ async def _clear_transactions_runner() -> dict[str, int]:
         await engine.dispose()
 
 
+@app.command("backfill-amazon-short-names")
+def backfill_amazon_short_names() -> None:
+    """Generate and save AI short names for imported Amazon orders that don't
+    have one yet. Never overwrites existing (possibly user-edited) names."""
+    result = asyncio.run(_backfill_amazon_short_names_runner())
+    typer.echo(
+        f"Amazon short names: {result['named']} generated "
+        f"({result['missing']} missing, {result['skipped']} already named)"
+    )
+
+
+async def _backfill_amazon_short_names_runner() -> dict[str, int]:
+    from quid_api.ai_short_names import ShortNameInput, generate_short_names
+    from quid_api.repositories.amazon_orders import (
+        AmazonOrderRepository,
+        deserialize_items,
+    )
+
+    settings = get_settings()
+    engine = build_engine(settings)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with sm() as session:
+            repo = AmazonOrderRepository(session)
+            orders = await repo.list_all()
+            missing = [order for order in orders if not order.short_name]
+            skipped = len(orders) - len(missing)
+            inputs = [
+                ShortNameInput(
+                    order_id=order.id,
+                    item_titles=[
+                        str(item["title"]) for item in deserialize_items(order.items_json)
+                    ],
+                )
+                for order in missing
+            ]
+            generated = await generate_short_names(
+                inputs,
+                api_key=settings.openrouter_api_key,
+                model=settings.openrouter_model,
+                chunk_size=settings.openrouter_chunk_size,
+            )
+            await repo.set_generated_short_names(generated)
+            await session.commit()
+            return {
+                "missing": len(missing),
+                "named": len(generated),
+                "skipped": skipped,
+            }
+    finally:
+        await engine.dispose()
+
+
 @app.command()
 def serve(
     host: Annotated[str, typer.Option(help="Bind host.")] = "127.0.0.1",

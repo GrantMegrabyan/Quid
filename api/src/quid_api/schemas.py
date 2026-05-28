@@ -405,12 +405,16 @@ class AmazonShortNameRequest(_Camel):
 class AppSettingsOut(_Camel):
     currency: str
     show_importance_badge: bool
+    ai_categorize_enabled: bool
+    ai_short_names_enabled: bool
     updated_at: str
 
 
 class AppSettingsUpdate(_Camel):
     currency: Annotated[str | None, Field(min_length=3, max_length=3)] = None
     show_importance_badge: bool | None = None
+    ai_categorize_enabled: bool | None = None
+    ai_short_names_enabled: bool | None = None
 
 
 class ErrorBody(_Camel):

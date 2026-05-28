@@ -38,6 +38,8 @@ class AppSettingsRepository:
                 id=SINGLETON_ID,
                 currency="GBP",
                 show_importance_badge=True,
+                ai_categorize_enabled=True,
+                ai_short_names_enabled=True,
                 updated_at=_now_iso(),
             )
             self.session.add(row)
@@ -49,6 +51,8 @@ class AppSettingsRepository:
         *,
         currency: str | None = None,
         show_importance_badge: bool | None = None,
+        ai_categorize_enabled: bool | None = None,
+        ai_short_names_enabled: bool | None = None,
     ) -> AppSettings:
         row = await self.get()
         changed = False
@@ -57,6 +61,12 @@ class AppSettingsRepository:
             changed = True
         if show_importance_badge is not None:
             row.show_importance_badge = show_importance_badge
+            changed = True
+        if ai_categorize_enabled is not None:
+            row.ai_categorize_enabled = ai_categorize_enabled
+            changed = True
+        if ai_short_names_enabled is not None:
+            row.ai_short_names_enabled = ai_short_names_enabled
             changed = True
         if changed:
             row.updated_at = _now_iso()

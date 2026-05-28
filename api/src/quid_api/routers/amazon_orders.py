@@ -189,14 +189,18 @@ async def import_amazon_csv(
             parsed.skipped_rows,
         )
 
-    # Generate short names once for imported orders that don't have one yet.
+    # Generate short names once for imported orders that don't have one yet,
+    # but only when the AI short-name setting is enabled. When disabled we
+    # leave the short name blank (no AI call, no fallback) until the user
+    # edits it or runs the backfill command.
     settings = get_settings()
     needs_name: list[ShortNameInput] = []
-    for order_id, titles in titles_by_order.items():
-        existing = await repo.get(order_id)
-        if existing.short_name:
-            continue
-        needs_name.append(ShortNameInput(order_id=order_id, item_titles=titles))
+    if settings_row.ai_short_names_enabled:
+        for order_id, titles in titles_by_order.items():
+            existing = await repo.get(order_id)
+            if existing.short_name:
+                continue
+            needs_name.append(ShortNameInput(order_id=order_id, item_titles=titles))
     if needs_name:
         try:
             generated = await generate_short_names(

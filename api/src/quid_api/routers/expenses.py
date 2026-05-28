@@ -7,7 +7,7 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Annotated, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy import select
 
 from quid_api.ai_categorization import categorize_transactions
@@ -17,6 +17,7 @@ from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
 from quid_api.refund_detection import detect_refund_pairs
 from quid_api.repositories.ai_rules import AiRuleRepository
+from quid_api.repositories.app_settings import AppSettingsRepository
 from quid_api.repositories.expenses import (
     BulkItem,
     ExpenseRepository,
@@ -444,10 +445,6 @@ async def preview_import_csv(
     session: SessionDep,
     files: Annotated[list[UploadFile], File(description="One or more CSV files to preview.")],
     settings: SettingsDep,
-    ai_categorize: Annotated[
-        bool,
-        Form(description="Use AI to categorise parsed transactions before previewing."),
-    ] = True,
 ) -> ImportCsvPreviewResponse:
     if not files:
         raise RepositoryError(
@@ -455,6 +452,8 @@ async def preview_import_csv(
             "At least one CSV file is required.",
         )
 
+    app_settings = await AppSettingsRepository(session).get()
+    ai_categorize = app_settings.ai_categorize_enabled
     import_id = str(uuid4())
     logger.info(
         "import.preview.start import_id=%s files=%d ai=%s", import_id, len(files), ai_categorize
@@ -639,10 +638,6 @@ async def import_csv(
     session: SessionDep,
     files: Annotated[list[UploadFile], File(description="One or more CSV files to import.")],
     settings: SettingsDep,
-    ai_categorize: Annotated[
-        bool,
-        Form(description="Use AI to categorise parsed transactions before saving."),
-    ] = False,
 ) -> ImportCsvResponse:
     if not files:
         raise RepositoryError(
@@ -650,6 +645,8 @@ async def import_csv(
             "At least one CSV file is required.",
         )
 
+    app_settings = await AppSettingsRepository(session).get()
+    ai_categorize = app_settings.ai_categorize_enabled
     import_id = str(uuid4())
     logger.info(
         "import.csv.start import_id=%s files=%d ai=%s",
