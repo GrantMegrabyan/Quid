@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
+from quid_api.settings import reset_settings
 
 
 def _upload(name: str, body: str) -> tuple[str, tuple[str, bytes, str]]:
@@ -63,9 +64,7 @@ def test_parse_retail_history_sums_per_row_total_amount():
     multi-item order.
     """
     parsed = parse_amazon_csv(
-        AmazonCsvFile(
-            filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode()
-        )
+        AmazonCsvFile(filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode())
     )
     multi = next(o for o in parsed.orders if o.order_id == "100-0000001-0000001")
     assert multi.total == Decimal("33.99")  # 9.99 + 24.00
@@ -77,9 +76,7 @@ def test_parse_retail_history_groups_into_shipments():
     """Rows with the same tracking number form one shipment; distinct
     tracking IDs split into separate shipments."""
     parsed = parse_amazon_csv(
-        AmazonCsvFile(
-            filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode()
-        )
+        AmazonCsvFile(filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode())
     )
     multi = next(o for o in parsed.orders if o.order_id == "100-0000001-0000001")
     assert len(multi.shipments) == 1
@@ -152,6 +149,75 @@ async def test_import_creates_orders_and_lists_them(app_client):
     keyboard_order = next(row for row in rows if row["id"] == "111-1234567-1234567")
     titles = [item["title"] for item in keyboard_order["items"]]
     assert "USB-C Cable" in titles
+
+
+async def test_import_generates_short_name_fallback(app_client, monkeypatch):
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.status_code == 201, res.text
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    assert listed.status_code == 200
+    rows = listed.json()
+    assert all(row["shortName"] for row in rows)
+
+    multi_item = next(row for row in rows if row["id"] == "111-1234567-1234567")
+    assert multi_item["shortName"] == "USB-C Cable + 1 more"
+
+    single_item = next(row for row in rows if row["id"] == "333-9999999-1111111")
+    assert single_item["shortName"] == "Pen Set"
+
+
+async def test_update_short_name_endpoint(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    res = await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/short-name",
+        json={"shortName": "Box of pens"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["shortName"] == "Box of pens"
+
+    fetched = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert fetched.status_code == 200
+    assert fetched.json()["shortName"] == "Box of pens"
+
+
+async def test_reimport_preserves_edited_short_name(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/short-name",
+        json={"shortName": "Custom name"},
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    fetched = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert fetched.status_code == 200
+    assert fetched.json()["shortName"] == "Custom name"
+
+
+async def test_update_short_name_rejects_too_long(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    res = await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/short-name",
+        json={"shortName": "x" * 61},
+    )
+    assert res.status_code == 422
 
 
 async def test_import_is_idempotent_on_reupload(app_client):
