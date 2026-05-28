@@ -57,6 +57,13 @@ export class HttpAmazonOrderRepository implements AmazonOrderRepository {
 		);
 	}
 
+	async updateShortName(orderId: string, shortName: string): Promise<AmazonOrder> {
+		return this.client.request<AmazonOrder>(
+			`api/v1/amazon-orders/${encodeURIComponent(orderId)}/short-name`,
+			{ method: 'PATCH', body: { shortName } }
+		);
+	}
+
 	async delete(id: string): Promise<void> {
 		await this.client.request<void>(`api/v1/amazon-orders/${encodeURIComponent(id)}`, {
 			method: 'DELETE'

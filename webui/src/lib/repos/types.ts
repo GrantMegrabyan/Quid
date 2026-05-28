@@ -84,6 +84,7 @@ export interface AmazonOrderRepository {
 	suggestedMatches(id: string): Promise<Expense[]>;
 	link(orderId: string, expenseId: string): Promise<Expense>;
 	unlink(orderId: string, expenseId: string): Promise<Expense>;
+	updateShortName(orderId: string, shortName: string): Promise<AmazonOrder>;
 	delete(id: string): Promise<void>;
 }
 

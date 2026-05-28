@@ -8,18 +8,22 @@
 		matchAllAmazonOrders,
 		refreshAmazonOrders,
 		suggestedAmazonMatches,
-		unlinkAmazonOrder
+		unlinkAmazonOrder,
+		updateAmazonShortName
 	} from '$lib/stores/amazonOrders';
 	import { expenses, refreshExpenses } from '$lib/stores/expenses';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { formatAmount } from '$lib/utils/money';
 	import type { AmazonOrder, Expense } from '$types';
+	import { Check, Link2, Link2Off, Pencil, Search, Trash2, X } from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let loading = $state(false);
 	let actionOrderId: string | null = $state(null);
 	let suggestionsByOrderId = $state<Record<string, Expense[]>>({});
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
+	let editingOrderId: string | null = $state(null);
+	let shortNameDraft = $state('');
 
 	const expenseById = $derived.by(() => {
 		const map = new Map<string, Expense>();
@@ -31,6 +35,39 @@
 		if (order.items.length === 0) return 'No item details';
 		const [first, ...rest] = order.items;
 		return rest.length === 0 ? first.title : `${first.title} + ${rest.length} more`;
+	}
+
+	function orderHeading(order: AmazonOrder): string {
+		const trimmed = order.shortName?.trim();
+		return trimmed ? trimmed : orderSummary(order);
+	}
+
+	function startEditShortName(order: AmazonOrder): void {
+		banner = null;
+		editingOrderId = order.id;
+		shortNameDraft = order.shortName ?? '';
+	}
+
+	function cancelEditShortName(): void {
+		editingOrderId = null;
+		shortNameDraft = '';
+	}
+
+	async function saveShortName(orderId: string): Promise<void> {
+		actionOrderId = orderId;
+		banner = null;
+		try {
+			await updateAmazonShortName(orderId, shortNameDraft.trim());
+			editingOrderId = null;
+			shortNameDraft = '';
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Could not update name.'
+			};
+		} finally {
+			actionOrderId = null;
+		}
 	}
 
 	function openFilePicker(): void {
@@ -203,19 +240,102 @@
 		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
 			{#each $amazonOrders as order (order.id)}
 				{@const suggestions = suggestionsByOrderId[order.id] ?? []}
-				<li class="list-none border-b border-ctp-surface0 p-4 last:border-b-0" data-testid="amazon-order-row">
+				{@const isLinked = order.linkedExpenseIds.length > 0}
+				{@const isEditing = editingOrderId === order.id}
+				<li
+					class="list-none border-b border-l-2 border-ctp-surface0 p-4 transition-colors last:border-b-0 {isLinked
+						? 'border-l-emerald-400 bg-emerald-50/40 dark:border-l-emerald-500/70 dark:bg-emerald-950/15'
+						: 'border-l-ctp-surface1'}"
+					data-testid="amazon-order-row"
+				>
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div class="min-w-0 flex-1">
-							<div class="flex flex-wrap items-center gap-2">
-								<h2 class="truncate text-sm font-semibold text-ctp-text">{orderSummary(order)}</h2>
+							<div class="mb-2 flex flex-wrap items-center gap-2">
+								{#if isLinked}
+									<span
+										data-testid="amazon-link-status"
+										data-link-status="linked"
+										class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+									>
+										<Check size={12} aria-hidden="true" />
+										Linked
+									</span>
+								{:else}
+									<span
+										data-testid="amazon-link-status"
+										data-link-status="unlinked"
+										class="inline-flex items-center gap-1 rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-overlay1"
+									>
+										<Link2Off size={12} aria-hidden="true" />
+										Not linked
+									</span>
+								{/if}
 								<span class="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300">
 									{formatAmount(order.total, order.currency || $settings.currency)}
 								</span>
 							</div>
+
+							{#if isEditing}
+								<div class="flex items-center gap-1.5">
+									<input
+										data-testid="amazon-short-name-input"
+										type="text"
+										maxlength="60"
+										bind:value={shortNameDraft}
+										placeholder={orderSummary(order)}
+										onkeydown={(event) => {
+											if (event.key === 'Enter') {
+												event.preventDefault();
+												void saveShortName(order.id);
+											} else if (event.key === 'Escape') {
+												event.preventDefault();
+												cancelEditShortName();
+											}
+										}}
+										class="min-w-0 flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-2 py-1 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+									/>
+									<button
+										type="button"
+										aria-label="Save name"
+										title="Save name"
+										onclick={() => void saveShortName(order.id)}
+										disabled={actionOrderId === order.id}
+										class="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-60 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+									>
+										<Check size={16} aria-hidden="true" />
+									</button>
+									<button
+										type="button"
+										aria-label="Cancel"
+										title="Cancel"
+										onclick={cancelEditShortName}
+										disabled={actionOrderId === order.id}
+										class="rounded-md p-1.5 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
+									>
+										<X size={16} aria-hidden="true" />
+									</button>
+								</div>
+							{:else}
+								<div class="flex items-center gap-1.5">
+									<h2 class="truncate text-sm font-semibold text-ctp-text">{orderHeading(order)}</h2>
+									<button
+										type="button"
+										data-testid="amazon-short-name-edit"
+										aria-label="Edit name"
+										title="Edit name"
+										onclick={() => startEditShortName(order)}
+										disabled={actionOrderId === order.id}
+										class="shrink-0 rounded-md p-1 text-ctp-overlay0 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+									>
+										<Pencil size={14} aria-hidden="true" />
+									</button>
+								</div>
+							{/if}
+
 							<p class="mt-1 text-xs text-ctp-overlay1">
 								{order.orderDate} · <span class="font-mono">{order.id}</span>
 							</p>
-							{#if order.linkedExpenseIds.length > 0}
+							{#if isLinked}
 								<div class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
 									{#each order.linkedExpenseIds as expenseId}
 										{@const linkedExpense = expenseById.get(expenseId)}
@@ -225,33 +345,39 @@
 											</span>
 											<button
 												type="button"
+												aria-label="Unlink transaction"
+												title="Unlink transaction"
 												onclick={() => void unlink(order.id, expenseId)}
 												disabled={actionOrderId === order.id}
-												class="rounded border border-ctp-surface1 px-2 py-0.5 text-xs hover:bg-ctp-surface1 disabled:opacity-60"
+												class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
 											>
-												Unlink
+												<Link2Off size={14} aria-hidden="true" />
 											</button>
 										</div>
 									{/each}
 								</div>
 							{/if}
 						</div>
-						<div class="flex flex-wrap items-center gap-2">
+						<div class="flex flex-wrap items-center gap-1">
 							<button
 								type="button"
+								aria-label="Find matches"
+								title="Find matches"
 								onclick={() => void loadSuggestions(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1 disabled:opacity-60"
+								class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
 							>
-								Find matches
+								<Search size={16} aria-hidden="true" />
 							</button>
 							<button
 								type="button"
+								aria-label="Delete order"
+								title="Delete order"
 								onclick={() => void remove(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/40"
+								class="rounded-md p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/40"
 							>
-								Delete
+								<Trash2 size={16} aria-hidden="true" />
 							</button>
 						</div>
 					</div>
@@ -266,10 +392,13 @@
 									</div>
 									<button
 										type="button"
+										aria-label="Link to this transaction"
+										title="Link to this transaction"
 										onclick={() => void link(order.id, expense.id)}
 										disabled={actionOrderId === order.id}
-										class="rounded-md bg-ctp-accent px-3 py-1.5 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
+										class="inline-flex items-center gap-1.5 rounded-md bg-ctp-accent px-3 py-1.5 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
 									>
+										<Link2 size={16} aria-hidden="true" />
 										Link
 									</button>
 								</div>

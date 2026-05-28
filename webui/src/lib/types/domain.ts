@@ -219,6 +219,8 @@ export interface AmazonOrder {
 	shipments: AmazonOrderShipment[];
 	paymentLast4: string | null;
 	orderUrl: string | null;
+	/** Brief AI-generated (or user-edited) description of what was purchased. */
+	shortName: string | null;
 	importedAt: string;
 	linkedExpenseIds: string[];
 }

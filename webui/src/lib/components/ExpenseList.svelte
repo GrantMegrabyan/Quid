@@ -8,6 +8,7 @@
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
+	import { amazonOrders, refreshAmazonOrders } from '$lib/stores/amazonOrders';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
@@ -57,6 +58,27 @@
 		}
 		return map;
 	});
+
+	// Map of Amazon order id -> its short name, so a linked transaction can show
+	// what was purchased as its note.
+	let amazonShortNameById = $derived.by(() => {
+		const map = new Map<string, string>();
+		for (const order of $amazonOrders) {
+			if (order.shortName) map.set(order.id, order.shortName);
+		}
+		return map;
+	});
+
+	// The note shown in a transaction's subheading: the expense's own note, or,
+	// for Amazon-linked transactions without one, the linked order's short name.
+	function noteFor(expense: Expense): string {
+		if (expense.note) return expense.note;
+		for (const orderId of expense.amazonOrderIds ?? []) {
+			const shortName = amazonShortNameById.get(orderId);
+			if (shortName) return shortName;
+		}
+		return '';
+	}
 
 	const visibleExpenses = $derived(
 		$expenses.filter((expense) => monthKey(expense.date) === $selectedMonth)
@@ -188,6 +210,7 @@
 		void refreshExpenses();
 		void refreshCategories();
 		void refreshSettings();
+		void refreshAmazonOrders();
 	});
 </script>
 
@@ -268,6 +291,7 @@
 				{@const color = category?.color ?? '#9ca3af'}
 				{@const categoryName = category?.name ?? 'Uncategorized'}
 				{@const categoryIcon = category?.icon ?? '•'}
+				{@const noteText = noteFor(expense)}
 				<li
 					data-testid="expense-row"
 					data-expense-id={expense.id}
@@ -289,28 +313,15 @@
 						>
 							{expense.displayName ?? expense.name}
 						</p>
-						<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
-							{formatDate(expense.date)}
+						<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
+							{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
 						</p>
-						<div class="mt-1 flex flex-wrap items-center gap-1.5">
-							{#if $settings.showImportanceBadge}
+						{#if $settings.showImportanceBadge}
+							<div class="mt-1 flex flex-wrap items-center gap-1.5">
 								<ImportanceBadge importance={expense.importance} />
-							{/if}
-							{#if (expense.amazonOrderIds?.length ?? 0) > 0}
-								<span
-									data-testid="amazon-linked-badge"
-									class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
-								>
-									Amazon{(expense.amazonOrderIds?.length ?? 0) > 1
-										? ` ×${expense.amazonOrderIds!.length}`
-										: ''}
-								</span>
-							{/if}
-						</div>
-						<span class="sr-only">{categoryName}</span>
-						{#if expense.note}
-							<span class="sr-only">{expense.note}</span>
+							</div>
 						{/if}
+						<span class="sr-only">{categoryName}</span>
 					</div>
 
 					<div class="ml-auto flex shrink-0 items-center gap-2">
@@ -404,6 +415,7 @@
 									{@const itemColor = itemCategory?.color ?? '#9ca3af'}
 									{@const itemCategoryName = itemCategory?.name ?? 'Uncategorized'}
 									{@const itemCategoryIcon = itemCategory?.icon ?? '•'}
+									{@const noteText = noteFor(expense)}
 									<li
 										data-testid="expense-nested-row"
 										data-expense-id={expense.id}
@@ -430,8 +442,8 @@
 											>
 												{expense.displayName ?? expense.name}
 											</p>
-										<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
-											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}
+										<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
+											{formatDate(expense.date)}{groupBy === 'importance' ? ` · ${itemCategoryName}` : ''}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
 										</p>
 										{:else}
 												<p
@@ -439,28 +451,15 @@
 												>
 													{itemCategoryName}
 												</p>
-												<p class="mt-0.5 truncate text-xs text-ctp-overlay1">
-													{formatDate(expense.date)}
+												<p class="mt-0.5 truncate text-xs text-ctp-overlay1" data-testid="expense-subheading">
+													{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"> ● </span>{noteText}{/if}
 												</p>
 									{/if}
-									<div class="mt-1 flex flex-wrap items-center gap-1.5">
-										{#if $settings.showImportanceBadge}
+									{#if $settings.showImportanceBadge}
+										<div class="mt-1 flex flex-wrap items-center gap-1.5">
 											<ImportanceBadge importance={expense.importance} />
-										{/if}
-										{#if (expense.amazonOrderIds?.length ?? 0) > 0}
-											<span
-												data-testid="amazon-linked-badge"
-												class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
-											>
-												Amazon{(expense.amazonOrderIds?.length ?? 0) > 1
-													? ` ×${expense.amazonOrderIds!.length}`
-													: ''}
-											</span>
-										{/if}
-									</div>
-									{#if expense.note}
-											<span class="sr-only">{expense.note}</span>
-										{/if}
+										</div>
+									{/if}
 										</div>
 
 										<div class="ml-auto flex shrink-0 items-center gap-2">

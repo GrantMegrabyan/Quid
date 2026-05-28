@@ -40,6 +40,15 @@ export async function unlinkAmazonOrder(orderId: string, expenseId: string): Pro
 	await refreshExpenses();
 }
 
+export async function updateAmazonShortName(
+	orderId: string,
+	shortName: string
+): Promise<void> {
+	await amazonOrderRepository.updateShortName(orderId, shortName);
+	await refreshAmazonOrders();
+	await refreshExpenses();
+}
+
 export async function deleteAmazonOrder(orderId: string): Promise<void> {
 	await amazonOrderRepository.delete(orderId);
 	await refreshAmazonOrders();
