@@ -24,12 +24,21 @@ def _parse_date(value: str) -> date:
 
 
 @dataclass(frozen=True)
+class ParsedShipmentInput:
+    total: Decimal
+    ship_date: str | None = None
+    tracking: str | None = None
+    items: list[dict[str, object]] | None = None
+
+
+@dataclass(frozen=True)
 class ParsedOrderInput:
     order_id: str
     order_date: str
     total: Decimal
     currency: str = "GBP"
     items: list[dict[str, object]] | None = None
+    shipments: list[ParsedShipmentInput] | None = None
     payment_last4: str | None = None
     order_url: str | None = None
 
@@ -64,6 +73,45 @@ def serialize_items(items: list[dict[str, object]] | None) -> str:
         price_str: str | None = None if price is None or price == "" else str(price)
         serializable.append({"title": title, "quantity": quantity, "price": price_str})
     return json.dumps(serializable)
+
+
+def serialize_shipments(shipments: list[ParsedShipmentInput] | None) -> str:
+    if not shipments:
+        return "[]"
+    payload = [
+        {
+            "ship_date": s.ship_date,
+            "tracking": s.tracking,
+            "total": str(s.total),
+            "items": json.loads(serialize_items(s.items)),
+        }
+        for s in shipments
+    ]
+    return json.dumps(payload)
+
+
+def deserialize_shipments(shipments_json: str) -> list[dict[str, object]]:
+    raw = json.loads(shipments_json or "[]")
+    if not isinstance(raw, list):
+        return []
+    result: list[dict[str, object]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        total_value = entry.get("total")
+        try:
+            total = Decimal(str(total_value)) if total_value is not None else Decimal(0)
+        except Exception:
+            total = Decimal(0)
+        result.append(
+            {
+                "ship_date": entry.get("ship_date") or None,
+                "tracking": entry.get("tracking") or None,
+                "total": total,
+                "items": entry.get("items") or [],
+            }
+        )
+    return result
 
 
 def deserialize_items(items_json: str) -> list[dict[str, object]]:
@@ -118,6 +166,7 @@ class AmazonOrderRepository:
         existing = await self.session.get(AmazonOrder, payload.order_id)
         now = _now_iso()
         items_blob = serialize_items(payload.items)
+        shipments_blob = serialize_shipments(payload.shipments)
         if existing is None:
             row = AmazonOrder(
                 id=payload.order_id,
@@ -125,6 +174,7 @@ class AmazonOrderRepository:
                 total=payload.total,
                 currency=payload.currency,
                 items_json=items_blob,
+                shipments_json=shipments_blob,
                 payment_last4=payload.payment_last4,
                 order_url=payload.order_url,
                 imported_at=now,
@@ -137,6 +187,7 @@ class AmazonOrderRepository:
         existing.total = payload.total
         existing.currency = payload.currency
         existing.items_json = items_blob
+        existing.shipments_json = shipments_blob
         existing.payment_last4 = payload.payment_last4 or existing.payment_last4
         existing.order_url = payload.order_url or existing.order_url
         existing.imported_at = now

@@ -11,7 +11,9 @@ from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.repositories.amazon_orders import (
     AmazonOrderRepository,
     ParsedOrderInput,
+    ParsedShipmentInput,
     deserialize_items,
+    deserialize_shipments,
 )
 from quid_api.repositories.app_settings import AppSettingsRepository
 from quid_api.schemas import (
@@ -21,6 +23,7 @@ from quid_api.schemas import (
     AmazonMatchAllResponse,
     AmazonOrderItem,
     AmazonOrderOut,
+    AmazonOrderShipment,
     ExpenseOut,
     Importance,
 )
@@ -47,12 +50,30 @@ def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOr
         )
         for item in items_data
     ]
+    shipments_data = deserialize_shipments(order.shipments_json)
+    shipments = [
+        AmazonOrderShipment(
+            ship_date=cast("str | None", shipment.get("ship_date")),
+            tracking=cast("str | None", shipment.get("tracking")),
+            total=shipment["total"],  # type: ignore[arg-type]
+            items=[
+                AmazonOrderItem(
+                    title=cast("str", item["title"]),
+                    quantity=cast("int", item.get("quantity") or 1),
+                    price=item.get("price"),  # type: ignore[arg-type]
+                )
+                for item in cast("list[dict[str, object]]", shipment.get("items") or [])
+            ],
+        )
+        for shipment in shipments_data
+    ]
     return AmazonOrderOut(
         id=order.id,
         order_date=order.order_date,
         total=order.total,
         currency=order.currency,
         items=items,
+        shipments=shipments,
         payment_last4=order.payment_last4,
         order_url=order.order_url,
         imported_at=order.imported_at,
@@ -119,6 +140,22 @@ async def import_amazon_csv(
                         "price": item.price,
                     }
                     for item in order.items
+                ],
+                shipments=[
+                    ParsedShipmentInput(
+                        ship_date=shipment.ship_date,
+                        tracking=shipment.tracking,
+                        total=shipment.total,
+                        items=[
+                            {
+                                "title": item.title,
+                                "quantity": item.quantity,
+                                "price": item.price,
+                            }
+                            for item in shipment.items
+                        ],
+                    )
+                    for shipment in order.shipments
                 ],
                 payment_last4=order.payment_last4,
                 order_url=order.order_url,

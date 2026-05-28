@@ -70,6 +70,13 @@ _LAST4_ALIASES = (
 _STATUS_ALIASES = ("order status", "status")
 _ORDER_URL_ALIASES = ("order url", "url", "link")
 _ITEMS_BLOB_ALIASES = ("items",)
+_SHIP_DATE_ALIASES = ("ship date", "shipped date", "shipdate")
+_TRACKING_ALIASES = (
+    "carrier name & tracking number",
+    "carrier name and tracking number",
+    "tracking number",
+    "tracking id",
+)
 
 _ACCEPTED_STATUSES: frozenset[str] = frozenset(
     {"", "closed", "shipped", "delivered", "complete", "completed"}
@@ -90,12 +97,29 @@ class AmazonParsedItem:
 
 
 @dataclass
+class AmazonParsedShipment:
+    """A group of items from one order that shipped together.
+
+    Amazon often bills per-shipment when an order is split, so per-shipment
+    totals are useful match candidates. When the parser can't infer
+    shipments (e.g. legacy exports without tracking/ship date), the whole
+    order becomes a single shipment.
+    """
+
+    ship_date: str | None = None
+    tracking: str | None = None
+    total: Decimal = Decimal(0)
+    items: list[AmazonParsedItem] = field(default_factory=list)
+
+
+@dataclass
 class AmazonParsedOrder:
     order_id: str
     order_date: str
     total: Decimal
     currency: str = "GBP"
     items: list[AmazonParsedItem] = field(default_factory=list)
+    shipments: list[AmazonParsedShipment] = field(default_factory=list)
     payment_last4: str | None = None
     order_url: str | None = None
 
@@ -249,6 +273,8 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
     status_col = _pick_column(header_map, _STATUS_ALIASES)
     order_url_col = _pick_column(header_map, _ORDER_URL_ALIASES)
     items_blob_col = _pick_column(header_map, _ITEMS_BLOB_ALIASES)
+    ship_date_col = _pick_column(header_map, _SHIP_DATE_ALIASES)
+    tracking_col = _pick_column(header_map, _TRACKING_ALIASES)
 
     if order_id_col is None or order_date_col is None or total_col is None:
         missing = [
@@ -266,6 +292,10 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
         )
 
     by_id: dict[str, AmazonParsedOrder] = {}
+    # (order_id, shipment_key) → shipment. shipment_key is tracking number
+    # when present, else falls back to ship_date, else a sentinel that
+    # collapses everything into one shipment for legacy formats.
+    by_shipment: dict[tuple[str, str], AmazonParsedShipment] = {}
     skipped = 0
 
     for raw in reader:
@@ -311,17 +341,54 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
             if order_url and not existing.order_url:
                 existing.order_url = order_url
 
+        # Resolve the shipment bucket once per row so blob/title items both
+        # attribute to the same shipment.
+        tracking_raw = (raw.get(tracking_col) or "").strip() if tracking_col else ""
+        ship_date_raw = (
+            _normalize_date(raw.get(ship_date_col) or "") if ship_date_col else ""
+        )
+        if tracking_raw:
+            shipment_key = f"track::{tracking_raw}"
+        elif ship_date_raw:
+            shipment_key = f"date::{ship_date_raw}"
+        else:
+            shipment_key = "single"
+        shipment = by_shipment.get((order_id, shipment_key))
+        if shipment is None:
+            shipment = AmazonParsedShipment(
+                ship_date=ship_date_raw or None,
+                tracking=tracking_raw or None,
+            )
+            by_shipment[(order_id, shipment_key)] = shipment
+            existing.shipments.append(shipment)
+        # When the total column is per-row, every row contributes a slice of
+        # the shipment's billable amount. For per-order formats we leave
+        # shipment totals at zero — they'll be backfilled at the end.
+        if total_is_per_row:
+            shipment.total = shipment.total + total
+
         if items_blob_col is not None:
             blob = raw.get(items_blob_col) or ""
             for parsed_item in _parse_items_blob(blob):
                 existing.items.append(parsed_item)
+                shipment.items.append(parsed_item)
 
         if title_col is not None:
             title = (raw.get(title_col) or "").strip()
             if title:
                 quantity = _coerce_int(raw.get(quantity_col) or "1") if quantity_col else 1
                 price = _parse_decimal(raw.get(item_price_col) or "") if item_price_col else None
-                existing.items.append(AmazonParsedItem(title=title, quantity=quantity, price=price))
+                item = AmazonParsedItem(title=title, quantity=quantity, price=price)
+                existing.items.append(item)
+                shipment.items.append(item)
+
+    # Backfill shipment totals when the source CSV gave us a per-order total
+    # but didn't carry per-row charges (legacy format). One shipment per
+    # order is the only sensible split in that case.
+    if not total_is_per_row:
+        for order in by_id.values():
+            if len(order.shipments) == 1 and order.shipments[0].total == 0:
+                order.shipments[0].total = order.total
 
     return AmazonCsvParsed(
         orders=list(by_id.values()),

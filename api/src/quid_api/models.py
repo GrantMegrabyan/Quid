@@ -216,6 +216,13 @@ class AmazonOrder(Base):
     currency: Mapped[str] = mapped_column(String, nullable=False, default="GBP")
     # JSON-serialised list of {"title": str, "quantity": int, "price": float}.
     items_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # JSON-serialised list of per-shipment groups so the UI can show which
+    # items shipped together and so matching can try per-shipment totals.
+    # Each entry: {"ship_date": str|None, "tracking": str|None, "total": str,
+    # "items": [{"title": str, "quantity": int, "price": str|None}]}.
+    shipments_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]", server_default=text("'[]'")
+    )
     payment_last4: Mapped[str | None] = mapped_column(String, nullable=True)
     order_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     imported_at: Mapped[str] = mapped_column(String, nullable=False)

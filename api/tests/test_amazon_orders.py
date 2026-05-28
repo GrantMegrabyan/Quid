@@ -28,10 +28,13 @@ EXPORTER_CSV = (
 # order total must be SUM of these rows, not the first row's value.
 RETAIL_ORDER_HISTORY_CSV = (
     "Order ID,Order Date,Total Amount,Currency,Product Name,"
-    "Original Quantity,Shipment Item Subtotal,Order Status\n"
-    "100-0000001-0000001,2026-04-20,9.99,GBP,Widget A,1,28.32,Closed\n"
-    "100-0000001-0000001,2026-04-20,24.00,GBP,Widget B,1,28.32,Closed\n"
-    "200-0000002-0000002,2026-04-22,15.00,GBP,Solo Item,1,12.50,Closed\n"
+    "Original Quantity,Shipment Item Subtotal,Order Status,"
+    "Carrier Name & Tracking Number,Ship Date\n"
+    "100-0000001-0000001,2026-04-20,9.99,GBP,Widget A,1,28.32,Closed,TRACK-A,2026-04-21\n"
+    "100-0000001-0000001,2026-04-20,24.00,GBP,Widget B,1,28.32,Closed,TRACK-A,2026-04-21\n"
+    "200-0000002-0000002,2026-04-22,15.00,GBP,Solo Item,1,12.50,Closed,TRACK-B,2026-04-23\n"
+    "300-0000003-0000003,2026-04-25,7.50,GBP,Split A,1,7.50,Closed,TRACK-C,2026-04-26\n"
+    "300-0000003-0000003,2026-04-25,12.30,GBP,Split B,1,12.30,Closed,TRACK-D,2026-04-27\n"
 )
 
 
@@ -68,6 +71,43 @@ def test_parse_retail_history_sums_per_row_total_amount():
     assert multi.total == Decimal("33.99")  # 9.99 + 24.00
     solo = next(o for o in parsed.orders if o.order_id == "200-0000002-0000002")
     assert solo.total == Decimal("15.00")
+
+
+def test_parse_retail_history_groups_into_shipments():
+    """Rows with the same tracking number form one shipment; distinct
+    tracking IDs split into separate shipments."""
+    parsed = parse_amazon_csv(
+        AmazonCsvFile(
+            filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode()
+        )
+    )
+    multi = next(o for o in parsed.orders if o.order_id == "100-0000001-0000001")
+    assert len(multi.shipments) == 1
+    assert multi.shipments[0].tracking == "TRACK-A"
+    assert multi.shipments[0].ship_date == "2026-04-21"
+    assert multi.shipments[0].total == Decimal("33.99")
+    assert {item.title for item in multi.shipments[0].items} == {
+        "Widget A",
+        "Widget B",
+    }
+
+    split = next(o for o in parsed.orders if o.order_id == "300-0000003-0000003")
+    assert len(split.shipments) == 2
+    totals = sorted(s.total for s in split.shipments)
+    assert totals == [Decimal("7.50"), Decimal("12.30")]
+    assert split.total == Decimal("19.80")
+
+
+def test_parse_legacy_per_order_total_keeps_single_shipment():
+    """Legacy formats with 'Total Owed' (per-order) repeat the same total on
+    every row. One shipment per order is the only sensible split, and its
+    total must equal the order total."""
+    parsed = parse_amazon_csv(
+        AmazonCsvFile(filename="retail.csv", content=RETAIL_ORDER_CSV.encode())
+    )
+    grouped = next(o for o in parsed.orders if o.order_id == "111-1234567-1234567")
+    assert len(grouped.shipments) == 1
+    assert grouped.shipments[0].total == Decimal("42.50")
 
 
 def test_parse_exporter_csv_accepts_json_and_delimited_items():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal  # noqa: TC003  pydantic Field reads this at runtime
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -343,12 +343,24 @@ class AmazonOrderItem(_Camel):
         return None if value is None else float(value)
 
 
+class AmazonOrderShipment(_Camel):
+    ship_date: str | None = None
+    tracking: str | None = None
+    total: Decimal = Decimal(0)
+    items: list[AmazonOrderItem] = Field(default_factory=list)
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> float:
+        return float(value)
+
+
 class AmazonOrderOut(_Camel):
     id: str
     order_date: str
     total: Decimal
     currency: str
     items: list[AmazonOrderItem] = Field(default_factory=list)
+    shipments: list[AmazonOrderShipment] = Field(default_factory=list)
     payment_last4: str | None = None
     order_url: str | None = None
     imported_at: str
