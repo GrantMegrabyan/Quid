@@ -22,15 +22,29 @@ _ORDER_DATE_ALIASES = (
     "orderdate",
     "date",
 )
-_TOTAL_ALIASES = (
+# Amazon exports come in two flavours we need to distinguish:
+#
+#   * "Per-order" totals: a single value repeated on every row of the same
+#     order (legacy "Total Owed" / "Order Total" columns). Taking the first
+#     row's value is correct; summing would over-count.
+#   * "Per-row" totals: a per-item charge (modern "Total Amount" column from
+#     Amazon's full order history export). We must SUM rows within an order
+#     to get the order total. Taking only the first row was the historical
+#     bug — it produced a total equal to one item's charge, breaking matches
+#     for every multi-item order.
+_PER_ORDER_TOTAL_ALIASES = (
     "total owed",
     "total charged",
+    "order total",
+    "grand total",
+)
+_PER_ROW_TOTAL_ALIASES = (
     "totalamount",
     "total amount",
+)
+_TOTAL_ALIASES = _PER_ORDER_TOTAL_ALIASES + _PER_ROW_TOTAL_ALIASES + (
     "total",
-    "order total",
     "amount",
-    "grand total",
 )
 _CURRENCY_ALIASES = ("currency", "currency code")
 _TITLE_ALIASES = (
@@ -221,6 +235,12 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
     order_id_col = _pick_column(header_map, _ORDER_ID_ALIASES)
     order_date_col = _pick_column(header_map, _ORDER_DATE_ALIASES)
     total_col = _pick_column(header_map, _TOTAL_ALIASES)
+    # Track whether the chosen total column is per-row (must sum) or per-order
+    # (must dedupe by taking the first). When the alias is ambiguous ("total",
+    # "amount") we assume per-order to preserve historical behaviour.
+    total_is_per_row = total_col is not None and any(
+        header_map.get(alias) == total_col for alias in _PER_ROW_TOTAL_ALIASES
+    )
     currency_col = _pick_column(header_map, _CURRENCY_ALIASES)
     title_col = _pick_column(header_map, _TITLE_ALIASES)
     quantity_col = _pick_column(header_map, _QUANTITY_ALIASES)
@@ -281,7 +301,10 @@ def parse_amazon_csv(file: AmazonCsvFile, default_currency: str = "GBP") -> Amaz
             )
             by_id[order_id] = existing
         else:
-            if existing.total <= 0 and total > 0:
+            if total_is_per_row:
+                # Each row contributes a slice of the order total — sum them.
+                existing.total = existing.total + total
+            elif existing.total <= 0 and total > 0:
                 existing.total = total
             if last4 and not existing.payment_last4:
                 existing.payment_last4 = last4

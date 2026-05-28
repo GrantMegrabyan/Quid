@@ -23,6 +23,17 @@ EXPORTER_CSV = (
     '555-3333333-4444444,2026-05-05,99.99,GBP,"[{""title"":""Headphones"",""quantity"":1,""price"":""99.99""}]"\n'
 )
 
+# Mimics Amazon's "Retail.OrderHistory" full export where each row is a single
+# item in a shipment and "Total Amount" is per-row (item subtotal + tax). The
+# order total must be SUM of these rows, not the first row's value.
+RETAIL_ORDER_HISTORY_CSV = (
+    "Order ID,Order Date,Total Amount,Currency,Product Name,"
+    "Original Quantity,Shipment Item Subtotal,Order Status\n"
+    "100-0000001-0000001,2026-04-20,9.99,GBP,Widget A,1,28.32,Closed\n"
+    "100-0000001-0000001,2026-04-20,24.00,GBP,Widget B,1,28.32,Closed\n"
+    "200-0000002-0000002,2026-04-22,15.00,GBP,Solo Item,1,12.50,Closed\n"
+)
+
 
 def test_parse_retail_history_groups_items_by_order():
     parsed = parse_amazon_csv(
@@ -39,6 +50,24 @@ def test_parse_retail_history_groups_items_by_order():
     assert grouped.total == Decimal("42.50")
     assert grouped.payment_last4 == "1234"
     assert parsed.skipped_rows == 1
+
+
+def test_parse_retail_history_sums_per_row_total_amount():
+    """Real Amazon export uses per-row 'Total Amount' (a per-item charge).
+
+    The parser must SUM per-row charges within an order to get the order
+    total — historical bug took only the first row, breaking every
+    multi-item order.
+    """
+    parsed = parse_amazon_csv(
+        AmazonCsvFile(
+            filename="full.csv", content=RETAIL_ORDER_HISTORY_CSV.encode()
+        )
+    )
+    multi = next(o for o in parsed.orders if o.order_id == "100-0000001-0000001")
+    assert multi.total == Decimal("33.99")  # 9.99 + 24.00
+    solo = next(o for o in parsed.orders if o.order_id == "200-0000002-0000002")
+    assert solo.total == Decimal("15.00")
 
 
 def test_parse_exporter_csv_accepts_json_and_delimited_items():
