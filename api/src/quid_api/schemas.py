@@ -61,7 +61,7 @@ class ExpenseOut(_Camel):
     note: str
     display_name: str | None = None
     importance: Importance
-    amazon_order_id: str | None = None
+    amazon_order_ids: list[str] = Field(default_factory=list)
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> float:

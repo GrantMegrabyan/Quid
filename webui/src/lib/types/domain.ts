@@ -14,7 +14,10 @@ export interface Expense {
 	note: string;
 	displayName?: string | null;
 	importance: ExpenseImportance;
-	amazonOrderId?: string | null;
+	/** Amazon orders this expense is linked to. Multiple when Amazon bills
+	 *  several orders together as a single bank charge. Optional in mocks
+	 *  and creation payloads; the API always returns at least []. */
+	amazonOrderIds?: string[];
 }
 
 export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
@@ -200,12 +203,20 @@ export interface AmazonOrderItem {
 	price: number | null;
 }
 
+export interface AmazonOrderShipment {
+	shipDate: string | null;
+	tracking: string | null;
+	total: number;
+	items: AmazonOrderItem[];
+}
+
 export interface AmazonOrder {
 	id: string;
 	orderDate: string;
 	total: number;
 	currency: string;
 	items: AmazonOrderItem[];
+	shipments: AmazonOrderShipment[];
 	paymentLast4: string | null;
 	orderUrl: string | null;
 	importedAt: string;

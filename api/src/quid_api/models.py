@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal  # noqa: TC003  SQLAlchemy needs runtime access for Mapped[]
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -54,20 +54,29 @@ class Expense(Base):
         server_default=text("'important'"),
         default="important",
     )
-    amazon_order_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("amazon_orders.id", ondelete="SET NULL"),
-        nullable=True,
-    )
 
     category: Mapped[Category] = relationship(
         back_populates="expenses",
         lazy="raise_on_sql",
     )
-    amazon_order: Mapped[AmazonOrder | None] = relationship(
-        back_populates="expenses",
+    amazon_order_links: Mapped[list[ExpenseAmazonOrderLink]] = relationship(
+        back_populates="expense",
+        cascade="all, delete-orphan",
         lazy="raise_on_sql",
     )
+
+    @property
+    def amazon_order_ids(self) -> list[str]:
+        """Resolve linked Amazon order ids without forcing a lazy load.
+
+        Returns an empty list when ``amazon_order_links`` hasn't been
+        eager-loaded — callers that need the populated list must use
+        ``selectinload(Expense.amazon_order_links)``.
+        """
+        state = inspect(self)
+        if "amazon_order_links" in state.unloaded:
+            return []
+        return sorted(link.amazon_order_id for link in self.amazon_order_links)
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positive"),
@@ -81,7 +90,6 @@ class Expense(Base):
         ),
         Index("ix_expenses_date", "date"),
         Index("ix_expenses_category", "category_id"),
-        Index("ix_expenses_amazon_order", "amazon_order_id"),
     )
 
 
@@ -227,8 +235,9 @@ class AmazonOrder(Base):
     order_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     imported_at: Mapped[str] = mapped_column(String, nullable=False)
 
-    expenses: Mapped[list[Expense]] = relationship(
+    expense_links: Mapped[list[ExpenseAmazonOrderLink]] = relationship(
         back_populates="amazon_order",
+        cascade="all, delete-orphan",
         passive_deletes=True,
         lazy="raise_on_sql",
     )
@@ -241,6 +250,41 @@ class AmazonOrder(Base):
         ),
         Index("ix_amazon_orders_date", "order_date"),
         Index("ix_amazon_orders_total", "total"),
+    )
+
+
+class ExpenseAmazonOrderLink(Base):
+    """Join table: an expense may cover multiple Amazon orders (when Amazon
+    bills them as a combined charge) and an Amazon order may be billed
+    across multiple expenses (when shipments are billed separately)."""
+
+    __tablename__ = "expense_amazon_orders"
+
+    expense_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("expenses.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    amazon_order_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("amazon_orders.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    expense: Mapped[Expense] = relationship(
+        back_populates="amazon_order_links",
+        lazy="raise_on_sql",
+    )
+    amazon_order: Mapped[AmazonOrder] = relationship(
+        back_populates="expense_links",
+        lazy="raise_on_sql",
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_expense_amazon_orders_amazon_order_id",
+            "amazon_order_id",
+        ),
     )
 
 

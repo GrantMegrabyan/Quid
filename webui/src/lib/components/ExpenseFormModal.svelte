@@ -344,12 +344,19 @@
 				</div>
 
 				{#if isEdit}
-					{#if expense?.amazonOrderId}
+					{@const amazonOrderIds = expense?.amazonOrderIds ?? []}
+					{#if amazonOrderIds.length > 0}
 						<div
 							data-testid="expense-amazon-link"
 							class="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200"
 						>
-							Linked to Amazon order <span class="font-mono">{expense.amazonOrderId}</span>.
+							{#if amazonOrderIds.length === 1}
+								Linked to Amazon order
+								<span class="font-mono">{amazonOrderIds[0]}</span>.
+							{:else}
+								Linked to {amazonOrderIds.length} Amazon orders billed together:
+								<span class="font-mono">{amazonOrderIds.join(', ')}</span>.
+							{/if}
 						</div>
 					{/if}
 

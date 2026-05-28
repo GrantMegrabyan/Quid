@@ -296,12 +296,14 @@
 							{#if $settings.showImportanceBadge}
 								<ImportanceBadge importance={expense.importance} />
 							{/if}
-							{#if expense.amazonOrderId}
+							{#if (expense.amazonOrderIds?.length ?? 0) > 0}
 								<span
 									data-testid="amazon-linked-badge"
 									class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
 								>
-									Amazon
+									Amazon{(expense.amazonOrderIds?.length ?? 0) > 1
+										? ` ×${expense.amazonOrderIds!.length}`
+										: ''}
 								</span>
 							{/if}
 						</div>
@@ -445,12 +447,14 @@
 										{#if $settings.showImportanceBadge}
 											<ImportanceBadge importance={expense.importance} />
 										{/if}
-										{#if expense.amazonOrderId}
+										{#if (expense.amazonOrderIds?.length ?? 0) > 0}
 											<span
 												data-testid="amazon-linked-badge"
 												class="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
 											>
-												Amazon
+												Amazon{(expense.amazonOrderIds?.length ?? 0) > 1
+													? ` ×${expense.amazonOrderIds!.length}`
+													: ''}
 											</span>
 										{/if}
 									</div>

@@ -31,7 +31,7 @@ from quid_api.schemas import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from quid_api.models import AmazonOrder
+    from quid_api.models import AmazonOrder, Expense
 
 logger = logging.getLogger(__name__)
 
@@ -204,10 +204,28 @@ async def match_all_amazon_orders(session: SessionDep) -> AmazonMatchAllResponse
     )
 
 
+async def _expense_with_links(
+    repo: AmazonOrderRepository, expense: Expense
+) -> ExpenseOut:
+    linked_map = await repo.expense_linked_orders([expense.id])
+    return ExpenseOut(
+        id=expense.id,
+        name=expense.name,
+        amount=expense.amount,
+        date=expense.date,
+        category_id=expense.category_id,
+        note=expense.note,
+        display_name=expense.display_name,
+        importance=cast("Importance", expense.importance),
+        amazon_order_ids=linked_map.get(expense.id, []),
+    )
+
+
 @router.get("/{order_id}/suggested-matches", response_model=list[ExpenseOut])
 async def list_suggested_matches(order_id: str, session: SessionDep) -> list[ExpenseOut]:
     repo = AmazonOrderRepository(session)
     candidates = await repo.suggest_matches(order_id)
+    linked = await repo.expense_linked_orders([c.id for c in candidates])
     return [
         ExpenseOut(
             id=candidate.id,
@@ -218,7 +236,7 @@ async def list_suggested_matches(order_id: str, session: SessionDep) -> list[Exp
             note=candidate.note,
             display_name=candidate.display_name,
             importance=cast("Importance", candidate.importance),
-            amazon_order_id=candidate.amazon_order_id,
+            amazon_order_ids=linked.get(candidate.id, []),
         )
         for candidate in candidates
     ]
@@ -230,8 +248,9 @@ async def link_amazon_order(
 ) -> ExpenseOut:
     repo = AmazonOrderRepository(session)
     expense = await repo.link_expense(order_id, payload.expense_id)
+    out = await _expense_with_links(repo, expense)
     await session.commit()
-    return ExpenseOut.model_validate(expense)
+    return out
 
 
 @router.post("/{order_id}/unlink", response_model=ExpenseOut)
@@ -240,8 +259,9 @@ async def unlink_amazon_order(
 ) -> ExpenseOut:
     repo = AmazonOrderRepository(session)
     expense = await repo.unlink_expense(order_id, payload.expense_id)
+    out = await _expense_with_links(repo, expense)
     await session.commit()
-    return ExpenseOut.model_validate(expense)
+    return out
 
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)

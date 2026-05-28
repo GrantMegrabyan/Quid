@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from quid_api.category_helpers import (
     UNCATEGORIZED_ID,
@@ -152,16 +153,24 @@ class ExpenseRepository:
                 RepositoryErrorCode.VALIDATION,
                 "Limit must be >= 0.",
             )
-        stmt = select(Expense).order_by(Expense.date.desc(), Expense.id.desc())
+        stmt = (
+            select(Expense)
+            .options(selectinload(Expense.amazon_order_links))
+            .order_by(Expense.date.desc(), Expense.id.desc())
+        )
         if offset:
             stmt = stmt.offset(offset)
         if limit is not None:
             stmt = stmt.limit(limit)
         result = await self.session.scalars(stmt)
-        return list(result.all())
+        return list(result.unique().all())
 
     async def get(self, expense_id: str) -> Expense:
-        row = await self.session.get(Expense, expense_id)
+        row = await self.session.scalar(
+            select(Expense)
+            .options(selectinload(Expense.amazon_order_links))
+            .where(Expense.id == expense_id)
+        )
         if row is None:
             raise RepositoryError(
                 RepositoryErrorCode.NOT_FOUND,

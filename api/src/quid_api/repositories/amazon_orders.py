@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode
-from quid_api.models import AmazonOrder, Expense
+from quid_api.models import AmazonOrder, Expense, ExpenseAmazonOrderLink
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -215,23 +215,29 @@ class AmazonOrderRepository:
         await self.session.delete(row)
         await self.session.flush()
 
+    async def _linked_expense_ids_set(self) -> set[str]:
+        rows = (
+            await self.session.scalars(select(ExpenseAmazonOrderLink.expense_id))
+        ).all()
+        return set(rows)
+
     async def suggest_matches(self, order_id: str, *, window_days: int = 7) -> list[Expense]:
         order = await self.get(order_id)
         order_date = _parse_date(order.order_date)
+        linked_expense_ids = await self._linked_expense_ids_set()
         candidates = list(
             (
                 await self.session.scalars(
                     select(Expense)
-                    .where(
-                        Expense.amount == order.total,
-                        Expense.amazon_order_id.is_(None),
-                    )
+                    .where(Expense.amount == order.total)
                     .order_by(Expense.date.desc(), Expense.id)
                 )
             ).all()
         )
         matches: list[Expense] = []
         for candidate in candidates:
+            if candidate.id in linked_expense_ids:
+                continue
             try:
                 candidate_date = _parse_date(candidate.date)
             except ValueError:
@@ -243,7 +249,9 @@ class AmazonOrderRepository:
     async def linked_expense_ids(self, order_id: str) -> list[str]:
         rows = (
             await self.session.scalars(
-                select(Expense.id).where(Expense.amazon_order_id == order_id).order_by(Expense.id)
+                select(ExpenseAmazonOrderLink.expense_id)
+                .where(ExpenseAmazonOrderLink.amazon_order_id == order_id)
+                .order_by(ExpenseAmazonOrderLink.expense_id)
             )
         ).all()
         return list(rows)
@@ -253,17 +261,51 @@ class AmazonOrderRepository:
             return {}
         rows = (
             await self.session.execute(
-                select(Expense.amazon_order_id, Expense.id)
-                .where(Expense.amazon_order_id.in_(order_ids))
-                .order_by(Expense.id)
+                select(
+                    ExpenseAmazonOrderLink.amazon_order_id,
+                    ExpenseAmazonOrderLink.expense_id,
+                )
+                .where(ExpenseAmazonOrderLink.amazon_order_id.in_(order_ids))
+                .order_by(ExpenseAmazonOrderLink.expense_id)
             )
         ).all()
         result: dict[str, list[str]] = {oid: [] for oid in order_ids}
         for amazon_order_id, expense_id in rows:
-            if amazon_order_id is None:
-                continue
             result.setdefault(amazon_order_id, []).append(expense_id)
         return result
+
+    async def expense_linked_orders(
+        self, expense_ids: list[str]
+    ) -> dict[str, list[str]]:
+        """For each expense id, return the Amazon orders it is linked to."""
+        if not expense_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(
+                    ExpenseAmazonOrderLink.expense_id,
+                    ExpenseAmazonOrderLink.amazon_order_id,
+                )
+                .where(ExpenseAmazonOrderLink.expense_id.in_(expense_ids))
+                .order_by(ExpenseAmazonOrderLink.amazon_order_id)
+            )
+        ).all()
+        result: dict[str, list[str]] = {eid: [] for eid in expense_ids}
+        for expense_id, amazon_order_id in rows:
+            result.setdefault(expense_id, []).append(amazon_order_id)
+        return result
+
+    async def _link_pair(self, order_id: str, expense_id: str) -> None:
+        existing = await self.session.get(
+            ExpenseAmazonOrderLink, (expense_id, order_id)
+        )
+        if existing is not None:
+            return
+        self.session.add(
+            ExpenseAmazonOrderLink(
+                expense_id=expense_id, amazon_order_id=order_id
+            )
+        )
 
     async def link_expense(self, order_id: str, expense_id: str) -> Expense:
         order = await self.get(order_id)
@@ -273,12 +315,7 @@ class AmazonOrderRepository:
                 RepositoryErrorCode.NOT_FOUND,
                 f"Expense not found: {expense_id}",
             )
-        if expense.amazon_order_id and expense.amazon_order_id != order.id:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Expense is already linked to a different Amazon order.",
-            )
-        expense.amazon_order_id = order.id
+        await self._link_pair(order.id, expense.id)
         await self.session.flush()
         return expense
 
@@ -289,12 +326,15 @@ class AmazonOrderRepository:
                 RepositoryErrorCode.NOT_FOUND,
                 f"Expense not found: {expense_id}",
             )
-        if expense.amazon_order_id != order_id:
+        link = await self.session.get(
+            ExpenseAmazonOrderLink, (expense_id, order_id)
+        )
+        if link is None:
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION,
                 "Expense is not linked to this Amazon order.",
             )
-        expense.amazon_order_id = None
+        await self.session.delete(link)
         await self.session.flush()
         return expense
 
@@ -316,7 +356,7 @@ class AmazonOrderRepository:
             candidates = await self.suggest_matches(order.id, window_days=window_days)
             fresh = [c for c in candidates if c.id not in used_expense_ids]
             if len(fresh) == 1:
-                fresh[0].amazon_order_id = order.id
+                await self._link_pair(order.id, fresh[0].id)
                 used_expense_ids.add(fresh[0].id)
                 auto_matched += 1
             else:

@@ -257,33 +257,40 @@ async def test_manual_link_and_unlink(app_client):
         json={"expenseId": expense_id},
     )
     assert link.status_code == 200, link.text
-    assert link.json()["amazonOrderId"] == "555-3333333-4444444"
+    assert link.json()["amazonOrderIds"] == ["555-3333333-4444444"]
 
     unlink = await app_client.post(
         "/api/v1/amazon-orders/555-3333333-4444444/unlink",
         json={"expenseId": expense_id},
     )
     assert unlink.status_code == 200
-    assert unlink.json()["amazonOrderId"] is None
+    assert unlink.json()["amazonOrderIds"] == []
 
 
-async def test_link_rejects_when_already_linked_elsewhere(app_client):
+async def test_one_expense_can_link_to_multiple_orders(app_client):
+    """When Amazon bills several orders together, the same expense should
+    be linkable to each contributing order."""
     expense_id = await _seed_categories_and_expense(
-        app_client, name="Amazon Mktp", amount=99.99, date="2026-05-04"
+        app_client, name="Amazon Mktp", amount=124.99, date="2026-05-04"
     )
     await app_client.post(
         "/api/v1/amazon-orders/import-csv",
         files=[_upload("exporter.csv", EXPORTER_CSV)],
     )
-    await app_client.post(
+    first = await app_client.post(
         "/api/v1/amazon-orders/555-3333333-4444444/link",
         json={"expenseId": expense_id},
     )
-    other = await app_client.post(
+    second = await app_client.post(
         "/api/v1/amazon-orders/444-1111111-2222222/link",
         json={"expenseId": expense_id},
     )
-    assert other.status_code == 422
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert sorted(second.json()["amazonOrderIds"]) == [
+        "444-1111111-2222222",
+        "555-3333333-4444444",
+    ]
 
 
 async def test_get_404_and_delete_round_trip(app_client):
