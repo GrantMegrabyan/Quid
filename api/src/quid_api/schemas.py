@@ -245,6 +245,7 @@ class ImportRuleOut(_Camel):
     match_amount_value2: Decimal | None
     match_date_from: str | None
     match_date_to: str | None
+    match_day_of_month: int | None = None
     set_display_name: str | None = None
     created_at: str
 
@@ -266,6 +267,7 @@ class ImportRuleCreate(_Camel):
     match_amount_value2: Decimal | None = None
     match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
 
 
@@ -282,6 +284,7 @@ class ImportRuleUpdate(_Camel):
     match_amount_value2: Decimal | None = None
     match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
 
 

@@ -109,6 +109,8 @@ class ImportRule(Base):
     match_date_from: Mapped[str | None] = mapped_column(String, nullable=True)
     match_date_to: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    match_day_of_month: Mapped[int | None] = mapped_column(nullable=True)
+
     set_display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[str] = mapped_column(String, nullable=False)
@@ -156,8 +158,13 @@ class ImportRule(Base):
         ),
         CheckConstraint(
             "match_name_op IS NOT NULL OR match_amount_op IS NOT NULL "
-            "OR match_date_from IS NOT NULL OR match_date_to IS NOT NULL",
+            "OR match_date_from IS NOT NULL OR match_date_to IS NOT NULL "
+            "OR match_day_of_month IS NOT NULL",
             name="ck_import_rules_has_match",
+        ),
+        CheckConstraint(
+            "match_day_of_month IS NULL OR (match_day_of_month >= 1 AND match_day_of_month <= 31)",
+            name="ck_import_rules_day_of_month",
         ),
         Index("ix_import_rules_priority", "priority"),
     )

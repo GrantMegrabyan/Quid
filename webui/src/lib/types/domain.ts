@@ -146,6 +146,7 @@ export interface ImportRule {
 	matchAmountValue2: number | null;
 	matchDateFrom: string | null;
 	matchDateTo: string | null;
+	matchDayOfMonth: number | null;
 	setDisplayName: string | null;
 	createdAt: string;
 }

@@ -85,12 +85,23 @@ def _matches_date(rule: ImportRule, date: str) -> bool:
     return not (rule.match_date_to is not None and date > rule.match_date_to)
 
 
+def _matches_day_of_month(rule: ImportRule, date: str) -> bool:
+    if rule.match_day_of_month is None:
+        return True
+    try:
+        day = int(date[8:10])
+    except (ValueError, IndexError):
+        return False
+    return day == rule.match_day_of_month
+
+
 def matches_rule(rule: ImportRule, item: RuleMatchItem) -> bool:
     return (
         rule.enabled
         and _matches_name(rule, item.name)
         and _matches_amount(rule, item.amount)
         and _matches_date(rule, item.date)
+        and _matches_day_of_month(rule, item.date)
     )
 
 
@@ -130,6 +141,7 @@ class ImportRuleRepository:
         match_amount_value2: Decimal | None,
         match_date_from: str | None,
         match_date_to: str | None,
+        match_day_of_month: int | None = None,
         set_display_name: str | None = None,
     ) -> ImportRule:
         row = ImportRule(
@@ -146,6 +158,7 @@ class ImportRuleRepository:
             match_amount_value2=match_amount_value2,
             match_date_from=match_date_from,
             match_date_to=match_date_to,
+            match_day_of_month=match_day_of_month,
             set_display_name=set_display_name,
             created_at=_now_iso(),
         )
@@ -294,11 +307,17 @@ class ImportRuleRepository:
                 RepositoryErrorCode.VALIDATION,
                 "Second amount value is only valid for between rules.",
             )
+        if row.match_day_of_month is not None and not 1 <= row.match_day_of_month <= 31:
+            raise RepositoryError(
+                RepositoryErrorCode.VALIDATION,
+                "Day of month must be between 1 and 31.",
+            )
         if (
             row.match_name_op is None
             and row.match_amount_op is None
             and row.match_date_from is None
             and row.match_date_to is None
+            and row.match_day_of_month is None
         ):
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION,

@@ -33,8 +33,11 @@
 		matchAmountValue2: string;
 		matchDateFrom: string;
 		matchDateTo: string;
+		matchDayOfMonth: string;
 		setDisplayName: string;
 	};
+
+	type RuleResult = { kind: 'message' | 'error'; text: string };
 
 	const emptyForm = (): FormState => ({
 		name: '',
@@ -49,6 +52,7 @@
 		matchAmountValue2: '',
 		matchDateFrom: '',
 		matchDateTo: '',
+		matchDayOfMonth: '',
 		setDisplayName: ''
 	});
 
@@ -59,6 +63,7 @@
 	let saving = $state(false);
 	let applyingId: string | null = $state(null);
 	let applyingAll = $state(false);
+	let ruleResults = $state<Record<string, RuleResult>>({});
 
 	function categoryName(id: string | null): string {
 		return $categories.find((c) => c.id === id)?.name ?? 'Unknown category';
@@ -82,6 +87,7 @@
 		if (amount) parts.push(amount);
 		if (rule.matchDateFrom) parts.push(`date from ${rule.matchDateFrom}`);
 		if (rule.matchDateTo) parts.push(`date to ${rule.matchDateTo}`);
+		if (rule.matchDayOfMonth) parts.push(`day of month = ${rule.matchDayOfMonth}`);
 		return parts.join(' · ');
 	}
 
@@ -96,12 +102,13 @@
 			matchNameOp: rule.matchNameOp ?? '',
 			matchNameValue: rule.matchNameValue ?? '',
 			matchAmountOp: rule.matchAmountOp ?? '',
-		matchAmountValue: rule.matchAmountValue === null ? '' : String(rule.matchAmountValue),
-		matchAmountValue2: rule.matchAmountValue2 === null ? '' : String(rule.matchAmountValue2),
-		matchDateFrom: rule.matchDateFrom ?? '',
-		matchDateTo: rule.matchDateTo ?? '',
-		setDisplayName: rule.setDisplayName ?? ''
-	};
+			matchAmountValue: rule.matchAmountValue === null ? '' : String(rule.matchAmountValue),
+			matchAmountValue2: rule.matchAmountValue2 === null ? '' : String(rule.matchAmountValue2),
+			matchDateFrom: rule.matchDateFrom ?? '',
+			matchDateTo: rule.matchDateTo ?? '',
+			matchDayOfMonth: rule.matchDayOfMonth === null ? '' : String(rule.matchDayOfMonth),
+			setDisplayName: rule.setDisplayName ?? ''
+		};
 		error = '';
 		message = '';
 	}
@@ -121,9 +128,20 @@
 		const hasName = form.matchNameOp !== '' && form.matchNameValue.trim() !== '';
 		const hasAmount = form.matchAmountOp !== '' && form.matchAmountValue !== '';
 		const hasDate = form.matchDateFrom !== '' || form.matchDateTo !== '';
-		if (!hasName && !hasAmount && !hasDate) throw new Error('Add at least one match condition.');
+		const hasDay = form.matchDayOfMonth !== '';
+		if (!hasName && !hasAmount && !hasDate && !hasDay) {
+			throw new Error('Add at least one match condition.');
+		}
 		if (form.matchAmountOp === 'between' && !form.matchAmountValue2) {
 			throw new Error('Between amount rules require a second amount.');
+		}
+		let dayOfMonth: number | null = null;
+		if (hasDay) {
+			const parsed = Number(form.matchDayOfMonth);
+			if (!Number.isInteger(parsed) || parsed < 1 || parsed > 31) {
+				throw new Error('Day of month must be a whole number between 1 and 31.');
+			}
+			dayOfMonth = parsed;
 		}
 		return {
 			name,
@@ -139,6 +157,7 @@
 				hasAmount && form.matchAmountOp === 'between' ? Number(form.matchAmountValue2) : null,
 			matchDateFrom: form.matchDateFrom || null,
 			matchDateTo: form.matchDateTo || null,
+			matchDayOfMonth: dayOfMonth,
 			setDisplayName: form.setDisplayName.trim() || null
 		};
 	}
@@ -172,13 +191,25 @@
 
 	async function applyRule(rule: ImportRule): Promise<void> {
 		applyingId = rule.id;
-		message = '';
-		error = '';
+		delete ruleResults[rule.id];
+		ruleResults = { ...ruleResults };
 		try {
 			const result = await applyImportRule(rule.id);
-			message = `Matched ${result.matched}; updated ${result.updated}; deleted ${result.deleted}.`;
+			ruleResults = {
+				...ruleResults,
+				[rule.id]: {
+					kind: 'message',
+					text: `Matched ${result.matched}; updated ${result.updated}; deleted ${result.deleted}.`
+				}
+			};
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Could not apply rule.';
+			ruleResults = {
+				...ruleResults,
+				[rule.id]: {
+					kind: 'error',
+					text: err instanceof Error ? err.message : 'Could not apply rule.'
+				}
+			};
 		} finally {
 			applyingId = null;
 		}
@@ -202,6 +233,8 @@
 	async function removeRule(rule: ImportRule): Promise<void> {
 		await deleteImportRule(rule.id);
 		if (editingId === rule.id) cancelEdit();
+		delete ruleResults[rule.id];
+		ruleResults = { ...ruleResults };
 	}
 
 	onMount(() => {
@@ -211,43 +244,10 @@
 	});
 </script>
 
-<svelte:head><title>Import Rules</title></svelte:head>
-
-<section class="flex flex-col gap-6">
-	<header class="flex flex-wrap items-start justify-between gap-3">
-		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
-				Import rules
-			</h1>
-			<p class="text-sm text-ctp-overlay1">
-				Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
-			</p>
-		</div>
-		<button
-			type="button"
-			data-testid="reapply-all-rules-btn"
-			disabled={applyingAll || $importRules.length === 0}
-			onclick={applyAll}
-			class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 disabled:cursor-not-allowed disabled:opacity-60"
-		>
-			{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
-		</button>
-	</header>
-
-	{#if message}
-		<div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
-			{message}
-		</div>
-	{/if}
-	{#if error}
-		<div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
-			{error}
-		</div>
-	{/if}
-
+{#snippet ruleForm(headingText: string)}
 	<form onsubmit={saveRule} class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 		<div class="mb-4 flex items-center justify-between gap-3">
-			<h2 class="text-lg font-medium text-ctp-text">{editingId ? 'Edit rule' : 'Add rule'}</h2>
+			<h2 class="text-lg font-medium text-ctp-text">{headingText}</h2>
 			{#if editingId}
 				<button type="button" class="text-sm text-ctp-blue underline" onclick={cancelEdit}>Cancel edit</button>
 			{/if}
@@ -329,7 +329,7 @@
 			{/if}
 		</div>
 
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Date from</span>
 				<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
@@ -337,6 +337,19 @@
 			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 				<span>Date to</span>
 				<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+			</label>
+			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+				<span>Day of month <span class="text-ctp-overlay0">(1–31)</span></span>
+				<input
+					bind:value={form.matchDayOfMonth}
+					type="number"
+					min="1"
+					max="31"
+					step="1"
+					inputmode="numeric"
+					placeholder="e.g. 1 for monthly payment"
+					class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+				/>
 			</label>
 		</div>
 
@@ -352,10 +365,57 @@
 				{saving ? 'Saving…' : editingId ? 'Save rule' : 'Add rule'}
 			</button>
 		</div>
+
+		{#if error}
+			<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+				{error}
+			</p>
+		{/if}
 	</form>
+{/snippet}
+
+<svelte:head><title>Import Rules</title></svelte:head>
+
+<section class="flex flex-col gap-6">
+	<header class="flex flex-wrap items-start justify-between gap-3">
+		<div class="flex flex-col gap-1">
+			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
+				Import rules
+			</h1>
+			<p class="text-sm text-ctp-overlay1">
+				Exclude transfers, auto-categorize merchants, and re-apply rules to existing expenses.
+			</p>
+		</div>
+		<button
+			type="button"
+			data-testid="reapply-all-rules-btn"
+			disabled={applyingAll || $importRules.length === 0}
+			onclick={applyAll}
+			class="inline-flex items-center justify-center rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 disabled:cursor-not-allowed disabled:opacity-60"
+		>
+			{applyingAll ? 'Reapplying…' : 'Re-apply all rules'}
+		</button>
+	</header>
+
+	{#if message}
+		<div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+			{message}
+		</div>
+	{/if}
+	{#if error && editingId === null}
+		<div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+			{error}
+		</div>
+	{/if}
+
+	{#if editingId === null}
+		{@render ruleForm('Add rule')}
+	{/if}
 
 	<div class="flex flex-col gap-3">
 		{#each $importRules as rule (rule.id)}
+			{@const isEditing = editingId === rule.id}
+			{@const result = ruleResults[rule.id]}
 			<div class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
@@ -373,11 +433,28 @@
 					</div>
 					<div class="flex flex-wrap gap-2">
 						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => toggleEnabled(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
-						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => startEdit(rule)}>Edit</button>
+						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => (isEditing ? cancelEdit() : startEdit(rule))}>{isEditing ? 'Close' : 'Edit'}</button>
 						<button type="button" disabled={applyingId === rule.id} class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1 disabled:opacity-60" onclick={() => applyRule(rule)}>{applyingId === rule.id ? 'Applying…' : 'Re-apply'}</button>
 						<button type="button" class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 dark:border-red-900 dark:text-red-300" onclick={() => removeRule(rule)}>Delete</button>
 					</div>
 				</div>
+
+				{#if result}
+					<div
+						data-testid="rule-apply-result"
+						class="mt-3 rounded-md border px-3 py-2 text-sm {result.kind === 'message'
+							? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200'
+							: 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'}"
+					>
+						{result.text}
+					</div>
+				{/if}
+
+				{#if isEditing}
+					<div class="mt-4">
+						{@render ruleForm('Edit rule')}
+					</div>
+				{/if}
 			</div>
 		{/each}
 	</div>

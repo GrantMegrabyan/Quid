@@ -275,6 +275,71 @@ async def test_apply_all_rules_with_no_rules_is_noop(app_client):
     assert res.json() == {"matched": 0, "updated": 0, "deleted": 0}
 
 
+async def test_day_of_month_rule_categorizes_monthly_payments(app_client):
+    bills = (await app_client.post("/api/v1/categories", json={"name": "Bills"})).json()
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "Spotify",
+                    "category": "other",
+                    "amount": -10,
+                    "date": "2026-04-01",
+                    "note": "",
+                },
+                {
+                    "name": "Spotify",
+                    "category": "other",
+                    "amount": -10,
+                    "date": "2026-05-01",
+                    "note": "",
+                },
+                {
+                    "name": "Spotify",
+                    "category": "other",
+                    "amount": -10,
+                    "date": "2026-05-15",
+                    "note": "",
+                },
+            ]
+        },
+    )
+    rule = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Monthly Spotify",
+                "action": "categorize",
+                "targetCategoryId": bills["id"],
+                "matchDayOfMonth": 1,
+            },
+        )
+    ).json()
+    assert rule["matchDayOfMonth"] == 1
+
+    applied = await app_client.post(f"/api/v1/import-rules/{rule['id']}/apply")
+    assert applied.status_code == 200
+    assert applied.json() == {"matched": 2, "updated": 2, "deleted": 0}
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    in_bills = [e for e in rows if e["categoryId"] == bills["id"]]
+    assert {e["date"] for e in in_bills} == {"2026-04-01", "2026-05-01"}
+
+
+async def test_day_of_month_validation_rejects_out_of_range(app_client):
+    bad = await app_client.post(
+        "/api/v1/import-rules",
+        json={"name": "Bad", "action": "exclude", "matchDayOfMonth": 0},
+    )
+    assert bad.status_code == 422
+    too_big = await app_client.post(
+        "/api/v1/import-rules",
+        json={"name": "Bad", "action": "exclude", "matchDayOfMonth": 32},
+    )
+    assert too_big.status_code == 422
+
+
 async def test_disabled_rule_apply_is_noop(app_client):
     created = (
         await app_client.post(
@@ -308,6 +373,7 @@ def _rule(**overrides: object) -> ImportRule:
         "match_amount_value2": None,
         "match_date_from": None,
         "match_date_to": None,
+        "match_day_of_month": None,
         "created_at": "2026-05-23T00:00:00Z",
     }
     values.update(overrides)
@@ -334,11 +400,16 @@ def test_match_helpers_cover_name_amount_and_date_ops():
     )
     assert not matches_rule(_rule(match_date_from="2026-05-01"), item)
     assert not matches_rule(_rule(match_date_to="2026-04-01"), item)
+    assert matches_rule(_rule(match_day_of_month=30), item)
+    assert not matches_rule(_rule(match_day_of_month=15), item)
     assert not matches_rule(
         _rule(enabled=False, match_name_op="contains", match_name_value="marks"), item
     )
     assert not matches_rule(_rule(match_name_op="invalid", match_name_value="marks"), item)
     assert not matches_rule(_rule(match_amount_op="invalid", match_amount_value=Decimal("1")), item)
+    assert not matches_rule(
+        _rule(match_day_of_month=1), RuleMatchItem(name="x", amount=Decimal(1), date="not-a-date")
+    )
 
 
 def test_clean_name_rejects_blank():
