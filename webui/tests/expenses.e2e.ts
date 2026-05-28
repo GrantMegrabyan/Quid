@@ -201,14 +201,14 @@ test.describe('theme toggle', () => {
 
 		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
 
-		await page.locator('select').first().selectOption('default-light');
-		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+		await page.locator('select').first().selectOption('default-dark');
+		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
 
 		const storedAfterToggle = await page.evaluate((key) => localStorage.getItem(key), THEME_KEY);
-		expect(storedAfterToggle).toBe('default-light');
+		expect(storedAfterToggle).toBe('default-dark');
 
 		await page.reload();
-		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
 	});
 });
 
