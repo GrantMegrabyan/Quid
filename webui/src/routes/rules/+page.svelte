@@ -270,112 +270,131 @@
 			{/if}
 		</div>
 
-		<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Name</span>
-				<input bind:value={form.name} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Priority</span>
-				<input bind:value={form.priority} type="number" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-			<label class="flex items-center gap-2 pt-6 text-sm text-ctp-subtext0">
-				<input bind:checked={form.enabled} type="checkbox" class="h-4 w-4 accent-ctp-accent" />
-				Enabled
-			</label>
-		</div>
+		<!-- Section A — Rule details (meta / identity) -->
+		<fieldset class="rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-4">
+			<legend class="px-1 text-xs font-semibold uppercase tracking-wide text-ctp-overlay1">Rule details</legend>
+			<p class="mb-3 text-xs text-ctp-overlay0">Name this rule and set its priority (lower numbers run first).</p>
+			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Name</span>
+					<input bind:value={form.name} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				</label>
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Priority</span>
+					<input bind:value={form.priority} type="number" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				</label>
+				<label class="flex items-center gap-2 pt-6 text-sm text-ctp-subtext0">
+					<input bind:checked={form.enabled} type="checkbox" class="h-4 w-4 accent-ctp-accent" />
+					Enabled
+				</label>
+			</div>
+		</fieldset>
 
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Action</span>
-				<select bind:value={form.action} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
-					<option value="categorize">Categorize</option>
-					<option value="exclude">Exclude</option>
-				</select>
-			</label>
-			{#if form.action === 'categorize'}
-				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
-					<span>Target category</span>
-					<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
-						<option value="">Choose category</option>
-						{#each $categories as category (category.id)}
-							<option value={category.id}>{category.name}</option>
-						{/each}
+		<!-- Section B — Match conditions -->
+		<fieldset class="mt-4 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-4">
+			<legend class="px-1 text-xs font-semibold uppercase tracking-wide text-ctp-overlay1">When a transaction matches</legend>
+			<p class="mb-3 text-xs text-ctp-overlay0">Set one or more conditions to match transactions.</p>
+
+			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Name match</span>
+					<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+						<option value="">No name condition</option>
+						<option value="contains">contains</option>
+						<option value="equals">equals</option>
+						<option value="starts_with">starts with</option>
+						<option value="ends_with">ends with</option>
 					</select>
 				</label>
-			{/if}
-		</div>
-
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Name match</span>
-				<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
-					<option value="">No name condition</option>
-					<option value="contains">contains</option>
-					<option value="equals">equals</option>
-					<option value="starts_with">starts with</option>
-					<option value="ends_with">ends with</option>
-				</select>
-			</label>
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
-				<span>Name value</span>
-				<input bind:value={form.matchNameValue} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-		</div>
-
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Amount match</span>
-				<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
-					<option value="">No amount condition</option>
-					<option value="gte">≥</option>
-					<option value="lte">≤</option>
-					<option value="eq">=</option>
-					<option value="between">between</option>
-				</select>
-			</label>
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Amount</span>
-				<input bind:value={form.matchAmountValue} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-			{#if form.matchAmountOp === 'between'}
-				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-					<span>Second amount</span>
-					<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
+					<span>Name value</span>
+					<input bind:value={form.matchNameValue} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
 				</label>
+			</div>
+
+			<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Amount match</span>
+					<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+						<option value="">No amount condition</option>
+						<option value="gte">≥</option>
+						<option value="lte">≤</option>
+						<option value="eq">=</option>
+						<option value="between">between</option>
+					</select>
+				</label>
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Amount</span>
+					<input bind:value={form.matchAmountValue} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				</label>
+				{#if form.matchAmountOp === 'between'}
+					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+						<span>Second amount</span>
+						<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					</label>
+				{/if}
+			</div>
+
+			<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Date from</span>
+					<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				</label>
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Date to</span>
+					<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+				</label>
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Day of month <span class="text-ctp-overlay0">(1–31)</span></span>
+					<input
+						bind:value={form.matchDayOfMonth}
+						type="number"
+						min="1"
+						max="31"
+						step="1"
+						inputmode="numeric"
+						placeholder="e.g. 1 for monthly payment"
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					/>
+				</label>
+			</div>
+		</fieldset>
+
+		<!-- Section C — Actions -->
+		<fieldset class="mt-4 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-4">
+			<legend class="px-1 text-xs font-semibold uppercase tracking-wide text-ctp-overlay1">Then do this</legend>
+			<p class="mb-3 text-xs text-ctp-overlay0">What happens to a transaction that matches the conditions above.</p>
+
+			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+					<span>Action</span>
+					<select bind:value={form.action} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+						<option value="categorize">Categorize</option>
+						<option value="exclude">Exclude</option>
+					</select>
+				</label>
+				{#if form.action === 'categorize'}
+					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
+						<span>Target category</span>
+						<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+							<option value="">Choose category</option>
+							{#each $categories as category (category.id)}
+								<option value={category.id}>{category.name}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
+			</div>
+
+			{#if form.action === 'categorize'}
+				<div class="mt-3 grid grid-cols-1 gap-3">
+					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+						<span>Set display name <span class="text-ctp-overlay0">(optional)</span></span>
+						<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
+					</label>
+				</div>
 			{/if}
-		</div>
-
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Date from</span>
-				<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Date to</span>
-				<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
-			</label>
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
-				<span>Day of month <span class="text-ctp-overlay0">(1–31)</span></span>
-				<input
-					bind:value={form.matchDayOfMonth}
-					type="number"
-					min="1"
-					max="31"
-					step="1"
-					inputmode="numeric"
-					placeholder="e.g. 1 for monthly payment"
-					class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
-				/>
-			</label>
-		</div>
-
-		<div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-			<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
-				<span>Set display name <span class="text-ctp-overlay0">(optional)</span></span>
-				<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
-			</label>
-		</div>
+		</fieldset>
 
 		<div class="mt-4">
 			<button type="submit" disabled={saving} class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60">
