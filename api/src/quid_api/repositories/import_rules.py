@@ -211,10 +211,16 @@ class ImportRuleRepository:
             return ApplyResult(matched=len(matched), updated=0, deleted=len(matched))
 
         assert rule.target_category_id is not None
+        values: dict[str, object] = {
+            "category_id": rule.target_category_id,
+            "category_source": "rule",
+        }
+        if rule.set_display_name is not None:
+            values["display_name"] = rule.set_display_name
         await self.session.execute(
             update(Expense)
             .where(Expense.id.in_([expense.id for expense in matched]))
-            .values(category_id=rule.target_category_id, category_source="rule")
+            .values(**values)
         )
         await self.session.flush()
         return ApplyResult(matched=len(matched), updated=len(matched), deleted=0)
@@ -226,6 +232,7 @@ class ImportRuleRepository:
 
         expenses = list((await self.session.scalars(select(Expense))).all())
         category_updates: dict[str, list[str]] = {}
+        display_name_updates: dict[str, list[str]] = {}
         to_delete: list[Expense] = []
         matched_total = 0
 
@@ -241,16 +248,31 @@ class ImportRuleRepository:
                     assert rule.target_category_id is not None
                     if expense.category_id != rule.target_category_id:
                         category_updates.setdefault(rule.target_category_id, []).append(expense.id)
+                    if (
+                        rule.set_display_name is not None
+                        and expense.display_name != rule.set_display_name
+                    ):
+                        display_name_updates.setdefault(rule.set_display_name, []).append(
+                            expense.id
+                        )
                 break
 
-        updated_total = 0
+        updated_ids: set[str] = set()
         for target_category_id, expense_ids in category_updates.items():
             await self.session.execute(
                 update(Expense)
                 .where(Expense.id.in_(expense_ids))
                 .values(category_id=target_category_id, category_source="rule")
             )
-            updated_total += len(expense_ids)
+            updated_ids.update(expense_ids)
+
+        for display_name, expense_ids in display_name_updates.items():
+            await self.session.execute(
+                update(Expense).where(Expense.id.in_(expense_ids)).values(display_name=display_name)
+            )
+            updated_ids.update(expense_ids)
+
+        updated_total = len(updated_ids)
 
         for expense in to_delete:
             await self.session.delete(expense)

@@ -166,6 +166,82 @@ async def test_apply_existing_categorize_and_exclude(app_client):
     assert rows[0]["categoryId"] == home["id"]
 
 
+async def test_apply_existing_sets_display_name(app_client):
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "MARIA ANDREEVA REF 99281",
+                    "category": "other",
+                    "amount": -500,
+                    "date": "2026-04-22",
+                    "note": "",
+                }
+            ]
+        },
+    )
+    rule = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Maria Andreeva",
+                "action": "categorize",
+                "targetCategoryId": home["id"],
+                "matchNameOp": "contains",
+                "matchNameValue": "MARIA ANDREEVA",
+                "setDisplayName": "Maria Andreeva",
+            },
+        )
+    ).json()
+
+    applied = await app_client.post(f"/api/v1/import-rules/{rule['id']}/apply")
+    assert applied.status_code == 200
+    assert applied.json() == {"matched": 1, "updated": 1, "deleted": 0}
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 1
+    assert rows[0]["displayName"] == "Maria Andreeva"
+
+
+async def test_apply_all_sets_display_name(app_client):
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "MARIA ANDREEVA REF 99281",
+                    "category": "other",
+                    "amount": -500,
+                    "date": "2026-04-22",
+                    "note": "",
+                }
+            ]
+        },
+    )
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Maria Andreeva",
+            "action": "categorize",
+            "targetCategoryId": home["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "MARIA ANDREEVA",
+            "setDisplayName": "Maria Andreeva",
+        },
+    )
+
+    applied = await app_client.post("/api/v1/import-rules/apply-all")
+    assert applied.status_code == 200
+    assert applied.json()["updated"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 1
+    assert rows[0]["displayName"] == "Maria Andreeva"
+
+
 async def test_rule_update_and_delete(app_client):
     created = (
         await app_client.post(

@@ -94,6 +94,12 @@ When NOT to commit:
 - Use Alembic migrations for schema changes under `api/alembic/versions/`.
 - Transactions are represented as `expenses` in the schema/code.
 - Use `uv run quid-api clear-transactions` for the built-in transaction wipe, but only after explicit confirmation.
+- Import rules: a rule's `set_display_name` is only meaningful for `categorize`
+  rules (an `exclude` rule deletes the matched expense), and the rules UI hides
+  the field for `exclude`. Both import-time (`expenses.py`) AND re-apply
+  (`import_rules.py` `apply_to_existing` / `apply_all_to_existing`) set
+  `expenses.display_name` when the matched rule has `set_display_name`. When
+  changing rule application, keep all three paths in sync.
 
 ## Frontend notes
 
