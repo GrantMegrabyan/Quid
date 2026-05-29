@@ -9,12 +9,15 @@
 		refreshAmazonOrders,
 		suggestedAmazonMatches,
 		unlinkAmazonOrder,
+		updateAmazonOrderCategory,
 		updateAmazonShortName
 	} from '$lib/stores/amazonOrders';
+	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { expenses, refreshExpenses } from '$lib/stores/expenses';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { formatAmount } from '$lib/utils/money';
-	import type { AmazonOrder, Expense } from '$types';
+	import { UNCATEGORIZED_ID } from '$lib/types';
+	import type { AmazonOrder, Category, Expense } from '$types';
 	import { Check, Link2, Link2Off, Pencil, Search, Trash2, X } from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
@@ -24,12 +27,24 @@
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
 	let editingOrderId: string | null = $state(null);
 	let shortNameDraft = $state('');
+	let categoryEditingOrderId: string | null = $state(null);
 
 	const expenseById = $derived.by(() => {
 		const map = new Map<string, Expense>();
 		for (const expense of $expenses) map.set(expense.id, expense);
 		return map;
 	});
+
+	const categoryById = $derived.by(() => {
+		const map = new Map<string, Category>();
+		for (const category of $categories) map.set(category.id, category);
+		return map;
+	});
+
+	function orderCategory(order: AmazonOrder): Category | null {
+		if (!order.categoryId || order.categoryId === UNCATEGORIZED_ID) return null;
+		return categoryById.get(order.categoryId) ?? null;
+	}
 
 	function orderSummary(order: AmazonOrder): string {
 		if (order.items.length === 0) return 'No item details';
@@ -64,6 +79,32 @@
 			banner = {
 				kind: 'error',
 				message: cause instanceof Error ? cause.message : 'Could not update name.'
+			};
+		} finally {
+			actionOrderId = null;
+		}
+	}
+
+	function startEditCategory(order: AmazonOrder): void {
+		banner = null;
+		categoryEditingOrderId = order.id;
+	}
+
+	function cancelEditCategory(): void {
+		categoryEditingOrderId = null;
+	}
+
+	async function saveCategory(orderId: string, rawValue: string): Promise<void> {
+		const categoryId = rawValue === '' || rawValue === UNCATEGORIZED_ID ? null : rawValue;
+		actionOrderId = orderId;
+		banner = null;
+		try {
+			await updateAmazonOrderCategory(orderId, categoryId);
+			categoryEditingOrderId = null;
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Could not update category.'
 			};
 		} finally {
 			actionOrderId = null;
@@ -173,6 +214,7 @@
 		void refreshAmazonOrders();
 		void refreshExpenses();
 		void refreshSettings();
+		void refreshCategories();
 	});
 </script>
 
@@ -242,6 +284,8 @@
 				{@const suggestions = suggestionsByOrderId[order.id] ?? []}
 				{@const isLinked = order.linkedExpenseIds.length > 0}
 				{@const isEditing = editingOrderId === order.id}
+				{@const isEditingCategory = categoryEditingOrderId === order.id}
+				{@const category = orderCategory(order)}
 				<div
 					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {isLinked
 						? 'border-l-ctp-accent bg-ctp-accent/5'
@@ -273,6 +317,85 @@
 								<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-semibold text-ctp-text">
 									{formatAmount(order.total, order.currency || $settings.currency)}
 								</span>
+
+								{#if isEditingCategory}
+									<select
+										data-testid="amazon-category-select"
+										value={order.categoryId ?? ''}
+										onchange={(event) =>
+											void saveCategory(order.id, event.currentTarget.value)}
+										onkeydown={(event) => {
+											if (event.key === 'Escape') {
+												event.preventDefault();
+												cancelEditCategory();
+											}
+										}}
+										disabled={actionOrderId === order.id}
+										class="rounded-full border border-ctp-surface2 bg-ctp-base px-2 py-0.5 text-xs text-ctp-text focus:border-ctp-accent focus:outline-none disabled:opacity-60"
+									>
+										<option value="">— No category —</option>
+										{#each $categories as cat (cat.id)}
+											{#if cat.id !== UNCATEGORIZED_ID}
+												<option value={cat.id}>{cat.name}</option>
+											{/if}
+										{/each}
+									</select>
+									<button
+										type="button"
+										aria-label="Cancel category"
+										title="Cancel"
+										onclick={cancelEditCategory}
+										disabled={actionOrderId === order.id}
+										class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
+									>
+										<X size={14} aria-hidden="true" />
+									</button>
+								{:else if category}
+									<button
+										type="button"
+										data-testid="amazon-order-category"
+										data-category-id={category.id}
+										onclick={() => startEditCategory(order)}
+										disabled={actionOrderId === order.id}
+										class="inline-flex items-center gap-1.5 rounded-full border border-ctp-surface2 bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-text transition-colors hover:bg-ctp-surface2 disabled:opacity-60"
+										title="Change category"
+									>
+										<span
+											aria-hidden="true"
+											class="h-2 w-2 shrink-0 rounded-full"
+											style="background-color: {category.color || '#9ca3af'};"
+										></span>
+										{category.name}
+										<Pencil
+											data-testid="amazon-category-edit"
+											size={11}
+											aria-hidden="true"
+											class="text-ctp-overlay0"
+										/>
+									</button>
+								{:else}
+									<button
+										type="button"
+										data-testid="amazon-order-category"
+										data-category-id=""
+										onclick={() => startEditCategory(order)}
+										disabled={actionOrderId === order.id}
+										class="inline-flex items-center gap-1.5 rounded-full border border-dashed border-ctp-surface2 px-2 py-0.5 text-xs font-medium text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+										title="Set category"
+									>
+										<span
+											aria-hidden="true"
+											class="h-2 w-2 shrink-0 rounded-full bg-ctp-overlay0"
+										></span>
+										No category
+										<Pencil
+											data-testid="amazon-category-edit"
+											size={11}
+											aria-hidden="true"
+											class="text-ctp-overlay0"
+										/>
+									</button>
+								{/if}
 							</div>
 
 							{#if isEditing}

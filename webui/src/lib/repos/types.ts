@@ -82,6 +82,7 @@ export interface AmazonOrderRepository {
 	link(orderId: string, expenseId: string): Promise<Expense>;
 	unlink(orderId: string, expenseId: string): Promise<Expense>;
 	updateShortName(orderId: string, shortName: string): Promise<AmazonOrder>;
+	updateCategory(orderId: string, categoryId: string | null): Promise<AmazonOrder>;
 	delete(id: string): Promise<void>;
 }
 

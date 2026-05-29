@@ -49,6 +49,15 @@ export async function updateAmazonShortName(
 	await refreshExpenses();
 }
 
+export async function updateAmazonOrderCategory(
+	orderId: string,
+	categoryId: string | null
+): Promise<void> {
+	await amazonOrderRepository.updateCategory(orderId, categoryId);
+	await refreshAmazonOrders();
+	await refreshExpenses();
+}
+
 export async function deleteAmazonOrder(orderId: string): Promise<void> {
 	await amazonOrderRepository.delete(orderId);
 	await refreshAmazonOrders();

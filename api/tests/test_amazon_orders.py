@@ -221,6 +221,103 @@ async def test_update_short_name_endpoint(app_client):
     assert fetched.json()["shortName"] == "Box of pens"
 
 
+async def test_update_category_endpoint_sets_and_clears(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+
+    res = await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": travel["id"]},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["categoryId"] == travel["id"]
+
+    fetched = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert fetched.json()["categoryId"] == travel["id"]
+
+    cleared = await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": None},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["categoryId"] is None
+
+
+async def test_update_category_rejects_unknown_category(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    res = await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": "cat-does-not-exist"},
+    )
+    assert res.status_code == 422, res.text
+
+
+async def test_update_category_propagates_to_linked_overridable_expense(app_client):
+    """Manually setting an order's category pushes it onto a linked expense
+    whose category is still a low-priority guess (uncategorized/import)."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=9.99, date="2026-05-03"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    # Order 333 (9.99, 2026-05-02) auto-matches the seeded expense.
+    order = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert order.json()["linkedExpenseIds"] == [expense_id]
+
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": travel["id"]},
+    )
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["id"] == expense_id)
+    assert exp["categoryId"] == travel["id"]
+    assert exp["categorySource"] == "amazon"
+
+
+async def test_update_category_does_not_override_manual_linked_expense(app_client):
+    expense = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 9.99,
+            "date": "2026-05-03",
+            "categoryId": "uncategorized",
+        },
+    )
+    expense_id = expense.json()["id"]
+    health = (await app_client.post("/api/v1/categories", json={"name": "Health"})).json()
+    await app_client.patch(f"/api/v1/expenses/{expense_id}", json={"categoryId": health["id"]})
+
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/333-9999999-1111111/link",
+        json={"expenseId": expense_id},
+    )
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": travel["id"]},
+    )
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["id"] == expense_id)
+    assert exp["categoryId"] == health["id"]
+    assert exp["categorySource"] == "manual"
+
+
 async def test_reimport_preserves_edited_short_name(app_client):
     await app_client.post(
         "/api/v1/amazon-orders/import-csv",

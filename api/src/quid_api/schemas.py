@@ -407,6 +407,11 @@ class AmazonShortNameRequest(_Camel):
     short_name: Annotated[str, Field(max_length=60)]
 
 
+class AmazonCategoryRequest(_Camel):
+    # null clears the order's category; a non-null value must be an existing id.
+    category_id: str | None = None
+
+
 class AppSettingsOut(_Camel):
     currency: str
     show_importance_badge: bool

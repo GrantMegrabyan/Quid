@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, or_, select
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode
-from quid_api.models import AmazonOrder, Expense, ExpenseAmazonOrderLink
+from quid_api.models import AmazonOrder, Category, Expense, ExpenseAmazonOrderLink
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -277,6 +277,25 @@ class AmazonOrderRepository:
         order = await self.get(order_id)
         cleaned = " ".join(short_name.split())
         order.short_name = cleaned or None
+        await self.session.flush()
+        return order
+
+    async def set_order_category(self, order_id: str, category_id: str | None) -> AmazonOrder:
+        """Set (or clear, with ``None``) an order's category explicitly, then
+        push it onto linked ``ai``/``import`` expenses. Validates the category
+        exists. Unlike AI generation this overwrites any existing order
+        category, because the user is choosing it deliberately."""
+        order = await self.get(order_id)
+        if category_id is not None:
+            category = await self.session.get(Category, category_id)
+            if category is None:
+                raise RepositoryError(
+                    RepositoryErrorCode.VALIDATION,
+                    f'Category "{category_id}" does not exist.',
+                )
+        order.category_id = category_id
+        if category_id is not None:
+            await self._propagate_category_to_links(order)
         await self.session.flush()
         return order
 

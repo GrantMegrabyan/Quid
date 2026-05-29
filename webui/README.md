@@ -38,7 +38,8 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   longer a per-import checkbox; it follows the **Settings** toggle.
 - **Amazon orders** (`/amazon`) — import Amazon order CSVs, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
-  AI-generated **short name** inline.
+  AI-generated **short name** and detected **category** inline (the category
+  chip opens a dropdown; clearing it is allowed).
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
   on). (Theme switching was removed; the UI uses a single Dasher-style dark

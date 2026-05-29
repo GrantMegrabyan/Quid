@@ -64,6 +64,13 @@ export class HttpAmazonOrderRepository implements AmazonOrderRepository {
 		);
 	}
 
+	async updateCategory(orderId: string, categoryId: string | null): Promise<AmazonOrder> {
+		return this.client.request<AmazonOrder>(
+			`api/v1/amazon-orders/${encodeURIComponent(orderId)}/category`,
+			{ method: 'PATCH', body: { categoryId } }
+		);
+	}
+
 	async delete(id: string): Promise<void> {
 		await this.client.request<void>(`api/v1/amazon-orders/${encodeURIComponent(id)}`, {
 			method: 'DELETE'

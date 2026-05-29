@@ -22,6 +22,7 @@ from quid_api.repositories.amazon_orders import (
 )
 from quid_api.repositories.app_settings import AppSettingsRepository
 from quid_api.schemas import (
+    AmazonCategoryRequest,
     AmazonImportFileReport,
     AmazonImportResponse,
     AmazonLinkRequest,
@@ -343,6 +344,18 @@ async def update_amazon_short_name(
 ) -> AmazonOrderOut:
     repo = AmazonOrderRepository(session)
     order = await repo.update_short_name(order_id, payload.short_name)
+    linked = await repo.linked_expense_ids(order.id)
+    out = _order_to_out(order, linked)
+    await session.commit()
+    return out
+
+
+@router.patch("/{order_id}/category", response_model=AmazonOrderOut)
+async def update_amazon_category(
+    order_id: str, payload: AmazonCategoryRequest, session: SessionDep
+) -> AmazonOrderOut:
+    repo = AmazonOrderRepository(session)
+    order = await repo.set_order_category(order_id, payload.category_id)
     linked = await repo.linked_expense_ids(order.id)
     out = _order_to_out(order, linked)
     await session.commit()

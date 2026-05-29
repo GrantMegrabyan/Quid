@@ -133,6 +133,12 @@ what an Amazon charge actually bought.
   An expense ↔ order link is many-to-many (`expense_amazon_orders` table).
 - `PATCH /api/v1/amazon-orders/{id}/short-name` — body `{ "shortName": "…" }`
   (≤60 chars). Sets a user-edited short name.
+- `PATCH /api/v1/amazon-orders/{id}/category` — body `{ "categoryId": "…" | null }`.
+  Sets (or clears, with `null`) the order's category. A non-null id must exist
+  (else 422). Setting it pushes the category onto linked `ai`/`import` expenses
+  (same override rules as inheritance); `null` only clears the order's own
+  category. The webui Amazon page shows each order's category as an editable
+  chip.
 - `DELETE /api/v1/amazon-orders/{id}`.
 
 Each order has a **short name**: a brief (≤60 char) AI description of what was
