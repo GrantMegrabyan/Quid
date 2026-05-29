@@ -156,7 +156,7 @@
 					<Wallet class="h-[18px] w-[18px]" />
 				</span>
 				<div class="min-w-0 flex-1">
-					<div class="flex items-center justify-between gap-2">
+					<div class="flex min-h-5 items-center justify-between gap-2">
 						<p class="text-xs font-medium text-ctp-subtext0">This month</p>
 						{#if monthChange}
 							<span
