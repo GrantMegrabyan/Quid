@@ -14,6 +14,7 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('category-chart')).toHaveCount(0);
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£54.50');
+		await expect(page.getByTestId('top-category-name')).toHaveText('Groceries');
 		await expect(page.getByText('Track spending by month.')).toHaveCount(0);
 		await expect(page.getByText('Cumulative monthly expenses')).toHaveCount(0);
 

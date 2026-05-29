@@ -28,9 +28,12 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
 
 ## Pages
 
-- **Dashboard** (`/`) — transaction list and charts. Each transaction's
-  subheading shows the date and, when present, its note (a linked Amazon order's
-  short name is used as the note when the expense has none).
+- **Dashboard** (`/`) — summary stat cards (this month's total with
+  month-over-month change, transaction count, the top spending category for the
+  month, and average per transaction), plus the transaction list and charts.
+  Each transaction's subheading shows the date and, when present, its note (a
+  linked Amazon order's short name is used as the note when the expense has
+  none).
 - **Import** (`/import`) — CSV import preview/confirm. AI categorisation is no
   longer a per-import checkbox; it follows the **Settings** toggle.
 - **Amazon orders** (`/amazon`) — import Amazon order CSVs, see which orders are

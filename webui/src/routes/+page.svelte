@@ -8,6 +8,7 @@
 	import CategoryDoughnutChart from '$components/CategoryDoughnutChart.svelte';
 	import MonthlyByCategoryChart from '$components/MonthlyByCategoryChart.svelte';
 	import CategoryMultiSelect from '$components/CategoryMultiSelect.svelte';
+	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
 	import { refreshExpenses } from '$lib/stores/expenses';
@@ -16,7 +17,8 @@
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$utils/dates';
 	import { formatAmount } from '$utils/money';
-	import { Wallet, Receipt, Tags, TrendingUp, TrendingDown } from '@lucide/svelte';
+	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
+	import { Wallet, Receipt, TrendingUp, TrendingDown } from '@lucide/svelte';
 	import type { Expense } from '$types';
 
 	let modalOpen = $state(false);
@@ -48,6 +50,37 @@
 	const avgPerTransaction = $derived(
 		transactionCount > 0 ? selectedMonthTotal / transactionCount : 0
 	);
+
+	type TopCategory = {
+		name: string;
+		total: number;
+		color: string;
+		icon?: string;
+	} | null;
+
+	const topCategory = $derived.by<TopCategory>(() => {
+		if (monthExpenses.length === 0) return null;
+		const totals = new Map<string, number>();
+		for (const expense of monthExpenses) {
+			totals.set(expense.categoryId, (totals.get(expense.categoryId) ?? 0) + expense.amount);
+		}
+		let topId: string | null = null;
+		let topTotal = 0;
+		for (const [id, total] of totals) {
+			if (total > topTotal) {
+				topTotal = total;
+				topId = id;
+			}
+		}
+		if (topId === null) return null;
+		const category = $categories.find((c) => c.id === topId);
+		return {
+			name: category?.name ?? 'Uncategorized',
+			total: topTotal,
+			color: category?.color ?? UNCATEGORIZED_COLOR,
+			icon: category?.icon
+		};
+	});
 
 	type StatChange = { value: string; direction: 'up' | 'down' } | null;
 
@@ -201,15 +234,39 @@
 			</div>
 		</div>
 
-		<!-- Categories -->
+		<!-- Top category -->
 		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
 			<div class="flex items-center gap-3">
-				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-peach/15 text-ctp-peach">
-					<Tags class="h-[18px] w-[18px]" />
+				<span
+					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+					style={topCategory
+						? `background-color: ${topCategory.color}26; color: ${topCategory.color};`
+						: undefined}
+					class:bg-ctp-peach={!topCategory}
+					class:text-ctp-peach={!topCategory}
+				>
+					{#if topCategory}
+						<CategoryIcon name={topCategory.icon} size={18} />
+					{:else}
+						<TrendingUp class="h-[18px] w-[18px]" />
+					{/if}
 				</span>
-				<div class="min-w-0">
-					<p class="text-xs font-medium text-ctp-subtext0">Categories</p>
-					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">{$categories.length}</p>
+				<div class="min-w-0 flex-1">
+					<p class="text-xs font-medium text-ctp-subtext0">Top category</p>
+					{#if topCategory}
+						<p
+							class="truncate text-xl font-bold leading-tight tracking-tight text-ctp-text"
+							data-testid="top-category-name"
+							title={topCategory.name}
+						>
+							{topCategory.name}
+						</p>
+						<p class="mt-0.5 text-xs text-ctp-overlay0">
+							{formatAmount(topCategory.total, $settings.currency)}
+						</p>
+					{:else}
+						<p class="text-xl font-bold leading-tight tracking-tight text-ctp-overlay0">—</p>
+					{/if}
 				</div>
 			</div>
 		</div>
