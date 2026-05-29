@@ -19,6 +19,7 @@
 		NameMatchOp,
 		RuleAction
 	} from '$types';
+	import { Pencil, Power, RefreshCw, Trash2, X } from '@lucide/svelte';
 
 	type FormState = {
 		name: string;
@@ -383,7 +384,7 @@
 		</div>
 
 		{#if error}
-			<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+			<p class="mt-3 rounded-md border border-ctp-red/40 bg-ctp-red/10 px-3 py-2 text-sm text-ctp-red">
 				{error}
 			</p>
 		{/if}
@@ -426,12 +427,12 @@
 	</header>
 
 	{#if message}
-		<div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+		<div class="rounded-md border border-ctp-accent/40 bg-ctp-accent/10 px-4 py-3 text-sm text-ctp-accent">
 			{message}
 		</div>
 	{/if}
 	{#if error && editingId === null}
-		<div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+		<div class="rounded-md border border-ctp-red/40 bg-ctp-red/10 px-4 py-3 text-sm text-ctp-red">
 			{error}
 		</div>
 	{/if}
@@ -444,13 +445,17 @@
 		{#each $importRules as rule (rule.id)}
 			{@const isEditing = editingId === rule.id}
 			{@const result = ruleResults[rule.id]}
-			<div class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
+			<div
+				class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
+					? 'border-l-ctp-accent bg-ctp-accent/5'
+					: 'border-l-ctp-surface1 opacity-70'}"
+			>
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs text-ctp-subtext0">#{rule.priority}</span>
 							<h2 class="text-base font-semibold text-ctp-text">{rule.name}</h2>
-							<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-ctp-surface1 text-ctp-subtext0'}">
+							<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-ctp-accent/15 text-ctp-accent' : 'bg-ctp-surface1 text-ctp-subtext0'}">
 								{rule.enabled ? 'Enabled' : 'Disabled'}
 							</span>
 						</div>
@@ -459,11 +464,48 @@
 							Then {rule.action === 'exclude' ? 'exclude from import' : `categorize as ${categoryName(rule.targetCategoryId)}`}.
 						</p>
 					</div>
-					<div class="flex flex-wrap gap-2">
-						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => toggleEnabled(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
-						<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => (isEditing ? cancelEdit() : startEdit(rule))}>{isEditing ? 'Close' : 'Edit'}</button>
-						<button type="button" disabled={applyingId === rule.id} class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-sm text-ctp-subtext0 hover:bg-ctp-surface1 disabled:opacity-60" onclick={() => applyRule(rule)}>{applyingId === rule.id ? 'Applying…' : 'Re-apply'}</button>
-						<button type="button" class="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 dark:border-red-900 dark:text-red-300" onclick={() => removeRule(rule)}>Delete</button>
+					<div class="flex flex-wrap items-center gap-1">
+						<button
+							type="button"
+							aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
+							title={rule.enabled ? 'Disable rule' : 'Enable rule'}
+							onclick={() => toggleEnabled(rule)}
+							class="rounded-md border border-ctp-surface2 p-2 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text {rule.enabled ? 'text-ctp-accent' : 'text-ctp-subtext0'}"
+						>
+							<Power size={16} aria-hidden="true" />
+						</button>
+						<button
+							type="button"
+							aria-label={isEditing ? 'Close editor' : 'Edit rule'}
+							title={isEditing ? 'Close editor' : 'Edit rule'}
+							onclick={() => (isEditing ? cancelEdit() : startEdit(rule))}
+							class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
+						>
+							{#if isEditing}
+								<X size={16} aria-hidden="true" />
+							{:else}
+								<Pencil size={16} aria-hidden="true" />
+							{/if}
+						</button>
+						<button
+							type="button"
+							aria-label="Re-apply rule"
+							title="Re-apply rule"
+							disabled={applyingId === rule.id}
+							onclick={() => applyRule(rule)}
+							class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+						>
+							<RefreshCw size={16} aria-hidden="true" class={applyingId === rule.id ? 'animate-spin' : ''} />
+						</button>
+						<button
+							type="button"
+							aria-label="Delete rule"
+							title="Delete rule"
+							onclick={() => removeRule(rule)}
+							class="rounded-md p-2 text-ctp-red transition-colors hover:bg-ctp-red/10"
+						>
+							<Trash2 size={16} aria-hidden="true" />
+						</button>
 					</div>
 				</div>
 
@@ -471,8 +513,8 @@
 					<div
 						data-testid="rule-apply-result"
 						class="mt-3 rounded-md border px-3 py-2 text-sm {result.kind === 'message'
-							? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200'
-							: 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'}"
+							? 'border-ctp-accent/40 bg-ctp-accent/10 text-ctp-accent'
+							: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
 					>
 						{result.text}
 					</div>

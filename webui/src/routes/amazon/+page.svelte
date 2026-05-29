@@ -237,13 +237,13 @@
 			<p class="mt-1 text-sm text-ctp-overlay1">Upload a CSV export to start matching orders.</p>
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
+		<div class="flex flex-col gap-3">
 			{#each $amazonOrders as order (order.id)}
 				{@const suggestions = suggestionsByOrderId[order.id] ?? []}
 				{@const isLinked = order.linkedExpenseIds.length > 0}
 				{@const isEditing = editingOrderId === order.id}
-				<li
-					class="list-none border-b border-l-2 border-ctp-surface0 p-4 transition-colors last:border-b-0 {isLinked
+				<div
+					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {isLinked
 						? 'border-l-ctp-accent bg-ctp-accent/5'
 						: 'border-l-ctp-surface1'}"
 					data-testid="amazon-order-row"
@@ -405,7 +405,7 @@
 							{/each}
 						</div>
 					{/if}
-				</li>
+				</div>
 			{/each}
 		</div>
 	{/if}

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { addAiRule, aiRules, deleteAiRule, editAiRule, refreshAiRules } from '$lib/stores/aiRules';
 	import type { AiRule, AiRuleCreate } from '$types';
+	import { Pencil, Power, Trash2 } from '@lucide/svelte';
 
 	type FormState = {
 		text: string;
@@ -110,12 +111,12 @@
 	</header>
 
 	{#if message}
-		<div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+		<div class="rounded-md border border-ctp-accent/40 bg-ctp-accent/10 px-4 py-3 text-sm text-ctp-accent">
 			{message}
 		</div>
 	{/if}
 	{#if error}
-		<div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+		<div class="rounded-md border border-ctp-red/40 bg-ctp-red/10 px-4 py-3 text-sm text-ctp-red">
 			{error}
 		</div>
 	{/if}
@@ -168,40 +169,62 @@
 	</form>
 	{/if}
 
-	<div class="rounded-lg border border-ctp-surface1 bg-ctp-base">
-		<div class="border-b border-ctp-surface1 px-4 py-3">
-			<h2 class="text-lg font-medium text-ctp-text">Current AI rules</h2>
-		</div>
-
-		{#if $aiRules.length === 0}
-			<p class="px-4 py-6 text-sm text-ctp-overlay1">No AI rules yet.</p>
-		{:else}
-			<ul class="divide-y divide-ctp-surface0">
-				{#each $aiRules as rule (rule.id)}
-					<li class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+	{#if $aiRules.length === 0}
+		<p class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center text-sm text-ctp-overlay1">
+			No AI rules yet.
+		</p>
+	{:else}
+		<div class="flex flex-col gap-3">
+			{#each $aiRules as rule (rule.id)}
+				<div
+					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
+						? 'border-l-ctp-accent bg-ctp-accent/5'
+						: 'border-l-ctp-surface1 opacity-70'}"
+				>
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 						<div class="min-w-0 flex-1">
 							<div class="mb-1 flex flex-wrap items-center gap-2">
 								<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs text-ctp-subtext0">
 									priority {rule.priority}
 								</span>
-								<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-ctp-surface1 text-ctp-overlay1'}">
+								<span class="rounded-full px-2 py-0.5 text-xs {rule.enabled ? 'bg-ctp-accent/15 text-ctp-accent' : 'bg-ctp-surface1 text-ctp-subtext0'}">
 									{rule.enabled ? 'enabled' : 'disabled'}
 								</span>
 							</div>
 							<p class="whitespace-pre-wrap text-sm leading-6 text-ctp-text">{rule.text}</p>
 						</div>
-						<div class="flex shrink-0 flex-wrap gap-2 text-sm">
-							<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => toggleEnabled(rule)}>
-								{rule.enabled ? 'Disable' : 'Enable'}
+						<div class="flex shrink-0 flex-wrap items-center gap-1">
+							<button
+								type="button"
+								aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
+								title={rule.enabled ? 'Disable rule' : 'Enable rule'}
+								onclick={() => toggleEnabled(rule)}
+								class="rounded-md border border-ctp-surface2 p-2 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text {rule.enabled ? 'text-ctp-accent' : 'text-ctp-subtext0'}"
+							>
+								<Power size={16} aria-hidden="true" />
 							</button>
-							<button type="button" class="rounded-md border border-ctp-surface2 px-3 py-1.5 text-ctp-subtext0 hover:bg-ctp-surface1" onclick={() => startEdit(rule)}>Edit</button>
-							<button type="button" class="rounded-md border border-red-200 px-3 py-1.5 text-red-700 dark:border-red-900/60 dark:text-red-300" onclick={() => removeRule(rule)}>
-								Delete
+							<button
+								type="button"
+								aria-label="Edit rule"
+								title="Edit rule"
+								onclick={() => startEdit(rule)}
+								class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
+							>
+								<Pencil size={16} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								aria-label="Delete rule"
+								title="Delete rule"
+								onclick={() => removeRule(rule)}
+								class="rounded-md p-2 text-ctp-red transition-colors hover:bg-ctp-red/10"
+							>
+								<Trash2 size={16} aria-hidden="true" />
 							</button>
 						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </section>
