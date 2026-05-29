@@ -4,11 +4,15 @@ import logging
 from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from sqlalchemy import select
 
+from quid_api.ai_order_categorization import categorize_amazon_orders
 from quid_api.ai_short_names import ShortNameInput, generate_short_names
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
+from quid_api.models import Category
+from quid_api.repositories.ai_rules import AiRuleRepository
 from quid_api.repositories.amazon_orders import (
     AmazonOrderRepository,
     ParsedOrderInput,
@@ -80,6 +84,7 @@ def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOr
         payment_last4=order.payment_last4,
         order_url=order.order_url,
         short_name=order.short_name,
+        category_id=order.category_id,
         imported_at=order.imported_at,
         linked_expense_ids=linked_expense_ids,
     )
@@ -212,6 +217,39 @@ async def import_amazon_csv(
             await repo.set_generated_short_names(generated)
         except RepositoryError:
             logger.warning("amazon.import.short_names_failed", exc_info=True)
+
+    # AI-categorise newly imported orders (those without a category yet) using
+    # the same category set as expenses, gated by ai_categorize_enabled. Runs
+    # BEFORE auto-match so link-time inheritance sees the fresh categories.
+    if settings_row.ai_categorize_enabled:
+        uncategorized = []
+        for order_id in titles_by_order:
+            imported_order = await repo.get(order_id)
+            if imported_order.category_id is None:
+                uncategorized.append(imported_order)
+        if uncategorized:
+            try:
+                category_rows = list(
+                    await session.execute(
+                        select(Category.name, Category.description).order_by(Category.name)
+                    )
+                )
+                ai_rules = [
+                    rule.text
+                    for rule in await AiRuleRepository(session).list_all(enabled_only=True)
+                ]
+                derived = await categorize_amazon_orders(
+                    session,
+                    uncategorized,
+                    existing_categories=[(row.name, row.description) for row in category_rows],
+                    ai_rules=ai_rules,
+                    api_key=settings.openrouter_api_key,
+                    model=settings.openrouter_model,
+                    chunk_size=settings.openrouter_chunk_size,
+                )
+                await repo.set_generated_categories(derived)
+            except RepositoryError:
+                logger.warning("amazon.import.categorize_failed", exc_info=True)
 
     match_result = await repo.auto_match_all()
     await session.commit()

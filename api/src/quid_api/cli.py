@@ -168,6 +168,60 @@ async def _backfill_amazon_short_names_runner() -> dict[str, int]:
         await engine.dispose()
 
 
+@app.command("backfill-amazon-categories")
+def backfill_amazon_categories() -> None:
+    """AI-categorise already-imported Amazon orders that don't have a category
+    yet, and propagate the result to any already-linked uncategorised
+    expenses. Idempotent: never overwrites an existing order or expense
+    category."""
+    result = asyncio.run(_backfill_amazon_categories_runner())
+    typer.echo(
+        f"Amazon categories: {result['named']} categorised "
+        f"({result['missing']} missing, {result['skipped']} already categorised)"
+    )
+
+
+async def _backfill_amazon_categories_runner() -> dict[str, int]:
+    from sqlalchemy import select
+
+    from quid_api.ai_order_categorization import categorize_amazon_orders
+    from quid_api.models import Category
+    from quid_api.repositories.ai_rules import AiRuleRepository
+    from quid_api.repositories.amazon_orders import AmazonOrderRepository
+
+    settings = get_settings()
+    engine = build_engine(settings)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with sm() as session:
+            repo = AmazonOrderRepository(session)
+            orders = await repo.list_all()
+            missing = [order for order in orders if order.category_id is None]
+            skipped = len(orders) - len(missing)
+            category_rows = list(
+                await session.execute(
+                    select(Category.name, Category.description).order_by(Category.name)
+                )
+            )
+            ai_rules = [
+                rule.text for rule in await AiRuleRepository(session).list_all(enabled_only=True)
+            ]
+            derived = await categorize_amazon_orders(
+                session,
+                missing,
+                existing_categories=[(row.name, row.description) for row in category_rows],
+                ai_rules=ai_rules,
+                api_key=settings.openrouter_api_key,
+                model=settings.openrouter_model,
+                chunk_size=settings.openrouter_chunk_size,
+            )
+            named = await repo.set_generated_categories(derived)
+            await session.commit()
+            return {"missing": len(missing), "named": named, "skipped": skipped}
+    finally:
+        await engine.dispose()
+
+
 @app.command()
 def serve(
     host: Annotated[str, typer.Option(help="Bind host.")] = "127.0.0.1",

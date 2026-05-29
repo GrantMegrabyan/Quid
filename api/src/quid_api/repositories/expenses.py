@@ -258,7 +258,7 @@ class ExpenseRepository:
         await self.session.delete(row)
         await self.session.flush()
 
-    async def _resolve_or_create_category(
+    async def resolve_or_create_category(
         self, raw_category: str, created_index: dict[str, Category]
     ) -> Category:
         normalized = raw_category.strip().lower()
@@ -316,7 +316,7 @@ class ExpenseRepository:
                     f"row {idx}: {exc.message}",
                 ) from exc
 
-            category = await self._resolve_or_create_category(item.category, created_categories)
+            category = await self.resolve_or_create_category(item.category, created_categories)
 
             expense = Expense(
                 id=str(uuid4()),
@@ -414,7 +414,7 @@ class ExpenseRepository:
                     category.id,
                 )
             else:
-                category = await self._resolve_or_create_category(item.category, created_categories)
+                category = await self.resolve_or_create_category(item.category, created_categories)
             item_display_name: str | None = rule.set_display_name if rule is not None else None
             prepared.append(
                 (

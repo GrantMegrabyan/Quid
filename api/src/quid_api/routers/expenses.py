@@ -573,7 +573,7 @@ async def confirm_import_csv(
             continue
         old_category = expense.category_id
         old_importance = expense.importance
-        category = await repo._resolve_or_create_category(row.category_name, created_category_index)
+        category = await repo.resolve_or_create_category(row.category_name, created_category_index)
         changed = False
         if category.id != old_category:
             expense.category_id = category.id

@@ -225,6 +225,12 @@ export interface AmazonOrder {
 	orderUrl: string | null;
 	/** Brief AI-generated (or user-edited) description of what was purchased. */
 	shortName: string | null;
+	/**
+	 * AI-derived spending category for the order, generated once at import.
+	 * When the order is linked to an uncategorised expense, that expense
+	 * inherits this category.
+	 */
+	categoryId: string | null;
 	importedAt: string;
 	linkedExpenseIds: string[];
 }

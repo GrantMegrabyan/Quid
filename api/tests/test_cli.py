@@ -79,6 +79,7 @@ def test_help_lists_all_commands() -> None:
         "serve",
         "import-csv",
         "backfill-amazon-short-names",
+        "backfill-amazon-categories",
     ):
         assert cmd in result.output
 

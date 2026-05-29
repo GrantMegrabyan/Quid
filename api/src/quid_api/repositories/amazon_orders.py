@@ -9,17 +9,32 @@ from decimal import Decimal
 from itertools import combinations
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
+from quid_api.category_helpers import UNCATEGORIZED_ID
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import AmazonOrder, Expense, ExpenseAmazonOrderLink
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.sql.elements import ColumnElement
 
 
 def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _is_amazon_merchant() -> ColumnElement[bool]:
+    """SQL predicate matching expenses whose merchant name looks like Amazon.
+
+    There is no dedicated merchant column; the merchant is stored in
+    ``Expense.name`` (e.g. "Amazon Mktp", "AMZN Mktp", "AMZ*1A2B3C"). We
+    match the common Amazon descriptor stems case-insensitively. Auto-match
+    and suggestions are additionally gated by amount + date, so this only
+    narrows candidates; manual linking is unaffected.
+    """
+    name = func.lower(Expense.name)
+    return or_(name.like("%amazon%"), name.like("%amzn%"), name.like("%amz%"))
 
 
 def _parse_date(value: str) -> date:
@@ -257,6 +272,42 @@ class AmazonOrderRepository:
         await self.session.flush()
         return order
 
+    async def set_generated_categories(self, categories: dict[str, str]) -> int:
+        """Store AI-derived category ids on orders that don't yet have one.
+
+        Never overwrites an existing category (mirrors short names). After
+        setting an order's category, propagate it to any already-linked
+        uncategorised expenses so a backfill / re-import actually benefits
+        the orders that were auto-matched at their first import.
+
+        Returns the number of orders that received a category.
+        """
+        named = 0
+        for order_id, category_id in categories.items():
+            if not category_id:
+                continue
+            order = await self.session.get(AmazonOrder, order_id)
+            if order is None or order.category_id:
+                continue
+            order.category_id = category_id
+            named += 1
+            await self._propagate_category_to_links(order)
+        await self.session.flush()
+        return named
+
+    async def _propagate_category_to_links(self, order: AmazonOrder) -> None:
+        """Push the order's category onto each linked expense that is still
+        uncategorised. Hand-set / AI-set expense categories are never
+        overwritten; only ``UNCATEGORIZED_ID`` expenses inherit."""
+        if not order.category_id:
+            return
+        expense_ids = await self.linked_expense_ids(order.id)
+        for expense_id in expense_ids:
+            expense = await self.session.get(Expense, expense_id)
+            if expense is None or expense.category_id != UNCATEGORIZED_ID:
+                continue
+            expense.category_id = order.category_id
+
     async def _linked_expense_ids_set(self) -> set[str]:
         rows = (await self.session.scalars(select(ExpenseAmazonOrderLink.expense_id))).all()
         return set(rows)
@@ -297,6 +348,7 @@ class AmazonOrderRepository:
                 await self.session.scalars(
                     select(Expense)
                     .where(Expense.amount.in_(amounts))
+                    .where(_is_amazon_merchant())
                     .order_by(Expense.date.desc(), Expense.id)
                 )
             ).all()
@@ -367,11 +419,27 @@ class AmazonOrderRepository:
             result.setdefault(expense_id, []).append(amazon_order_id)
         return result
 
-    async def _link_pair(self, order_id: str, expense_id: str) -> None:
+    async def _link_pair(
+        self, order_id: str, expense_id: str, *, inherit_category: bool = True
+    ) -> None:
         existing = await self.session.get(ExpenseAmazonOrderLink, (expense_id, order_id))
         if existing is not None:
             return
         self.session.add(ExpenseAmazonOrderLink(expense_id=expense_id, amazon_order_id=order_id))
+        if inherit_category:
+            await self._inherit_category_on_link(order_id, expense_id)
+
+    async def _inherit_category_on_link(self, order_id: str, expense_id: str) -> None:
+        """When a single order links to an expense, an uncategorised expense
+        inherits the order's category. Never overwrites a category the user
+        (or expense AI) already chose."""
+        order = await self.session.get(AmazonOrder, order_id)
+        if order is None or not order.category_id:
+            return
+        expense = await self.session.get(Expense, expense_id)
+        if expense is None or expense.category_id != UNCATEGORIZED_ID:
+            return
+        expense.category_id = order.category_id
 
     async def link_expense(self, order_id: str, expense_id: str) -> Expense:
         order = await self.get(order_id)
@@ -496,7 +564,10 @@ class AmazonOrderRepository:
         # filter by amount equality + date window in Python.
         rows = (
             await self.session.scalars(
-                select(Expense).where(Expense.amount >= _COMBINED_MIN_TOTAL).order_by(Expense.date)
+                select(Expense)
+                .where(Expense.amount >= _COMBINED_MIN_TOTAL)
+                .where(_is_amazon_merchant())
+                .order_by(Expense.date)
             )
         ).all()
         candidate_expenses: list[Expense] = []
@@ -591,9 +662,17 @@ class AmazonOrderRepository:
             # Any participant already consumed by an earlier successful link.
             if any(o.id in consumed_order_ids for o in combo):
                 continue
+            # Combined charge spans multiple orders: the expense only inherits
+            # a category when every participating order agrees on it
+            # (unanimous-or-skip). Picking one of several differing categories
+            # would be lossy, so we leave the expense as-is otherwise.
+            combo_categories = {o.category_id for o in combo if o.category_id}
+            shared_category = next(iter(combo_categories)) if len(combo_categories) == 1 else None
             for o in combo:
-                await self._link_pair(o.id, expense.id)
+                await self._link_pair(o.id, expense.id, inherit_category=False)
                 consumed_order_ids.add(o.id)
+            if shared_category is not None and expense.category_id == UNCATEGORIZED_ID:
+                expense.category_id = shared_category
             used_expense_ids.add(expense.id)
             linked_count += len(combo)
 

@@ -236,6 +236,15 @@ class AmazonOrder(Base):
     # Short AI-generated (or user-edited) description of what was purchased,
     # generated once at import time and stored. Editable by the user.
     short_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # AI-derived spending category for the order, generated once at import
+    # (gated by ai_categorize_enabled) and stored. Optional/derived, so the
+    # FK uses ON DELETE SET NULL rather than RESTRICT. When the order is
+    # linked to an expense, an uncategorised expense inherits this category.
+    category_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     imported_at: Mapped[str] = mapped_column(String, nullable=False)
 
     expense_links: Mapped[list[ExpenseAmazonOrderLink]] = relationship(

@@ -23,7 +23,7 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins. Defaults to any `http://localhost` port. |
 | `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. |
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
-| `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for the AI features (CSV import categorisation and Amazon order short names). Required when either AI feature is enabled. |
+| `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for the AI features (CSV import categorisation, Amazon order categorisation, and Amazon order short names). Required when an AI feature is enabled. |
 | `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for both AI categorisation and Amazon short names. |
 | `QUID_OPENROUTER_CHUNK_SIZE` | `25` | Max items per OpenRouter call. Larger imports are split into sequential chunks; for categorisation each chunk's prompt carries forward the merchant→category decisions made by earlier chunks. Set lower if the model struggles on long batches; raise (or set to a very large number) to revert to single-shot behaviour. |
 
@@ -48,12 +48,19 @@ uv run quid-api seed --reset     # reset to deterministic sample data
 uv run quid-api clear-transactions # delete expenses and import logs
 uv run quid-api serve            # run uvicorn on 127.0.0.1:8000
 uv run quid-api backfill-amazon-short-names # AI-name imported Amazon orders missing one
+uv run quid-api backfill-amazon-categories  # AI-categorise imported Amazon orders missing one
 ```
 
 `backfill-amazon-short-names` generates and stores a short name for every
 Amazon order that does not already have one (it never overwrites existing or
 user-edited names, so it is safe to re-run). It calls OpenRouter, so it needs
 `QUID_OPENROUTER_API_KEY`.
+
+`backfill-amazon-categories` AI-categorises every Amazon order that does not
+already have a category, then propagates that category to any already-linked
+uncategorised expense. It never overwrites an order's existing category or a
+non-uncategorised expense category, so it is safe to re-run. It calls
+OpenRouter, so it needs `QUID_OPENROUTER_API_KEY`.
 
 ## CSV import
 
@@ -116,8 +123,10 @@ what an Amazon charge actually bought.
 
 - `POST /api/v1/amazon-orders/import-csv` — multipart `files`. Parses orders,
   upserts them (re-importing an order id replaces its details idempotently),
-  and runs auto-matching against unlinked expenses.
+  AI-categorises new orders (when `aiCategorizeEnabled`), and runs auto-matching
+  against unlinked expenses.
 - `GET /api/v1/amazon-orders` / `GET /api/v1/amazon-orders/{id}` — list / fetch.
+  Each order includes `categoryId` (the order's AI-derived category, or `null`).
 - `POST /api/v1/amazon-orders/match-all` — re-run auto-matching.
 - `GET /api/v1/amazon-orders/{id}/suggested-matches` — candidate expenses.
 - `POST /api/v1/amazon-orders/{id}/link` / `/unlink` — body `{ "expenseId": "…" }`.
@@ -133,6 +142,24 @@ AI short names are disabled the field is left blank. A linked order's short name
 is surfaced as the transaction's note in the expense list when the expense has
 no note of its own. Backfill missing names with
 `uv run quid-api backfill-amazon-short-names`.
+
+Each order also has a **category** (`categoryId`): an AI-derived spending
+category chosen from the same category set as expenses, using the order's item
+titles. It is generated once at import time (only when `aiCategorizeEnabled` is
+true) and stored; re-importing never overwrites a non-null category. Backfill
+missing categories with `uv run quid-api backfill-amazon-categories`.
+
+**Category inheritance:** when an order is linked to an expense whose category
+is still `uncategorized` (auto-match or manual link), the expense inherits the
+order's category. A category set by the user or by expense AI is never
+overwritten. For a combined charge (2–3 orders → one expense), the expense
+inherits a category only when all participating orders agree on it. Unlinking
+does not revert an inherited category.
+
+**Matching is restricted to Amazon merchants:** auto-matching and
+`suggested-matches` only consider expenses whose name looks like an Amazon
+charge (matches `amazon` / `amzn` / `amz`). Manual `/link` is unrestricted, so
+you can still link any expense by id.
 
 ## Settings
 

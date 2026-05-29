@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
+import pytest
+
+from quid_api.ai_categorization import CategorizedBulkItems
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
 from quid_api.settings import reset_settings
 
@@ -119,8 +123,6 @@ def test_parse_exporter_csv_accepts_json_and_delimited_items():
 
 
 def test_parse_missing_required_columns_raises():
-    import pytest
-
     from quid_api.errors import RepositoryError
 
     bad = "Order ID,Product Name\nABC,Widget\n"
@@ -338,6 +340,208 @@ async def test_suggested_matches_filters_by_window_and_amount(app_client):
     assert out_of_window not in ids
     assert wrong_amount not in ids
     assert len(ids) == 1
+
+
+async def test_auto_match_ignores_non_amazon_merchant_expense(app_client):
+    tesco = await _seed_categories_and_expense(
+        app_client, name="Tesco", amount=42.50, date="2026-04-22"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    order = next(row for row in listed.json() if row["id"] == "111-1234567-1234567")
+    assert order["linkedExpenseIds"] == []
+
+    amazon = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-22"
+    )
+    rerun = await app_client.post("/api/v1/amazon-orders/match-all")
+    assert rerun.status_code == 200
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    order = next(row for row in listed.json() if row["id"] == "111-1234567-1234567")
+    assert order["linkedExpenseIds"] == [amazon]
+    assert tesco not in order["linkedExpenseIds"]
+
+
+async def test_suggested_matches_excludes_non_amazon(app_client):
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    costa = await _seed_categories_and_expense(
+        app_client, name="Costa", amount=42.50, date="2026-04-25"
+    )
+    amazon = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-25"
+    )
+
+    suggested = await app_client.get("/api/v1/amazon-orders/111-1234567-1234567/suggested-matches")
+    assert suggested.status_code == 200
+    ids = [row["id"] for row in suggested.json()]
+    assert ids == [amazon]
+    assert costa not in ids
+
+
+async def test_import_ai_categorizes_orders(app_client, monkeypatch):
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.status_code == 201, res.text
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    assert all(row["categoryId"] == "cat-office-supplies" for row in listed.json())
+
+
+async def test_linked_uncategorized_expense_inherits_order_category(app_client, monkeypatch):
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-22"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    listed = await app_client.get("/api/v1/expenses")
+    expense = next(row for row in listed.json() if row["id"] == expense_id)
+    assert expense["categoryId"] == "cat-office-supplies"
+
+
+async def test_link_does_not_overwrite_existing_expense_category(app_client, monkeypatch):
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    real_category = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    expense = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 99.99,
+            "date": "2026-05-04",
+            "categoryId": "uncategorized",
+        },
+    )
+    assert expense.status_code == 201, expense.text
+    expense_id = expense.json()["id"]
+    patched = await app_client.patch(
+        f"/api/v1/expenses/{expense_id}",
+        json={"categoryId": real_category["id"]},
+    )
+    assert patched.status_code == 200, patched.text
+
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("exporter.csv", EXPORTER_CSV)],
+    )
+    linked = await app_client.post(
+        "/api/v1/amazon-orders/555-3333333-4444444/link",
+        json={"expenseId": expense_id},
+    )
+    assert linked.status_code == 200, linked.text
+
+    fetched = await app_client.get("/api/v1/expenses")
+    expense_row = next(row for row in fetched.json() if row["id"] == expense_id)
+    assert expense_row["categoryId"] == real_category["id"]
+
+
+async def test_categorizing_order_propagates_to_already_linked_expense(app_client, monkeypatch):
+    """A NULL-category order that is already linked (auto-matched at first
+    import with AI off) gets categorised on a later AI-enabled import, and
+    that category propagates to the already-linked uncategorised expense.
+    This is the same propagation path the backfill CLI command exercises."""
+    # First import with AI off (no key, default settings) -> NULL category.
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-22"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    # Order 111 auto-matched to the expense while both are uncategorised.
+    listed = await app_client.get("/api/v1/amazon-orders")
+    order = next(row for row in listed.json() if row["id"] == "111-1234567-1234567")
+    assert order["categoryId"] is None
+    assert order["linkedExpenseIds"] == [expense_id]
+    pre = await app_client.get("/api/v1/expenses")
+    assert next(r for r in pre.json() if r["id"] == expense_id)["categoryId"] == "uncategorized"
+
+    # Re-import with AI on + mocked: order 111 still NULL -> gets categorised
+    # and propagates to the already-linked uncategorised expense.
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    after_orders = await app_client.get("/api/v1/amazon-orders")
+    after_order = next(row for row in after_orders.json() if row["id"] == "111-1234567-1234567")
+    assert after_order["categoryId"] == "cat-office-supplies"
+    after_expenses = await app_client.get("/api/v1/expenses")
+    after_expense = next(r for r in after_expenses.json() if r["id"] == expense_id)
+    assert after_expense["categoryId"] == "cat-office-supplies"
+
+
+async def test_reimport_does_not_overwrite_existing_order_category(app_client, monkeypatch):
+    async def office(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    async def groceries(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Groceries") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", office)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", groceries)
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    order = next(row for row in listed.json() if row["id"] == "111-1234567-1234567")
+    assert order["categoryId"] == "cat-office-supplies"
 
 
 async def test_manual_link_and_unlink(app_client):

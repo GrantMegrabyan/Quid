@@ -364,6 +364,7 @@ class AmazonOrderOut(_Camel):
     payment_last4: str | None = None
     order_url: str | None = None
     short_name: str | None = None
+    category_id: str | None = None
     imported_at: str
     linked_expense_ids: list[str] = Field(default_factory=list)
 
