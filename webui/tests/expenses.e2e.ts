@@ -1,11 +1,5 @@
 import { expect, test } from '@playwright/test';
-import {
-	buildSeed,
-	isoMonthOffset,
-	monthLabelOffset,
-	seedApiState,
-	THEME_KEY
-} from './helpers.js';
+import { buildSeed, isoMonthOffset, monthLabelOffset, seedApiState } from './helpers.js';
 
 test.describe('dashboard', () => {
 	test.beforeEach(async ({ page }) => {
@@ -188,27 +182,6 @@ test.describe('empty state', () => {
 		await expect(page.getByTestId('expense-row')).toHaveCount(0);
 		await page.getByTestId('toggle-category-chart').check();
 		await expect(page.getByTestId('category-chart')).toContainText('No expenses for this month');
-	});
-});
-
-test.describe('theme toggle', () => {
-	test.beforeEach(async ({ page }) => {
-		await seedApiState(page, buildSeed(), 'light');
-	});
-
-	test('toggling theme persists across reload', async ({ page }) => {
-		await page.goto('/settings');
-
-		await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-
-		await page.locator('select').first().selectOption('default-dark');
-		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-
-		const storedAfterToggle = await page.evaluate((key) => localStorage.getItem(key), THEME_KEY);
-		expect(storedAfterToggle).toBe('default-dark');
-
-		await page.reload();
-		await expect(page.locator('html')).toHaveClass(/\bdark\b/);
 	});
 });
 

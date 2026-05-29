@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { refreshSettings, settings, updateSettings } from '$lib/stores/settings';
-	import { theme, THEMES, type ThemeId } from '$lib/stores/theme';
 
 	const SUPPORTED_CURRENCIES = ['GBP', 'USD', 'EUR', 'CAD', 'AUD', 'JPY'] as const;
 
@@ -12,7 +11,6 @@
 	let saving = $state(false);
 	let message = $state('');
 	let error = $state('');
-	let currentTheme = $state<ThemeId>('default-dark');
 
 	$effect(() => {
 		currency = $settings.currency;
@@ -23,7 +21,6 @@
 
 	onMount(() => {
 		void refreshSettings();
-		currentTheme = $theme;
 	});
 
 	async function save(): Promise<void> {
@@ -38,13 +35,6 @@
 		} finally {
 			saving = false;
 		}
-	}
-
-	function onThemeChange(event: Event) {
-		const select = event.target as HTMLSelectElement;
-		const id = select.value as ThemeId;
-		theme.setTheme(id);
-		currentTheme = id;
 	}
 </script>
 
@@ -61,31 +51,18 @@
 	</header>
 
 	<form
-		class="flex flex-col gap-5 rounded-lg border border-ctp-surface1 bg-ctp-base p-5"
+		class="flex flex-col gap-5 rounded-xl border border-ctp-surface1 bg-ctp-base p-6 shadow-lg shadow-black/20"
 		onsubmit={(event) => {
 			event.preventDefault();
 			void save();
 		}}
 	>
 		<label class="flex flex-col gap-1.5">
-			<span class="text-sm font-medium text-ctp-subtext0">Theme</span>
-			<select
-				value={currentTheme}
-				onchange={onThemeChange}
-				class="rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
-			>
-				{#each THEMES as t}
-					<option value={t.id}>{t.label}</option>
-				{/each}
-			</select>
-		</label>
-
-		<label class="flex flex-col gap-1.5">
 			<span class="text-sm font-medium text-ctp-subtext0">Currency</span>
 			<select
 				bind:value={currency}
 				data-testid="settings-currency-select"
-				class="rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
 			>
 				{#each SUPPORTED_CURRENCIES as code}
 					<option value={code}>{code}</option>
@@ -93,7 +70,7 @@
 			</select>
 		</label>
 
-		<label class="flex items-start gap-3 rounded-md border border-ctp-surface1 p-3">
+		<label class="flex items-start gap-3 rounded-lg border border-ctp-surface1 bg-ctp-surface0/40 p-4 transition-colors hover:border-ctp-surface2">
 			<input
 				type="checkbox"
 				bind:checked={showImportanceBadge}
@@ -110,7 +87,7 @@
 			</span>
 		</label>
 
-		<label class="flex items-start gap-3 rounded-md border border-ctp-surface1 p-3">
+		<label class="flex items-start gap-3 rounded-lg border border-ctp-surface1 bg-ctp-surface0/40 p-4 transition-colors hover:border-ctp-surface2">
 			<input
 				type="checkbox"
 				bind:checked={aiCategorizeEnabled}
@@ -127,7 +104,7 @@
 			</span>
 		</label>
 
-		<label class="flex items-start gap-3 rounded-md border border-ctp-surface1 p-3">
+		<label class="flex items-start gap-3 rounded-lg border border-ctp-surface1 bg-ctp-surface0/40 p-4 transition-colors hover:border-ctp-surface2">
 			<input
 				type="checkbox"
 				bind:checked={aiShortNamesEnabled}

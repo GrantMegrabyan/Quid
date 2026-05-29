@@ -38,7 +38,8 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   AI-generated **short name** inline.
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
-  on).
+  on). (Theme switching was removed; the UI uses a single Dasher-style dark
+  design on this branch.)
 - **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
   (`/ai-rules`).
 
