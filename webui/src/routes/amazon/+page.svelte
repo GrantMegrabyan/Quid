@@ -224,8 +224,8 @@
 			data-testid="amazon-banner"
 			data-kind={banner.kind}
 			class="rounded-md border px-4 py-3 text-sm {banner.kind === 'success'
-				? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200'
-				: 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'}"
+				? 'border-ctp-accent/40 bg-ctp-accent/10 text-ctp-accent'
+				: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
 		>
 			{banner.message}
 		</div>
@@ -244,7 +244,7 @@
 				{@const isEditing = editingOrderId === order.id}
 				<li
 					class="list-none border-b border-l-2 border-ctp-surface0 p-4 transition-colors last:border-b-0 {isLinked
-						? 'border-l-emerald-400 bg-emerald-50/40 dark:border-l-emerald-500/70 dark:bg-emerald-950/15'
+						? 'border-l-ctp-accent bg-ctp-accent/5'
 						: 'border-l-ctp-surface1'}"
 					data-testid="amazon-order-row"
 				>
@@ -255,7 +255,7 @@
 									<span
 										data-testid="amazon-link-status"
 										data-link-status="linked"
-										class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+										class="inline-flex items-center gap-1 rounded-full bg-ctp-accent/15 px-2 py-0.5 text-xs font-medium text-ctp-accent"
 									>
 										<Check size={12} aria-hidden="true" />
 										Linked
@@ -270,7 +270,7 @@
 										Not linked
 									</span>
 								{/if}
-								<span class="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+								<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-semibold text-ctp-text">
 									{formatAmount(order.total, order.currency || $settings.currency)}
 								</span>
 							</div>
@@ -300,7 +300,7 @@
 										title="Save name"
 										onclick={() => void saveShortName(order.id)}
 										disabled={actionOrderId === order.id}
-										class="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-60 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+										class="rounded-md p-1.5 text-ctp-accent hover:bg-ctp-surface1 disabled:opacity-60"
 									>
 										<Check size={16} aria-hidden="true" />
 									</button>
@@ -375,7 +375,7 @@
 								title="Delete order"
 								onclick={() => void remove(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/40"
+								class="rounded-md p-2 text-ctp-red transition-colors hover:bg-ctp-red/10 disabled:opacity-60"
 							>
 								<Trash2 size={16} aria-hidden="true" />
 							</button>
