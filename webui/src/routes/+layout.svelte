@@ -10,8 +10,6 @@
 		Sparkles,
 		ShoppingCart,
 		Settings,
-		Search,
-		Bell,
 		Menu,
 		X
 	} from '@lucide/svelte';
@@ -48,8 +46,19 @@
 		<span
 			class="flex h-9 w-9 items-center justify-center rounded-lg bg-ctp-accent text-ctp-on-accent shadow-lg shadow-emerald-500/20"
 		>
-			<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5">
-				<path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
+			<svg
+				viewBox="0 0 24 24"
+				class="h-5 w-5"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2.2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M16.5 6.5a3.5 3.5 0 0 0-6.6-1.6c-.5 1-.6 2.2-.5 3.4l.5 4.2c.2 1.6-.2 3.2-1.1 4.5" />
+				<path d="M7 13h6" />
+				<path d="M6.5 18.5h10" />
 			</svg>
 		</span>
 		<span class="text-lg font-bold tracking-tight text-ctp-text">Quid</span>
@@ -121,53 +130,17 @@
 
 	<!-- Content column -->
 	<div class="lg:pl-[250px]">
-		<!-- Top bar -->
-		<header
-			class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-ctp-surface1 bg-ctp-mantle/80 px-4 backdrop-blur sm:px-6"
+		<!-- Mobile menu trigger (no top bar on desktop) -->
+		<button
+			type="button"
+			aria-label="Open menu"
+			onclick={() => (mobileOpen = true)}
+			class="fixed left-4 top-4 z-30 inline-flex items-center justify-center rounded-lg border border-ctp-surface1 bg-ctp-base/80 p-2 text-ctp-subtext0 shadow-lg shadow-black/20 backdrop-blur transition-colors hover:bg-ctp-surface0 hover:text-ctp-text lg:hidden"
 		>
-			<button
-				type="button"
-				aria-label="Open menu"
-				onclick={() => (mobileOpen = true)}
-				class="rounded-md p-2 text-ctp-subtext0 hover:bg-ctp-surface0 hover:text-ctp-text lg:hidden"
-			>
-				<Menu class="h-5 w-5" />
-			</button>
+			<Menu class="h-5 w-5" />
+		</button>
 
-			<!-- Search / command chip -->
-			<button
-				type="button"
-				class="hidden items-center gap-2 rounded-lg border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-overlay1 transition-colors hover:border-ctp-surface2 sm:flex"
-			>
-				<Search class="h-4 w-4" />
-				<span>Search…</span>
-				<kbd
-					class="ml-2 rounded border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0"
-				>
-					⌘K
-				</kbd>
-			</button>
-
-			<div class="ml-auto flex items-center gap-2">
-				<button
-					type="button"
-					aria-label="Notifications"
-					class="relative rounded-full p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface0 hover:text-ctp-text"
-				>
-					<Bell class="h-5 w-5" />
-					<span
-						class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ctp-red ring-2 ring-ctp-mantle"
-					></span>
-				</button>
-				<span
-					class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-ctp-accent to-ctp-teal text-sm font-semibold text-ctp-on-accent"
-				>
-					Q
-				</span>
-			</div>
-		</header>
-
-		<main class="p-4 sm:p-6">
+		<main class="p-4 pt-16 sm:p-6 lg:pt-6">
 			{@render children()}
 		</main>
 	</div>

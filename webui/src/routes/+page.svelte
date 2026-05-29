@@ -78,11 +78,6 @@
 	});
 
 
-	function openAdd(): void {
-		editingExpense = undefined;
-		modalOpen = true;
-	}
-
 	function openEdit(expense: Expense): void {
 		editingExpense = expense;
 		modalOpen = true;
@@ -152,109 +147,86 @@
 </svelte:head>
 
 <section class="flex flex-col gap-6">
-	<!-- Hero greeting banner -->
-	<div
-		class="relative overflow-hidden rounded-2xl border border-ctp-surface1 bg-gradient-to-r from-emerald-600/90 via-emerald-700/40 to-ctp-base p-6 shadow-lg shadow-emerald-900/20 sm:p-8"
-	>
-		<div
-			class="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl"
-		></div>
-		<div class="relative flex flex-wrap items-center justify-between gap-4">
-			<div class="max-w-lg">
-				<h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-					👋 Welcome back
-				</h1>
-				<p class="mt-2 text-sm text-emerald-50/80">
-					Here's your spending overview for {selectedMonthLabel}.
-				</p>
-			</div>
-			<div class="flex flex-wrap items-center gap-2">
-				<a
-					href="/import"
-					data-testid="import-csv-btn"
-					class="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20"
-				>
-					Import CSV
-				</a>
-				<button
-					type="button"
-					data-testid="add-expense-btn"
-					onclick={openAdd}
-					class="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50"
-				>
-					+ Add expense
-				</button>
-			</div>
-		</div>
-	</div>
-
 	<!-- Stat cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 		<!-- This month total -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20">
-			<div class="flex items-center justify-between">
-				<span class="flex h-11 w-11 items-center justify-center rounded-full bg-ctp-accent/15 text-ctp-accent">
-					<Wallet class="h-5 w-5" />
+		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
+			<div class="flex items-center gap-3">
+				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 text-ctp-accent">
+					<Wallet class="h-[18px] w-[18px]" />
 				</span>
-				{#if monthChange}
-					<span
-						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {monthChange.direction ===
-						'up'
-							? 'bg-ctp-red/15 text-ctp-red'
-							: 'bg-ctp-accent/15 text-ctp-accent'}"
-					>
-						{#if monthChange.direction === 'up'}
-							<TrendingUp class="h-3 w-3" />
-						{:else}
-							<TrendingDown class="h-3 w-3" />
+				<div class="min-w-0 flex-1">
+					<div class="flex items-center justify-between gap-2">
+						<p class="text-xs font-medium text-ctp-subtext0">This month</p>
+						{#if monthChange}
+							<span
+								class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold {monthChange.direction ===
+								'up'
+									? 'bg-ctp-red/15 text-ctp-red'
+									: 'bg-ctp-accent/15 text-ctp-accent'}"
+							>
+								{#if monthChange.direction === 'up'}
+									<TrendingUp class="h-3 w-3" />
+								{:else}
+									<TrendingDown class="h-3 w-3" />
+								{/if}
+								{monthChange.value}
+							</span>
 						{/if}
-						{monthChange.value}
-					</span>
-				{/if}
+					</div>
+					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
+						<TweenedAmount
+							value={selectedMonthTotal}
+							currency={$settings.currency}
+							testid="selected-month-total"
+						/>
+					</p>
+				</div>
 			</div>
-			<p class="mt-4 text-sm text-ctp-subtext0">This month</p>
-			<p class="mt-1 text-2xl font-bold tracking-tight text-ctp-text">
-				<TweenedAmount
-					value={selectedMonthTotal}
-					currency={$settings.currency}
-					testid="selected-month-total"
-				/>
-			</p>
-			<p data-testid="selected-month-heading" class="mt-1 text-xs text-ctp-overlay0">
+			<p data-testid="selected-month-heading" class="sr-only">
 				{selectedMonthLabel}
 			</p>
 		</div>
 
 		<!-- Transactions -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20">
-			<span class="flex h-11 w-11 items-center justify-center rounded-full bg-ctp-blue/15 text-ctp-blue">
-				<Receipt class="h-5 w-5" />
-			</span>
-			<p class="mt-4 text-sm text-ctp-subtext0">Transactions</p>
-			<p class="mt-1 text-2xl font-bold tracking-tight text-ctp-text">{transactionCount}</p>
-			<p class="mt-1 text-xs text-ctp-overlay0">This month</p>
+		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
+			<div class="flex items-center gap-3">
+				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-blue/15 text-ctp-blue">
+					<Receipt class="h-[18px] w-[18px]" />
+				</span>
+				<div class="min-w-0">
+					<p class="text-xs font-medium text-ctp-subtext0">Transactions</p>
+					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">{transactionCount}</p>
+				</div>
+			</div>
 		</div>
 
 		<!-- Categories -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20">
-			<span class="flex h-11 w-11 items-center justify-center rounded-full bg-ctp-peach/15 text-ctp-peach">
-				<Tags class="h-5 w-5" />
-			</span>
-			<p class="mt-4 text-sm text-ctp-subtext0">Categories</p>
-			<p class="mt-1 text-2xl font-bold tracking-tight text-ctp-text">{$categories.length}</p>
-			<p class="mt-1 text-xs text-ctp-overlay0">Active</p>
+		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
+			<div class="flex items-center gap-3">
+				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-peach/15 text-ctp-peach">
+					<Tags class="h-[18px] w-[18px]" />
+				</span>
+				<div class="min-w-0">
+					<p class="text-xs font-medium text-ctp-subtext0">Categories</p>
+					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">{$categories.length}</p>
+				</div>
+			</div>
 		</div>
 
 		<!-- Avg per transaction -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20">
-			<span class="flex h-11 w-11 items-center justify-center rounded-full bg-ctp-mauve/15 text-ctp-mauve">
-				<TrendingUp class="h-5 w-5" />
-			</span>
-			<p class="mt-4 text-sm text-ctp-subtext0">Avg / transaction</p>
-			<p class="mt-1 text-2xl font-bold tracking-tight text-ctp-text">
-				{formatAmount(avgPerTransaction, $settings.currency)}
-			</p>
-			<p class="mt-1 text-xs text-ctp-overlay0">This month</p>
+		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
+			<div class="flex items-center gap-3">
+				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-mauve/15 text-ctp-mauve">
+					<TrendingUp class="h-[18px] w-[18px]" />
+				</span>
+				<div class="min-w-0">
+					<p class="text-xs font-medium text-ctp-subtext0">Avg / transaction</p>
+					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
+						{formatAmount(avgPerTransaction, $settings.currency)}
+					</p>
+				</div>
+			</div>
 		</div>
 	</div>
 

@@ -12,7 +12,6 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
 		await expect(page.getByTestId('monthly-chart')).toHaveCount(0);
 		await expect(page.getByTestId('category-chart')).toHaveCount(0);
-		await expect(page.getByTestId('add-expense-btn')).toBeVisible();
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£54.50');
 		await expect(page.getByText('Track spending by month.')).toHaveCount(0);
@@ -88,25 +87,6 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('toggle-category-chart')).toBeChecked();
 	});
 
-	test('add expense flow appends a new row', async ({ page }) => {
-		await page.goto('/');
-
-		await page.getByTestId('add-expense-btn').click();
-		await expect(page.getByTestId('modal-title')).toHaveText('Add expense');
-
-		await page.getByTestId('name-input').fill('Blue Bottle Coffee');
-		await page.getByTestId('amount-input').fill('19.95');
-		await page.getByTestId('category-select').selectOption('cat-groceries');
-		await page.getByTestId('note-input').fill('Coffee beans');
-		await page.getByTestId('modal-submit').click();
-
-		await expect(page.getByTestId('modal-title')).toHaveCount(0);
-		await expect(page.getByTestId('expense-row')).toHaveCount(3);
-		await expect(
-			page.getByTestId('expense-row').filter({ hasText: 'Blue Bottle Coffee' })
-		).toHaveCount(1);
-	});
-
 	test('edit expense flow updates the row in place', async ({ page }) => {
 		await page.goto('/');
 
@@ -141,32 +121,6 @@ test.describe('dashboard', () => {
 			page.locator('[data-testid="expense-row"][data-expense-id="exp-seed-2"]')
 		).toHaveCount(0);
 		await expect(page.getByTestId('expense-row')).toHaveCount(1);
-	});
-
-	test('amount validation rejects non-positive values without saving', async ({ page }) => {
-		await page.goto('/');
-
-		await page.getByTestId('add-expense-btn').click();
-		await page.getByTestId('name-input').fill('Test Merchant');
-		await page.getByTestId('amount-input').fill('0');
-		await page.getByTestId('category-select').selectOption('cat-groceries');
-		await page.getByTestId('modal-submit').click();
-
-		await expect(page.getByTestId('amount-error')).toBeVisible();
-		await expect(page.getByTestId('modal-title')).toBeVisible();
-		await expect(page.getByTestId('expense-row')).toHaveCount(2);
-	});
-
-	test('category select error fires when no category chosen', async ({ page }) => {
-		await page.goto('/');
-
-		await page.getByTestId('add-expense-btn').click();
-		await page.getByTestId('name-input').fill('Test Merchant');
-		await page.getByTestId('amount-input').fill('5');
-		await page.getByTestId('modal-submit').click();
-
-		await expect(page.getByTestId('category-error')).toBeVisible();
-		await expect(page.getByTestId('modal-title')).toBeVisible();
 	});
 });
 
