@@ -20,6 +20,7 @@
 	let activeTooltip:
 		| { x: number; y: number; date: string; daily: string; cumulative: string }
 		| null = $state(null);
+	let hoverLine: { x: number; top: number; bottom: number } | null = $state(null);
 
 	if (browser) {
 		themeObserver = new MutationObserver(() => {
@@ -111,6 +112,7 @@
 			yInCanvas > chartArea.bottom
 		) {
 			activeTooltip = null;
+			hoverLine = null;
 			return;
 		}
 
@@ -120,8 +122,15 @@
 
 		if (!Number.isInteger(dataIndex) || dataIndex < 0 || cumulative === null) {
 			activeTooltip = null;
+			hoverLine = null;
 			return;
 		}
+
+		hoverLine = {
+			x: chart.scales.x.getPixelForValue(dataIndex),
+			top: chartArea.top,
+			bottom: chartArea.bottom
+		};
 
 		const wrapperRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 		const tooltipWidth = 172;
@@ -202,7 +211,10 @@
 	aria-label="Cumulative expenses chart"
 	class="relative h-72 w-full"
 	onpointermove={handlePointerMove}
-	onpointerleave={() => (activeTooltip = null)}
+	onpointerleave={() => {
+		activeTooltip = null;
+		hoverLine = null;
+	}}
 >
 	{#if total === 0}
 		<div class="flex h-full items-center justify-center text-sm text-ctp-overlay1">
@@ -210,6 +222,14 @@
 		</div>
 	{:else if browser}
 		<Line bind:chart {data} {options} />
+		{#if hoverLine}
+			<div
+				class="pointer-events-none absolute z-[5] w-px bg-ctp-overlay1/60"
+				style:left={`${hoverLine.x}px`}
+				style:top={`${hoverLine.top}px`}
+				style:height={`${hoverLine.bottom - hoverLine.top}px`}
+			></div>
+		{/if}
 		{#if activeTooltip}
 			<div
 				data-testid="cumulative-chart-tooltip"
