@@ -4,6 +4,7 @@ import type {
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
 	ImportCsvResult,
+	ImportFreeformConfirmRequest,
 	ImportLog
 } from '$types';
 import { getStore, setStore } from './mockStore.js';
@@ -80,6 +81,20 @@ export class MockExpenseRepository implements ExpenseRepository {
 		throw new RepositoryError(
 			'VALIDATION',
 			`CSV import confirmation is only supported by the HTTP backend (${input.importId}).`
+		);
+	}
+
+	async previewImportFreeform(_rawInput: string): Promise<ImportCsvPreviewResult> {
+		throw new RepositoryError(
+			'VALIDATION',
+			'AI free-form import is only supported by the HTTP backend.'
+		);
+	}
+
+	async confirmImportFreeform(_input: ImportFreeformConfirmRequest): Promise<ImportCsvConfirmResult> {
+		throw new RepositoryError(
+			'VALIDATION',
+			'AI free-form import is only supported by the HTTP backend.'
 		);
 	}
 

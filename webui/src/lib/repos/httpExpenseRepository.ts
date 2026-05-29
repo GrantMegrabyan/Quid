@@ -4,6 +4,7 @@ import type {
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
 	ImportCsvResult,
+	ImportFreeformConfirmRequest,
 	ImportLog
 } from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
@@ -62,6 +63,20 @@ export class HttpExpenseRepository implements ExpenseRepository {
 
 	async confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult> {
 		return this.client.request<ImportCsvConfirmResult>('api/v1/expenses/import-csv/confirm', {
+			method: 'POST',
+			body: input
+		});
+	}
+
+	async previewImportFreeform(rawInput: string): Promise<ImportCsvPreviewResult> {
+		return this.client.request<ImportCsvPreviewResult>('api/v1/expenses/import-freeform/preview', {
+			method: 'POST',
+			body: { rawInput }
+		});
+	}
+
+	async confirmImportFreeform(input: ImportFreeformConfirmRequest): Promise<ImportCsvConfirmResult> {
+		return this.client.request<ImportCsvConfirmResult>('api/v1/expenses/import-freeform/confirm', {
 			method: 'POST',
 			body: input
 		});

@@ -278,7 +278,10 @@
 	>
 		<p class="text-base font-medium text-ctp-text">{emptyMessage}</p>
 		<p class="text-sm text-ctp-overlay1">
-			Click + Add expense to add one for this month.
+			Add transactions from the <a
+				href="/import"
+				class="font-medium text-ctp-accent hover:underline">Import</a
+			> page.
 		</p>
 	</div>
 {:else}

@@ -128,6 +128,18 @@ export interface ImportCsvConfirmRequest {
  	categoryUpdates: ImportCsvConfirmCategoryUpdateRow[];
 }
 
+export interface ImportFreeformPreviewRequest {
+	rawInput: string;
+}
+
+export interface ImportFreeformConfirmRequest {
+	importId: string;
+	rawInput: string;
+	files?: string[];
+	creates: ImportCsvConfirmCreateRow[];
+	categoryUpdates: ImportCsvConfirmCategoryUpdateRow[];
+}
+
 export interface ImportCsvConfirmResult {
  	created: number;
  	updated: number;
@@ -184,6 +196,8 @@ export type AiRuleUpdate = Partial<AiRuleCreate>;
 export interface ImportLog {
 	id: string;
 	importedAt: string;
+	source: 'csv' | 'freeform';
+	rawInput: string | null;
 	files: string[];
 	imported: number;
 	updated: number;

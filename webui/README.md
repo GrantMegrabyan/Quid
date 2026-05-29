@@ -34,8 +34,19 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   Each transaction's subheading shows the date and, when present, its note (a
   linked Amazon order's short name is used as the note when the expense has
   none).
-- **Import** (`/import`) — CSV import preview/confirm. AI categorisation is no
-  longer a per-import checkbox; it follows the **Settings** toggle.
+- **Import** (`/import`) — the single place to add transactions, organised into
+  three tabs:
+  - **CSV file** — the CSV import preview/confirm flow. AI categorisation is no
+    longer a per-import checkbox; it follows the **Settings** toggle.
+  - **Single transaction** — an inline form (merchant, amount, date, category,
+    importance, note) for adding one transaction at a time.
+  - **AI free-form** — paste plain-English lines (e.g. `coffee 3.50 yesterday`)
+    and let AI parse them into a preview you review (category/importance) before
+    confirming. Backed by `POST /api/v1/expenses/import-freeform/{preview,confirm}`.
+
+  A shared **Import history** table below the tabs lists every import with a
+  **Source** column (CSV vs AI); AI rows can be expanded to show the original
+  pasted text.
 - **Amazon orders** (`/amazon`) — import Amazon order CSVs, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
   AI-generated **short name** and detected **category** inline (the category

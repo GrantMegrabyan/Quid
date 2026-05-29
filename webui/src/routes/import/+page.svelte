@@ -2,9 +2,10 @@
 	import { onMount } from 'svelte';
 	import { RepositoryError, expenseRepository } from '$lib/repos';
 	import { categories, refreshCategories } from '$lib/stores/categories';
-	import { refreshExpenses } from '$lib/stores/expenses';
+	import { addExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { refreshSettings, settings } from '$lib/stores/settings';
-	import { formatAmount } from '$lib/utils/money';
+	import { formatAmount, parseAmountInput } from '$lib/utils/money';
+	import { todayIso } from '$lib/utils/dates';
 	import type {
 		Category,
 		ExpenseImportance,
@@ -19,21 +20,72 @@
 		acceptUpdate: boolean;
 	};
 
+	type ReviewState = {
+		preview: ImportCsvPreviewResult;
+		rows: ReviewRow[];
+	};
+
+	type ImportTab = 'csv' | 'single' | 'freeform';
+
+	let tab = $state<ImportTab>('csv');
+
+	// --- Shared state -------------------------------------------------------
+	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
+	let importLogs: ImportLog[] = $state([]);
+	let expandedLogs = $state<Record<string, boolean>>({});
+
+	// --- CSV tab state ------------------------------------------------------
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let loading = $state(false);
 	let saving = $state(false);
-	let preview: ImportCsvPreviewResult | null = $state(null);
-	let rows: ReviewRow[] = $state([]);
-	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
-	let importLogs: ImportLog[] = $state([]);
+	let csvReview = $state<ReviewState | null>(null);
 
-	const createRows = $derived(rows.filter((row) => row.kind === 'create'));
-	const updateRows = $derived(rows.filter((row) => row.kind === 'category_update'));
-	const visibleRows = $derived(rows.filter((row) => row.kind !== 'excluded'));
+	const csvCreateRows = $derived(csvReview ? csvReview.rows.filter((row) => row.kind === 'create') : []);
+	const csvUpdateRows = $derived(
+		csvReview ? csvReview.rows.filter((row) => row.kind === 'category_update') : []
+	);
+	const csvVisibleRows = $derived(
+		csvReview ? csvReview.rows.filter((row) => row.kind !== 'excluded') : []
+	);
 
-	function openFilePicker(): void {
-		banner = null;
-		fileInputEl?.click();
+	// --- Single transaction tab state ---------------------------------------
+	let nameInput = $state('');
+	let amountInput = $state('');
+	let dateInput = $state(todayIso());
+	let categoryInput = $state('');
+	let noteInput = $state('');
+	let importanceInput = $state<ExpenseImportance>('important');
+
+	let nameError = $state('');
+	let amountError = $state('');
+	let dateError = $state('');
+	let categoryError = $state('');
+	let singleSubmitting = $state(false);
+
+	// --- Free-form tab state ------------------------------------------------
+	let freeformInput = $state('');
+	let freeformParsing = $state(false);
+	let freeformSaving = $state(false);
+	let freeformReview = $state<ReviewState | null>(null);
+
+	const freeformCreateRows = $derived(
+		freeformReview ? freeformReview.rows.filter((row) => row.kind === 'create') : []
+	);
+	const freeformUpdateRows = $derived(
+		freeformReview ? freeformReview.rows.filter((row) => row.kind === 'category_update') : []
+	);
+	const freeformVisibleRows = $derived(
+		freeformReview ? freeformReview.rows.filter((row) => row.kind !== 'excluded') : []
+	);
+
+	// --- Helpers ------------------------------------------------------------
+	function toReviewRows(result: ImportCsvPreviewResult): ReviewRow[] {
+		return result.rows.map((row) => ({
+			...row,
+			selectedCategoryName: row.suggestedCategory.name,
+			selectedImportance: row.suggestedImportance,
+			acceptUpdate: row.kind === 'category_update'
+		}));
 	}
 
 	function categoryOptions(row: ReviewRow): Category[] {
@@ -51,7 +103,31 @@
 	}
 
 	function importanceLabel(value: ExpenseImportance): string {
-		return value === 'essential' ? 'Essential' : value === 'important' ? 'Important' : 'Discretionary';
+		return value === 'essential'
+			? 'Essential'
+			: value === 'important'
+				? 'Important'
+				: 'Discretionary';
+	}
+
+	function isValidIsoDate(value: string): boolean {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+		const [year, month, day] = value.split('-').map(Number);
+		const date = new Date(year, month - 1, day);
+		return (
+			date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+		);
+	}
+
+	function setTab(next: ImportTab): void {
+		tab = next;
+		banner = null;
+	}
+
+	// --- CSV handlers -------------------------------------------------------
+	function openFilePicker(): void {
+		banner = null;
+		fileInputEl?.click();
 	}
 
 	async function handleFilesSelected(event: Event): Promise<void> {
@@ -61,22 +137,16 @@
 		if (picked.length === 0) return;
 
 		loading = true;
-		preview = null;
-		rows = [];
+		csvReview = null;
 		banner = null;
 		try {
 			const result = await expenseRepository.previewImportCsv(picked);
-			preview = result;
-			rows = result.rows.map((row) => ({
-				...row,
-				selectedCategoryName: row.suggestedCategory.name,
-				selectedImportance: row.suggestedImportance,
-				acceptUpdate: row.kind === 'category_update'
-			}));
+			csvReview = { preview: result, rows: toReviewRows(result) };
 			if (result.rows.length === 0) {
 				banner = {
 					kind: 'success',
-					message: 'Nothing needs review. Existing transactions with unchanged categories were hidden.'
+					message:
+						'Nothing needs review. Existing transactions with unchanged categories were hidden.'
 				};
 			}
 		} catch (err) {
@@ -87,15 +157,16 @@
 		}
 	}
 
-	async function confirmImport(): Promise<void> {
-		if (!preview) return;
+	async function confirmCsvImport(): Promise<void> {
+		if (!csvReview) return;
+		const review = csvReview;
 		saving = true;
 		banner = null;
 		try {
 			const result = await expenseRepository.confirmImportCsv({
-				importId: preview.importId,
-				files: preview.files.map((file) => file.filename),
-				creates: createRows.map((row) => ({
+				importId: review.preview.importId,
+				files: review.preview.files.map((file) => file.filename),
+				creates: csvCreateRows.map((row) => ({
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					name: row.name,
@@ -105,7 +176,7 @@
 					categoryName: row.selectedCategoryName,
 					importance: row.selectedImportance
 				})),
-				categoryUpdates: updateRows.map((row) => ({
+				categoryUpdates: csvUpdateRows.map((row) => ({
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					existingExpenseId: row.existingExpenseId ?? '',
@@ -114,21 +185,169 @@
 					accept: row.acceptUpdate
 				}))
 			});
-		await refreshExpenses();
-		await refreshCategories();
-		importLogs = await expenseRepository.listImportLogs();
-		preview = null;
-		rows = [];
-		banner = {
-			kind: 'success',
-			message: `Imported ${result.created}, updated ${result.updated}, kept ${result.keptExisting}. ${result.skippedDuplicates} duplicates and ${result.skippedStaleUpdates} stale updates skipped.`
-		};
+			await refreshExpenses();
+			await refreshCategories();
+			importLogs = await expenseRepository.listImportLogs();
+			csvReview = null;
+			banner = {
+				kind: 'success',
+				message: `Imported ${result.created}, updated ${result.updated}, kept ${result.keptExisting}. ${result.skippedDuplicates} duplicates and ${result.skippedStaleUpdates} stale updates skipped.`
+			};
 		} catch (err) {
 			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
 			banner = { kind: 'error', message: `Import failed: ${message}` };
 		} finally {
 			saving = false;
 		}
+	}
+
+	// --- Single transaction handler -----------------------------------------
+	function resetSingleForm(): void {
+		nameInput = '';
+		amountInput = '';
+		dateInput = todayIso();
+		categoryInput = '';
+		noteInput = '';
+		importanceInput = 'important';
+		nameError = '';
+		amountError = '';
+		dateError = '';
+		categoryError = '';
+	}
+
+	async function handleSingleSubmit(event: SubmitEvent): Promise<void> {
+		event.preventDefault();
+		banner = null;
+
+		nameError = '';
+		amountError = '';
+		dateError = '';
+		categoryError = '';
+
+		const trimmedName = nameInput.trim();
+		if (trimmedName.length === 0) {
+			nameError = 'Enter a merchant name.';
+		} else if (trimmedName.length > 80) {
+			nameError = 'Merchant name must be 80 characters or fewer.';
+		}
+
+		const parsedAmount = parseAmountInput(amountInput);
+		if (parsedAmount === null || parsedAmount <= 0) {
+			amountError = 'Enter an amount greater than 0.';
+		}
+
+		const trimmedDate = dateInput.trim();
+		if (!isValidIsoDate(trimmedDate)) {
+			dateError = 'Enter a valid date (YYYY-MM-DD).';
+		}
+
+		const availableCategories = $categories;
+		if (!categoryInput || !availableCategories.some((category) => category.id === categoryInput)) {
+			categoryError = 'Choose a category.';
+		}
+
+		const trimmedNote = noteInput.slice(0, 200);
+
+		if (nameError || amountError || dateError || categoryError) {
+			return;
+		}
+
+		singleSubmitting = true;
+		try {
+			await addExpense({
+				name: trimmedName,
+				amount: parsedAmount as number,
+				date: trimmedDate,
+				categoryId: categoryInput,
+				note: trimmedNote,
+				importance: importanceInput
+			});
+			resetSingleForm();
+			banner = { kind: 'success', message: `Added “${trimmedName}”.` };
+		} catch (err) {
+			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
+			banner = { kind: 'error', message: `Could not add transaction: ${message}` };
+		} finally {
+			singleSubmitting = false;
+		}
+	}
+
+	// --- Free-form handlers -------------------------------------------------
+	async function parseFreeform(): Promise<void> {
+		const raw = freeformInput.trim();
+		if (raw.length === 0) {
+			banner = { kind: 'error', message: 'Enter some transactions to parse.' };
+			return;
+		}
+
+		freeformParsing = true;
+		freeformReview = null;
+		banner = null;
+		try {
+			const result = await expenseRepository.previewImportFreeform(raw);
+			freeformReview = { preview: result, rows: toReviewRows(result) };
+			if (result.rows.length === 0) {
+				banner = {
+					kind: 'success',
+					message: 'Nothing needs review. Nothing new was found in your text.'
+				};
+			}
+		} catch (err) {
+			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
+			banner = { kind: 'error', message: `Parse failed: ${message}` };
+		} finally {
+			freeformParsing = false;
+		}
+	}
+
+	async function confirmFreeformImport(): Promise<void> {
+		if (!freeformReview) return;
+		const review = freeformReview;
+		freeformSaving = true;
+		banner = null;
+		try {
+			const result = await expenseRepository.confirmImportFreeform({
+				importId: review.preview.importId,
+				rawInput: freeformInput,
+				creates: freeformCreateRows.map((row) => ({
+					previewRowId: row.previewRowId,
+					dedupeKeyHash: row.dedupeKeyHash,
+					name: row.name,
+					amount: row.amount,
+					date: row.date,
+					note: row.note,
+					categoryName: row.selectedCategoryName,
+					importance: row.selectedImportance
+				})),
+				categoryUpdates: freeformUpdateRows.map((row) => ({
+					previewRowId: row.previewRowId,
+					dedupeKeyHash: row.dedupeKeyHash,
+					existingExpenseId: row.existingExpenseId ?? '',
+					categoryName: row.selectedCategoryName,
+					importance: row.selectedImportance,
+					accept: row.acceptUpdate
+				}))
+			});
+			await refreshExpenses();
+			await refreshCategories();
+			importLogs = await expenseRepository.listImportLogs();
+			freeformReview = null;
+			freeformInput = '';
+			banner = {
+				kind: 'success',
+				message: `Imported ${result.created}, updated ${result.updated}, kept ${result.keptExisting}. ${result.skippedDuplicates} duplicates and ${result.skippedStaleUpdates} stale updates skipped.`
+			};
+		} catch (err) {
+			const message = err instanceof RepositoryError ? err.message : (err as Error).message;
+			banner = { kind: 'error', message: `Import failed: ${message}` };
+		} finally {
+			freeformSaving = false;
+		}
+	}
+
+	// --- History helpers ----------------------------------------------------
+	function toggleLog(id: string): void {
+		expandedLogs = { ...expandedLogs, [id]: !expandedLogs[id] };
 	}
 
 	onMount(() => {
@@ -140,42 +359,177 @@
 	});
 </script>
 
+{#snippet reviewTable(
+	rows: ReviewRow[],
+	createRows: ReviewRow[],
+	updateRows: ReviewRow[],
+	preview: ImportCsvPreviewResult,
+	busy: boolean,
+	confirmTestId: string,
+	onCancel: () => void,
+	onConfirm: () => void
+)}
+	<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
+		<div><strong>{preview.summary.creates}</strong><br />new</div>
+		<div><strong>{preview.summary.categoryUpdates}</strong><br />category changes</div>
+		<div><strong>{preview.summary.hiddenDuplicates}</strong><br />unchanged hidden</div>
+		<div><strong>{preview.summary.excluded}</strong><br />excluded</div>
+		<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
+		<div><strong>{preview.summary.aiCategorized}</strong><br />AI categorised</div>
+	</div>
+
+	{#if rows.length > 0}
+		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
+			<div
+				class="import-row import-row-header border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1"
+			>
+				<div>Transaction</div>
+				<div>Amount</div>
+				<div>Category</div>
+				<div>Importance</div>
+				<div>Decision</div>
+			</div>
+			{#each rows as row (row.previewRowId)}
+				<div class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
+					<div>
+						<div class="font-medium text-ctp-text">{row.name}</div>
+						<div class="text-xs text-ctp-overlay1">
+							{row.date} · {row.filename}:{row.sourceRow}
+						</div>
+						{#if row.note}
+							<div class="text-xs text-ctp-overlay1">{row.note}</div>
+						{/if}
+					</div>
+					<div class="text-ctp-subtext0">{formatAmount(row.amount, $settings.currency)}</div>
+					<div>
+						<select
+							bind:value={row.selectedCategoryName}
+							disabled={row.kind === 'category_update' && !row.acceptUpdate}
+							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
+						>
+							{#each categoryOptions(row) as category (category.id)}
+								<option value={category.name}>{category.name}</option>
+							{/each}
+						</select>
+					</div>
+					<div>
+						<select
+							bind:value={row.selectedImportance}
+							disabled={row.kind === 'category_update' && !row.acceptUpdate}
+							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
+						>
+							<option value="essential">Essential</option>
+							<option value="important">Important</option>
+							<option value="discretionary">Discretionary</option>
+						</select>
+						{#if row.existingImportance && row.existingImportance !== row.selectedImportance}
+							<p class="mt-1 text-xs text-ctp-overlay1">
+								Was {importanceLabel(row.existingImportance)}
+							</p>
+						{/if}
+					</div>
+					<div>
+						{#if row.kind === 'create'}
+							<span
+								class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+								>New transaction</span
+							>
+						{:else if row.kind === 'category_update'}
+							<label class="flex items-start gap-2 text-sm text-ctp-subtext0">
+								<input
+									type="checkbox"
+									bind:checked={row.acceptUpdate}
+									class="mt-1 h-4 w-4 accent-ctp-accent"
+								/>
+								<span>Apply category / importance changes</span>
+							</label>
+						{:else}
+							<span
+								class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
+								>Excluded</span
+							>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<div class="flex justify-end gap-2">
+			<button
+				type="button"
+				onclick={onCancel}
+				disabled={busy}
+				class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text hover:bg-ctp-surface1 disabled:opacity-60"
+			>
+				Cancel
+			</button>
+			<button
+				type="button"
+				data-testid={confirmTestId}
+				onclick={onConfirm}
+				disabled={busy}
+				class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
+			>
+				{busy ? 'Saving…' : `Save ${createRows.length} new and review ${updateRows.length} updates`}
+			</button>
+		</div>
+	{/if}
+{/snippet}
+
 <svelte:head>
 	<title>Import transactions</title>
 </svelte:head>
 
 <section class="flex flex-col gap-6">
-	<header class="flex flex-wrap items-start justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
-				Import transactions
-			</h1>
-			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
-				Preview CSV transactions before saving. Existing transactions with unchanged categories are
-				hidden; category changes are shown for approval.
-			</p>
-		</div>
-		<div class="flex flex-wrap items-center gap-2">
-			<input
-				bind:this={fileInputEl}
-				type="file"
-				accept=".csv,text/csv"
-				multiple
-				data-testid="import-csv-input"
-				class="hidden"
-				onchange={handleFilesSelected}
-			/>
-			<button
-				type="button"
-				data-testid="select-import-files"
-				onclick={openFilePicker}
-				disabled={loading || saving}
-				class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-			>
-				{loading ? 'Previewing…' : 'Select CSV'}
-			</button>
-		</div>
+	<header class="flex flex-col gap-1">
+		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Import transactions</h1>
+		<p class="max-w-2xl text-sm text-ctp-overlay1">
+			Add transactions from a CSV, one at a time, or by pasting free-form text for AI to parse.
+		</p>
 	</header>
+
+	<div
+		role="tablist"
+		aria-label="Import mode"
+		class="inline-flex w-full max-w-xl gap-1 rounded-lg border border-ctp-surface1 bg-ctp-mantle p-1 sm:w-auto"
+	>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={tab === 'csv'}
+			data-testid="import-tab-csv"
+			onclick={() => setTab('csv')}
+			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors {tab === 'csv'
+				? 'bg-ctp-accent text-ctp-on-accent shadow-sm'
+				: 'text-ctp-subtext0 hover:bg-ctp-surface0 hover:text-ctp-text'}"
+		>
+			CSV file
+		</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={tab === 'single'}
+			data-testid="import-tab-single"
+			onclick={() => setTab('single')}
+			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors {tab === 'single'
+				? 'bg-ctp-accent text-ctp-on-accent shadow-sm'
+				: 'text-ctp-subtext0 hover:bg-ctp-surface0 hover:text-ctp-text'}"
+		>
+			Single transaction
+		</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={tab === 'freeform'}
+			data-testid="import-tab-freeform"
+			onclick={() => setTab('freeform')}
+			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors {tab === 'freeform'
+				? 'bg-ctp-accent text-ctp-on-accent shadow-sm'
+				: 'text-ctp-subtext0 hover:bg-ctp-surface0 hover:text-ctp-text'}"
+		>
+			AI free-form
+		</button>
+	</div>
 
 	{#if banner}
 		<div
@@ -189,141 +543,297 @@
 		</div>
 	{/if}
 
-	{#if preview}
-		<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
-			<div><strong>{preview.summary.creates}</strong><br />new</div>
-			<div><strong>{preview.summary.categoryUpdates}</strong><br />category changes</div>
-			<div><strong>{preview.summary.hiddenDuplicates}</strong><br />unchanged hidden</div>
-			<div><strong>{preview.summary.excluded}</strong><br />excluded</div>
-			<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
-			<div><strong>{preview.summary.aiCategorized}</strong><br />AI categorised</div>
-		</div>
-
-		{#if visibleRows.length > 0}
-			<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
-				<div class="import-row import-row-header border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
-					<div>Transaction</div>
-					<div>Amount</div>
-					<div>Category</div>
-					<div>Importance</div>
-					<div>Decision</div>
+	<!-- TAB 1 — CSV ------------------------------------------------------- -->
+	{#if tab === 'csv'}
+		<div data-testid="import-panel-csv" class="flex flex-col gap-6">
+			<div
+				class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-ctp-surface1 bg-ctp-base p-4"
+			>
+				<p class="max-w-xl text-sm text-ctp-overlay1">
+					Preview CSV transactions before saving. Existing transactions with unchanged categories
+					are hidden; category changes are shown for approval.
+				</p>
+				<div class="flex flex-wrap items-center gap-2">
+					<input
+						bind:this={fileInputEl}
+						type="file"
+						accept=".csv,text/csv"
+						multiple
+						data-testid="import-csv-input"
+						class="hidden"
+						onchange={handleFilesSelected}
+					/>
+					<button
+						type="button"
+						data-testid="select-import-files"
+						onclick={openFilePicker}
+						disabled={loading || saving}
+						class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{loading ? 'Previewing…' : 'Select CSV'}
+					</button>
 				</div>
-				{#each visibleRows as row (row.previewRowId)}
-					<div class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
-						<div>
-							<div class="font-medium text-ctp-text">{row.name}</div>
-							<div class="text-xs text-ctp-overlay1">
-								{row.date} · {row.filename}:{row.sourceRow}
-							</div>
-							{#if row.note}
-								<div class="text-xs text-ctp-overlay1">{row.note}</div>
-							{/if}
-						</div>
-						<div class="text-ctp-subtext0">{formatAmount(row.amount, $settings.currency)}</div>
-						<div>
-							<select
-								bind:value={row.selectedCategoryName}
-								disabled={row.kind === 'category_update' && !row.acceptUpdate}
-								class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
-							>
-								{#each categoryOptions(row) as category (category.id)}
-									<option value={category.name}>{category.name}</option>
-								{/each}
-							</select>
-						</div>
-						<div>
-							<select
-								bind:value={row.selectedImportance}
-								disabled={row.kind === 'category_update' && !row.acceptUpdate}
-								class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
-							>
-								<option value="essential">Essential</option>
-								<option value="important">Important</option>
-								<option value="discretionary">Discretionary</option>
-							</select>
-							{#if row.existingImportance && row.existingImportance !== row.selectedImportance}
-								<p class="mt-1 text-xs text-ctp-overlay1">
-									Was {importanceLabel(row.existingImportance)}
-								</p>
-							{/if}
-						</div>
-						<div>
-							{#if row.kind === 'create'}
-								<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">New transaction</span>
-							{:else if row.kind === 'category_update'}
-								<label class="flex items-start gap-2 text-sm text-ctp-subtext0">
-									<input type="checkbox" bind:checked={row.acceptUpdate} class="mt-1 h-4 w-4 accent-ctp-accent" />
-									<span>Apply category / importance changes</span>
-								</label>
-							{:else}
-								<span class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0">Excluded</span>
-							{/if}
-						</div>
-					</div>
-				{/each}
 			</div>
 
-			<div class="flex justify-end gap-2">
-				<button
-					type="button"
-					onclick={() => {
-						preview = null;
-						rows = [];
-					}}
-					disabled={saving}
-					class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text hover:bg-ctp-surface1 disabled:opacity-60"
-				>
-					Cancel
-				</button>
-				<button
-					type="button"
-					data-testid="confirm-import"
-					onclick={confirmImport}
-					disabled={saving}
-					class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
-				>
-					{saving ? 'Saving…' : `Save ${createRows.length} new and review ${updateRows.length} updates`}
-				</button>
-			</div>
-		{/if}
+			{#if csvReview}
+				{@render reviewTable(
+					csvVisibleRows,
+					csvCreateRows,
+					csvUpdateRows,
+					csvReview.preview,
+					saving,
+					'confirm-import',
+					() => (csvReview = null),
+					confirmCsvImport
+				)}
+			{/if}
+		</div>
 	{/if}
 
+	<!-- TAB 2 — Single transaction --------------------------------------- -->
+	{#if tab === 'single'}
+		<div data-testid="import-panel-single">
+			<form
+				class="flex max-w-md flex-col gap-4 rounded-lg border border-ctp-surface1 bg-ctp-base p-6"
+				onsubmit={handleSingleSubmit}
+				novalidate
+			>
+				<div class="flex flex-col gap-1">
+					<label for="single-name" class="text-sm font-medium text-ctp-subtext0">Merchant</label>
+					<input
+						id="single-name"
+						data-testid="name-input"
+						type="text"
+						maxlength="80"
+						autocomplete="off"
+						placeholder="e.g. Starbucks"
+						bind:value={nameInput}
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					/>
+					{#if nameError}
+						<p data-testid="name-error" class="text-sm text-red-600 dark:text-red-400">{nameError}</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label for="single-amount" class="text-sm font-medium text-ctp-subtext0">Amount</label>
+					<input
+						id="single-amount"
+						data-testid="amount-input"
+						type="number"
+						step="0.01"
+						min="0"
+						inputmode="decimal"
+						autocomplete="off"
+						placeholder="0.00"
+						value={amountInput}
+						oninput={(event) => (amountInput = event.currentTarget.value)}
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					/>
+					{#if amountError}
+						<p data-testid="amount-error" class="text-sm text-red-600 dark:text-red-400">
+							{amountError}
+						</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label for="single-date" class="text-sm font-medium text-ctp-subtext0">Date</label>
+					<input
+						id="single-date"
+						data-testid="date-input"
+						type="date"
+						autocomplete="off"
+						bind:value={dateInput}
+						class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+					/>
+					{#if dateError}
+						<p data-testid="date-error" class="text-sm text-red-600 dark:text-red-400">{dateError}</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label for="single-category" class="text-sm font-medium text-ctp-subtext0">Category</label>
+					<select
+						id="single-category"
+						data-testid="category-select"
+						bind:value={categoryInput}
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+					>
+						<option value="" disabled>Select a category</option>
+						{#each $categories as category (category.id)}
+							<option value={category.id}>{category.name}</option>
+						{/each}
+					</select>
+					{#if categoryError}
+						<p data-testid="category-error" class="text-sm text-red-600 dark:text-red-400">
+							{categoryError}
+						</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label for="single-importance" class="text-sm font-medium text-ctp-subtext0"
+						>Importance</label
+					>
+					<select
+						id="single-importance"
+						data-testid="importance-select"
+						bind:value={importanceInput}
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+					>
+						<option value="essential">Essential</option>
+						<option value="important">Important</option>
+						<option value="discretionary">Discretionary</option>
+					</select>
+				</div>
+
+				<div class="flex flex-col gap-1">
+					<label for="single-note" class="text-sm font-medium text-ctp-subtext0">Note</label>
+					<input
+						id="single-note"
+						data-testid="note-input"
+						type="text"
+						maxlength="200"
+						autocomplete="off"
+						bind:value={noteInput}
+						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					/>
+					<p class="text-right text-xs text-ctp-overlay1">{noteInput.length}/200</p>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-2">
+					<button
+						type="submit"
+						data-testid="single-add-submit"
+						disabled={singleSubmitting}
+						class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
+					>
+						{singleSubmitting ? 'Adding…' : 'Add transaction'}
+					</button>
+				</div>
+			</form>
+		</div>
+	{/if}
+
+	<!-- TAB 3 — AI free-form --------------------------------------------- -->
+	{#if tab === 'freeform'}
+		<div data-testid="import-panel-freeform" class="flex flex-col gap-6">
+			<div class="flex flex-col gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base p-4">
+				<p class="max-w-xl text-sm text-ctp-overlay1">
+					Paste transactions in plain English — one per line. AI will parse the merchant, amount,
+					and date, then suggest categories for you to review before saving.
+				</p>
+				<textarea
+					data-testid="freeform-input"
+					rows="6"
+					bind:value={freeformInput}
+					placeholder={'coffee 3.50 yesterday\nTesco 42.10 on the 3rd\nNetflix 12.99'}
+					class="w-full resize-y rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 font-mono text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+				></textarea>
+				<div class="flex justify-end">
+					<button
+						type="button"
+						data-testid="freeform-parse"
+						onclick={parseFreeform}
+						disabled={freeformParsing || freeformSaving}
+						class="inline-flex items-center justify-center rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{freeformParsing ? 'Parsing…' : 'Parse with AI'}
+					</button>
+				</div>
+			</div>
+
+			{#if freeformReview}
+				{@render reviewTable(
+					freeformVisibleRows,
+					freeformCreateRows,
+					freeformUpdateRows,
+					freeformReview.preview,
+					freeformSaving,
+					'freeform-confirm',
+					() => (freeformReview = null),
+					confirmFreeformImport
+				)}
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Shared import history -------------------------------------------- -->
 	{#if importLogs.length > 0}
 		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
 			<div class="border-b border-ctp-surface1 px-4 py-3">
 				<h2 class="text-sm font-medium text-ctp-text">Import history</h2>
 			</div>
-			<div class="import-log-row border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
+			<div
+				class="import-log-row border-b border-ctp-surface1 px-4 py-2 text-xs font-medium uppercase tracking-wide text-ctp-overlay1"
+			>
 				<div>Date / Time</div>
+				<div>Source</div>
 				<div>Files</div>
 				<div>Imported</div>
 				<div>Updated</div>
 				<div>Skipped</div>
 			</div>
 			{#each importLogs as log (log.id)}
-				<div class="import-log-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
-					<div class="text-ctp-subtext0">
-						{new Date(log.importedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+				<div class="border-b border-ctp-surface0 last:border-b-0">
+					<div class="import-log-row px-4 py-3 text-sm">
+						<div class="text-ctp-subtext0">
+							{new Date(log.importedAt).toLocaleString('en-GB', {
+								dateStyle: 'medium',
+								timeStyle: 'short'
+							})}
+						</div>
+						<div>
+							{#if log.source === 'freeform'}
+								<span
+									class="inline-flex items-center gap-1 rounded-full bg-ctp-accent/15 px-2 py-1 text-xs font-medium text-ctp-accent"
+								>
+									AI
+									{#if log.rawInput}
+										<button
+											type="button"
+											onclick={() => toggleLog(log.id)}
+											class="ml-1 underline decoration-dotted underline-offset-2 hover:no-underline"
+										>
+											{expandedLogs[log.id] ? 'hide' : 'view'}
+										</button>
+									{/if}
+								</span>
+							{:else}
+								<span
+									class="inline-flex items-center rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
+									>CSV</span
+								>
+							{/if}
+						</div>
+						<div class="text-ctp-overlay1">
+							{log.files.length > 0 ? log.files.join(', ') : '—'}
+						</div>
+						<div class="text-ctp-subtext0">{log.imported}</div>
+						<div class="text-ctp-subtext0">{log.updated}</div>
+						<div class="text-xs text-ctp-overlay1">
+							{#if log.skippedDuplicates > 0}
+								<span>{log.skippedDuplicates} dup</span>
+							{/if}
+							{#if log.skippedExcluded > 0}
+								<span>{log.skippedExcluded} excl</span>
+							{/if}
+							{#if log.skippedInvalidRows > 0}
+								<span>{log.skippedInvalidRows} invalid</span>
+							{/if}
+							{#if log.skippedDuplicates === 0 && log.skippedExcluded === 0 && log.skippedInvalidRows === 0}
+								<span>—</span>
+							{/if}
+						</div>
 					</div>
-					<div class="text-ctp-overlay1">
-						{log.files.length > 0 ? log.files.join(', ') : '—'}
-					</div>
-					<div class="text-ctp-subtext0">{log.imported}</div>
-					<div class="text-ctp-subtext0">{log.updated}</div>
-					<div class="text-xs text-ctp-overlay1">
-						{#if log.skippedDuplicates > 0}
-							<span>{log.skippedDuplicates} dup</span>
-						{/if}
-						{#if log.skippedExcluded > 0}
-							<span>{log.skippedExcluded} excl</span>
-						{/if}
-						{#if log.skippedInvalidRows > 0}
-							<span>{log.skippedInvalidRows} invalid</span>
-						{/if}
-						{#if log.skippedDuplicates === 0 && log.skippedExcluded === 0 && log.skippedInvalidRows === 0}
-							<span>—</span>
-						{/if}
-					</div>
+					{#if log.source === 'freeform' && log.rawInput && expandedLogs[log.id]}
+						<div class="px-4 pb-3">
+							<pre
+								data-testid="import-log-rawinput-{log.id}"
+								class="overflow-x-auto whitespace-pre-wrap rounded-md border border-ctp-surface1 bg-ctp-mantle px-3 py-2 font-mono text-xs text-ctp-subtext0">{log.rawInput}</pre>
+						</div>
+					{/if}
 				</div>
 			{/each}
 		</div>
@@ -353,7 +863,10 @@
 
 	.import-log-row {
 		display: grid;
-		grid-template-columns: minmax(10rem, 1.2fr) minmax(10rem, 2fr) 6rem 6rem minmax(8rem, 1fr);
+		grid-template-columns: minmax(10rem, 1.2fr) minmax(5rem, 0.6fr) minmax(10rem, 2fr) 6rem 6rem minmax(
+				8rem,
+				1fr
+			);
 		gap: 0.75rem;
 		align-items: center;
 	}

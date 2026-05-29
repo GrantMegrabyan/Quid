@@ -10,6 +10,7 @@ import type {
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
 	ImportCsvResult,
+	ImportFreeformConfirmRequest,
 	ImportLog,
 	AiRule,
 	AiRuleCreate,
@@ -39,6 +40,8 @@ export interface ExpenseRepository {
 	importCsv(files: File[]): Promise<ImportCsvResult>;
 	previewImportCsv(files: File[]): Promise<ImportCsvPreviewResult>;
 	confirmImportCsv(input: ImportCsvConfirmRequest): Promise<ImportCsvConfirmResult>;
+	previewImportFreeform(rawInput: string): Promise<ImportCsvPreviewResult>;
+	confirmImportFreeform(input: ImportFreeformConfirmRequest): Promise<ImportCsvConfirmResult>;
 	listImportLogs(): Promise<ImportLog[]>;
 }
 
