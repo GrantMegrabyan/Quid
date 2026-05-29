@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date, timedelta
 from decimal import Decimal
+from time import perf_counter
 
 import pytest
 
 from quid_api.ai_categorization import CategorizedBulkItems
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
+from quid_api.repositories.amazon_orders import ParsedOrderInput
+from quid_api.routers.amazon_orders import _ingest_orders
 from quid_api.settings import reset_settings
 
 
@@ -151,6 +155,91 @@ async def test_import_creates_orders_and_lists_them(app_client):
     keyboard_order = next(row for row in rows if row["id"] == "111-1234567-1234567")
     titles = [item["title"] for item in keyboard_order["items"]]
     assert "USB-C Cable" in titles
+
+
+async def test_ingest_orders_counts_created_updated_and_auto_matched(
+    app_client, session, monkeypatch
+):
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    await app_client.patch(
+        "/api/v1/settings", json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False}
+    )
+    expense = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 42.50,
+            "date": "2026-04-22",
+            "categoryId": "uncategorized",
+        },
+    )
+    assert expense.status_code == 201, expense.text
+
+    parsed_orders = [
+        ParsedOrderInput(
+            order_id="111-1234567-1234567",
+            order_date="2026-04-20",
+            total=Decimal("42.50"),
+            currency="GBP",
+            items=[{"title": "USB-C Cable", "quantity": 2, "price": Decimal("12.50")}],
+            shipments=[],
+            payment_last4="1234",
+            order_url=None,
+        ),
+        ParsedOrderInput(
+            order_id="222-7654321-7654321",
+            order_date="2026-04-25",
+            total=Decimal("15.00"),
+            currency="GBP",
+            items=[{"title": "Notebook", "quantity": 1, "price": Decimal("15.00")}],
+            shipments=[],
+            payment_last4="1234",
+            order_url=None,
+        ),
+    ]
+
+    result = await _ingest_orders(session, parsed_orders, source="test")
+    assert result.created == 2
+    assert result.updated == 0
+    assert result.auto_matched == 1
+
+
+async def test_combined_match_pass_scales_to_large_unmatched_sets(app_client, session, monkeypatch):
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    await app_client.patch(
+        "/api/v1/settings", json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False}
+    )
+    await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 6.00,
+            "date": "2030-01-01",
+            "categoryId": "uncategorized",
+        },
+    )
+
+    parsed_orders = [
+        ParsedOrderInput(
+            order_id=f"{i:03d}-1111111-1111111",
+            order_date=(date(2026, 1, 1) + timedelta(days=i)).isoformat(),
+            total=Decimal("2.00"),
+            currency="GBP",
+            items=[{"title": f"Item {i}", "quantity": 1, "price": Decimal("2.00")}],
+            shipments=[],
+            payment_last4=None,
+            order_url=None,
+        )
+        for i in range(1000)
+    ]
+
+    start = perf_counter()
+    result = await _ingest_orders(session, parsed_orders, source="test")
+    elapsed = perf_counter() - start
+    assert result.auto_matched == 0
+    assert elapsed < 2.0
 
 
 async def test_import_generates_short_name_fallback(app_client, monkeypatch):

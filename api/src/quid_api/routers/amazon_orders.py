@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
@@ -47,6 +48,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/amazon-orders", tags=["amazon-orders"])
 
 SessionDep = Annotated["AsyncSession", Depends(get_session)]
+
+
+@dataclass(frozen=True)
+class _IngestResult:
+    created: int
+    updated: int
+    auto_matched: int
+    ambiguous: int
+    combined_matched: int
 
 
 def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOrderOut:
@@ -127,12 +137,8 @@ async def import_amazon_csv(
     settings_row = await settings_repo.get()
     default_currency = settings_row.currency
 
-    repo = AmazonOrderRepository(session)
+    all_orders: list[ParsedOrderInput] = []
     reports: list[AmazonImportFileReport] = []
-    total_created = 0
-    total_updated = 0
-    # Item titles per order id so we can generate short names once after upsert.
-    titles_by_order: dict[str, list[str]] = {}
     for upload in files:
         content = await upload.read()
         filename = upload.filename or "amazon.csv"
@@ -175,11 +181,7 @@ async def import_amazon_csv(
             )
             for order in parsed.orders
         ]
-        for order in parsed.orders:
-            titles_by_order[order.order_id] = [item.title for item in order.items]
-        result = await repo.bulk_upsert(payloads)
-        total_created += result.created
-        total_updated += result.updated
+        all_orders.extend(payloads)
         reports.append(
             AmazonImportFileReport(
                 filename=filename,
@@ -187,42 +189,52 @@ async def import_amazon_csv(
                 skipped_rows=parsed.skipped_rows,
             )
         )
-        logger.info(
-            "amazon.import filename=%s parsed=%d created=%d updated=%d skipped_rows=%d",
-            filename,
-            len(parsed.orders),
-            result.created,
-            result.updated,
-            parsed.skipped_rows,
-        )
+    result = await _ingest_orders(session, all_orders, source="csv")
+    return AmazonImportResponse(
+        created=result.created,
+        updated=result.updated,
+        auto_matched=result.auto_matched,
+        ambiguous=result.ambiguous,
+        combined_matched=result.combined_matched,
+        files=reports,
+    )
 
-    # Generate short names once for imported orders that don't have one yet,
-    # but only when the AI short-name setting is enabled. When disabled we
-    # leave the short name blank (no AI call, no fallback) until the user
-    # edits it or runs the backfill command.
+
+async def _ingest_orders(
+    session: AsyncSession,
+    parsed_orders: list[ParsedOrderInput],
+    *,
+    source: str,
+) -> _IngestResult:
+    repo = AmazonOrderRepository(session)
+    settings_repo = AppSettingsRepository(session)
+    settings_row = await settings_repo.get()
     settings = get_settings()
-    needs_name: list[ShortNameInput] = []
+    result = await repo.bulk_upsert(parsed_orders)
+    # Item titles per order id so we can generate short names once after upsert.
+    titles_by_order: dict[str, list[str]] = {}
+    for order in parsed_orders:
+        titles_by_order[order.order_id] = [cast("str", item["title"]) for item in order.items or []]
+
     if settings_row.ai_short_names_enabled:
+        needs_name: list[ShortNameInput] = []
         for order_id, titles in titles_by_order.items():
             existing = await repo.get(order_id)
             if existing.short_name:
                 continue
             needs_name.append(ShortNameInput(order_id=order_id, item_titles=titles))
-    if needs_name:
-        try:
-            generated = await generate_short_names(
-                needs_name,
-                api_key=settings.openrouter_api_key,
-                model=settings.openrouter_model,
-                chunk_size=settings.openrouter_chunk_size,
-            )
-            await repo.set_generated_short_names(generated)
-        except RepositoryError:
-            logger.warning("amazon.import.short_names_failed", exc_info=True)
+        if needs_name:
+            try:
+                generated = await generate_short_names(
+                    needs_name,
+                    api_key=settings.openrouter_api_key,
+                    model=settings.openrouter_model,
+                    chunk_size=settings.openrouter_chunk_size,
+                )
+                await repo.set_generated_short_names(generated)
+            except RepositoryError:
+                logger.warning("amazon.import.short_names_failed", exc_info=True)
 
-    # AI-categorise newly imported orders (those without a category yet) using
-    # the same category set as expenses, gated by ai_categorize_enabled. Runs
-    # BEFORE auto-match so link-time inheritance sees the fresh categories.
     if settings_row.ai_categorize_enabled:
         uncategorized = []
         for order_id in titles_by_order:
@@ -255,13 +267,21 @@ async def import_amazon_csv(
 
     match_result = await repo.auto_match_all()
     await session.commit()
-    return AmazonImportResponse(
-        created=total_created,
-        updated=total_updated,
+    logger.info(
+        "amazon.ingest source=%s created=%d updated=%d auto_matched=%d ambiguous=%d combined_matched=%d",
+        source,
+        result.created,
+        result.updated,
+        match_result.auto_matched,
+        match_result.ambiguous,
+        match_result.combined_matched,
+    )
+    return _IngestResult(
+        created=result.created,
+        updated=result.updated,
         auto_matched=match_result.auto_matched,
         ambiguous=match_result.ambiguous,
         combined_matched=match_result.combined_matched,
-        files=reports,
     )
 
 

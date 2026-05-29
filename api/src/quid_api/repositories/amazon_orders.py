@@ -536,7 +536,7 @@ class AmazonOrderRepository:
         Pass 2 — combined orders: for orders still unlinked, look for tight
         date clusters (≤2 days between order dates) of 2..3 orders whose
         summed total uniquely matches an unlinked expense within ±3 days
-        of the latest order date and whose total exceeds ``£25``. Same
+        of the latest order date and whose total exceeds ``£5``. Same
         ``payment_last4`` is required when known for both sides. Ambiguous
         combos (two combos matching the same expense, or one combo with
         multiple candidate expenses) are skipped.
@@ -649,19 +649,27 @@ class AmazonOrderRepository:
                 parsed_dates[o.id] = _parse_date(o.order_date)
         eligible = [o for o in unmatched_orders if o.id in parsed_dates]
 
-        for size in range(2, _COMBINED_MAX_SIZE + 1):
-            for combo in combinations(eligible, size):
-                dates = [parsed_dates[o.id] for o in combo]
-                if (max(dates) - min(dates)).days > _COMBINED_ORDER_DATE_SPAN_DAYS:
-                    continue
-                last4s = {o.payment_last4 for o in combo if o.payment_last4}
-                if len(last4s) > 1:
-                    # Mixed payment methods → almost certainly distinct charges.
-                    continue
-                total = sum((o.total for o in combo), Decimal(0))
-                if total < _COMBINED_MIN_TOTAL:
-                    continue
-                combos.append((combo, total, max(dates)))
+        eligible.sort(key=lambda o: (parsed_dates[o.id], o.id))
+        for start, first in enumerate(eligible):
+            window: list[AmazonOrder] = [first]
+            first_date = parsed_dates[first.id]
+            for other in eligible[start + 1 :]:
+                if (parsed_dates[other.id] - first_date).days > _COMBINED_ORDER_DATE_SPAN_DAYS:
+                    break
+                window.append(other)
+            for size in range(2, _COMBINED_MAX_SIZE + 1):
+                if len(window) < size:
+                    break
+                for combo in combinations(window, size):
+                    dates = [parsed_dates[o.id] for o in combo]
+                    last4s = {o.payment_last4 for o in combo if o.payment_last4}
+                    if len(last4s) > 1:
+                        # Mixed payment methods → almost certainly distinct charges.
+                        continue
+                    total = sum((o.total for o in combo), Decimal(0))
+                    if total < _COMBINED_MIN_TOTAL:
+                        continue
+                    combos.append((combo, total, max(dates)))
 
         # For each combo, find matching expenses within the expense window.
         combo_matches: list[tuple[tuple[AmazonOrder, ...], Decimal, date, Expense]] = []
