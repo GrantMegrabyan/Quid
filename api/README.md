@@ -116,11 +116,13 @@ Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates a
 
 ### Idempotency
 
-The endpoint deduplicates by the tuple `(date, lower(trim(name)), amount, lower(trim(note)))`.
-Category is intentionally excluded from the key: AI categorisation is non-deterministic
-across runs, import-rule sets change over time, and users re-categorise rows by hand —
-including category in the key let identical transactions slip through whenever the
-category drifted between imports.
+The endpoint deduplicates by the tuple `(date, lower(trim(name)), amount)`.
+Neither category nor note is part of the key. AI categorisation is non-deterministic
+across runs, import-rule sets change over time, and users re-categorise rows by hand;
+note is likewise incidental and user-mutable (manual edits, or a differing export from
+the bank). Including either let identical transactions slip through whenever the value
+drifted between imports — same merchant, same day, same amount is the same transaction
+regardless of category or note.
 
 For each unique normalised tuple, the server inserts
 `max(0, rows_in_file − rows_already_in_db)`, so re-uploading the same file is a no-op
@@ -155,7 +157,7 @@ preview/confirm flow so the same review UI is reused.
   reviewed/edited in the UI (it is not forced back to the AI-parsed value), so a
   corrected amount is persisted. Persists the rows and records an import-log entry
   with `source = "freeform"` and the `rawInput` preserved. Idempotent: confirm
-  re-runs the bulk dedup against the DB by `(date, name, amount, note)` at write
+  re-runs the bulk dedup against the DB by `(date, name, amount)` at write
   time, so re-confirming identical rows creates nothing (`skippedDuplicates`),
   while an edited amount counts as a distinct transaction.
 

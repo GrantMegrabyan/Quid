@@ -352,14 +352,15 @@ class ExpenseRepository:
     ) -> ImportResult:
         """Idempotent bulk insert.
 
-        Dedup key: ``(date, lower(trim(name)), amount, lower(trim(note)))``.
+        Dedup key: ``(date, lower(trim(name)), amount)``.
 
-        Category is intentionally NOT part of the key. AI categorisation is
+        Neither category nor note is part of the key. AI categorisation is
         non-deterministic across runs, import-rule sets change over time, and
-        users re-categorise rows by hand. Including category in the key let
-        identical transactions slip through as duplicates whenever the
-        category drifted between imports. Same merchant, same day, same
-        amount, same note is the same transaction regardless of category.
+        users re-categorise rows by hand; note is likewise incidental and
+        user-mutable (manual edits, differing exports between banks). Including
+        either let identical transactions slip through as duplicates whenever
+        the value drifted between imports. Same merchant, same day, same
+        amount is the same transaction regardless of category or note.
 
         For each unique normalised key we insert
         ``max(0, in_file_count - existing_in_db)`` rows, so re-uploading the
@@ -445,14 +446,14 @@ class ExpenseRepository:
                 )
             )
 
-        DedupKey = tuple[str, str, Decimal, str]
+        DedupKey = tuple[str, str, Decimal]
         in_file_counts: Counter[DedupKey] = Counter()
-        for _, _cat, amount, date, name, note, _dn, _imp, _src in prepared:
-            in_file_counts[(date, _normalize_text(name), amount, _normalize_text(note))] += 1
+        for _, _cat, amount, date, name, _note, _dn, _imp, _src in prepared:
+            in_file_counts[(date, _normalize_text(name), amount)] += 1
 
         quotas: dict[DedupKey, int] = {}
         for key, in_file in in_file_counts.items():
-            date, name_norm, amount, note_norm = key
+            date, name_norm, amount = key
             existing_candidates = list(
                 (
                     await self.session.scalars(
@@ -463,10 +464,7 @@ class ExpenseRepository:
                 ).all()
             )
             existing = sum(
-                1
-                for expense in existing_candidates
-                if _normalize_text(expense.name) == name_norm
-                and _normalize_text(expense.note) == note_norm
+                1 for expense in existing_candidates if _normalize_text(expense.name) == name_norm
             )
             quotas[key] = max(0, in_file - existing)
             logger.debug(
@@ -484,7 +482,7 @@ class ExpenseRepository:
         created_expenses: list[Expense] = []
         skipped = 0
         for item_idx, cat, amount, date, name, note, display_name, importance, source in prepared:
-            key = (date, _normalize_text(name), amount, _normalize_text(note))
+            key = (date, _normalize_text(name), amount)
             if quotas[key] > 0:
                 quotas[key] -= 1
                 row = Expense(

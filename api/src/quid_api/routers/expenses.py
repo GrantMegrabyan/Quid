@@ -92,8 +92,8 @@ class _PreparedImportItem:
     excluded: bool = False
 
 
-def _dedupe_key_hash(date: str, name: str, amount: Decimal, note: str) -> str:
-    raw = f"{date}\x1f{_normalize_text(name)}\x1f{amount}\x1f{_normalize_text(note)}"
+def _dedupe_key_hash(date: str, name: str, amount: Decimal) -> str:
+    raw = f"{date}\x1f{_normalize_text(name)}\x1f{amount}"
     return sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
@@ -277,9 +277,7 @@ async def _build_preview_rows(
 ) -> list[ImportPreviewRow]:
     categories = list((await session.scalars(select(Category))).all())
     category_by_id, _ = _category_maps(categories)
-    active_by_key: dict[tuple[str, str, Decimal, str], list[_PreparedImportItem]] = defaultdict(
-        list
-    )
+    active_by_key: dict[tuple[str, str, Decimal], list[_PreparedImportItem]] = defaultdict(list)
     rows: list[ImportPreviewRow] = []
     for item in prepared:
         suggested = ImportPreviewCategory(
@@ -287,7 +285,7 @@ async def _build_preview_rows(
             name=item.category_name,
             exists=item.category_exists,
         )
-        key_hash = _dedupe_key_hash(item.date, item.name, item.amount, item.note)
+        key_hash = _dedupe_key_hash(item.date, item.name, item.amount)
         if item.excluded:
             rows.append(
                 ImportPreviewRow(
@@ -305,11 +303,11 @@ async def _build_preview_rows(
                 )
             )
             continue
-        key = (item.date, _normalize_text(item.name), item.amount, _normalize_text(item.note))
+        key = (item.date, _normalize_text(item.name), item.amount)
         active_by_key[key].append(item)
 
     for key, key_items in active_by_key.items():
-        date, name_norm, amount, note_norm = key
+        date, name_norm, amount = key
         existing_candidates = list(
             (
                 await session.scalars(
@@ -320,10 +318,7 @@ async def _build_preview_rows(
             ).all()
         )
         existing = [
-            expense
-            for expense in existing_candidates
-            if _normalize_text(expense.name) == name_norm
-            and _normalize_text(expense.note) == note_norm
+            expense for expense in existing_candidates if _normalize_text(expense.name) == name_norm
         ]
         for occurrence, item in enumerate(key_items):
             suggested = ImportPreviewCategory(
@@ -331,7 +326,7 @@ async def _build_preview_rows(
                 name=item.category_name,
                 exists=item.category_exists,
             )
-            key_hash = _dedupe_key_hash(item.date, item.name, item.amount, item.note)
+            key_hash = _dedupe_key_hash(item.date, item.name, item.amount)
             existing_importance: str | None = None
             if occurrence >= len(existing):
                 kind: ImportPreviewKind = "create"
@@ -583,7 +578,7 @@ async def _confirm_import(
         if expense is None:
             stale_updates += 1
             continue
-        current_hash = _dedupe_key_hash(expense.date, expense.name, expense.amount, expense.note)
+        current_hash = _dedupe_key_hash(expense.date, expense.name, expense.amount)
         if current_hash != row.dedupe_key_hash:
             stale_updates += 1
             continue

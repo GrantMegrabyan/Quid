@@ -437,6 +437,44 @@ async def test_import_dedupes_across_uploads_with_internal_whitespace_drift(app_
     assert len(expenses) == 1
 
 
+async def test_import_dedupes_across_uploads_with_note_drift(app_client):
+    """A note difference must not defeat dedup.
+
+    Regression: the dedup key used to include the note, so re-importing the
+    same transaction with a missing/different note (a later bank export, or a
+    row whose note was edited after the first import) created a duplicate.
+    """
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    with_note = "name,category,amount,date,note\nPret,eating_out,-3.50,2026-04-01,morning coffee\n"
+    without_note = "name,category,amount,date,note\nPret,eating_out,-3.50,2026-04-01,\n"
+
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("a.csv", with_note)]
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["imported"] == 1
+
+    # Same transaction, note now absent -> still the same transaction.
+    second = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("b.csv", without_note)]
+    )
+    assert second.status_code == 201, second.text
+    assert second.json()["imported"] == 0
+    assert second.json()["skippedDuplicates"] == 1
+
+    # And a third export with a different note still dedupes.
+    other_note = "name,category,amount,date,note\nPret,eating_out,-3.50,2026-04-01,latte\n"
+    third = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("c.csv", other_note)]
+    )
+    assert third.status_code == 201, third.text
+    assert third.json()["imported"] == 0
+    assert third.json()["skippedDuplicates"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+
+
 async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
     async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
         assert existing_categories

@@ -117,7 +117,7 @@ async def test_freeform_confirm_is_idempotent(app_client, monkeypatch):
     """Confirming the same free-form import twice must not double-import.
 
     The confirm path re-runs the dedup against the DB at write time using
-    (date, name, amount, note), so re-submitting an identical create row is a
+    (date, name, amount), so re-submitting an identical create row is a
     no-op. Editing the amount makes it a genuinely different transaction that
     is created once.
     """
