@@ -211,14 +211,29 @@ class ImportLog(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     imported_at: Mapped[str] = mapped_column(String, nullable=False)
+    # How the transactions entered the system: 'csv' (file upload) or
+    # 'freeform' (AI-parsed free-form text). Defaults to 'csv' for rows that
+    # predate the free-form import feature.
+    source: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'csv'"),
+        default="csv",
+    )
     files: Mapped[str] = mapped_column(Text, nullable=False)
+    # For 'freeform' imports, the exact text the user submitted, kept so the
+    # user can see what was parsed. NULL for 'csv' imports.
+    raw_input: Mapped[str | None] = mapped_column(Text, nullable=True)
     imported: Mapped[int] = mapped_column(nullable=False, default=0)
     updated: Mapped[int] = mapped_column(nullable=False, default=0)
     skipped_duplicates: Mapped[int] = mapped_column(nullable=False, default=0)
     skipped_excluded: Mapped[int] = mapped_column(nullable=False, default=0)
     skipped_invalid_rows: Mapped[int] = mapped_column(nullable=False, default=0)
 
-    __table_args__ = (Index("ix_import_logs_imported_at", "imported_at"),)
+    __table_args__ = (
+        CheckConstraint("source IN ('csv', 'freeform')", name="ck_import_logs_source"),
+        Index("ix_import_logs_imported_at", "imported_at"),
+    )
 
 
 class AmazonOrder(Base):

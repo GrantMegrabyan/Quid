@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, statu
 from sqlalchemy import select
 
 from quid_api.ai_categorization import categorize_transactions
+from quid_api.ai_freeform import parse_freeform_transactions
 from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
@@ -38,12 +39,16 @@ from quid_api.schemas import (
     ExpenseOut,
     ExpenseUpdate,
     Importance,
+    ImportCsvConfirmCategoryUpdateRow,
+    ImportCsvConfirmCreateRow,
     ImportCsvConfirmRequest,
     ImportCsvConfirmResponse,
     ImportCsvFileReport,
     ImportCsvPreviewResponse,
     ImportCsvPreviewSummary,
     ImportCsvResponse,
+    ImportFreeformConfirmRequest,
+    ImportFreeformPreviewRequest,
     ImportPreviewCategory,
     ImportPreviewKind,
     ImportPreviewRow,
@@ -524,19 +529,27 @@ async def preview_import_csv(
     )
 
 
-@router.post(
-    "/import-csv/confirm",
-    response_model=ImportCsvConfirmResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def confirm_import_csv(
-    payload: ImportCsvConfirmRequest, session: SessionDep
+async def _confirm_import(
+    session: AsyncSession,
+    *,
+    import_id: str,
+    files: list[str],
+    creates: list[ImportCsvConfirmCreateRow],
+    category_updates: list[ImportCsvConfirmCategoryUpdateRow],
+    source: str,
+    raw_input: str | None,
 ) -> ImportCsvConfirmResponse:
+    """Shared confirm path for CSV and free-form imports.
+
+    Both flows produce the same reviewed-rows shape; the only differences are
+    the import-log ``source`` / ``raw_input`` recorded for the batch.
+    """
     logger.info(
-        "import.confirm.start import_id=%s creates=%d updates=%d",
-        payload.import_id,
-        len(payload.creates),
-        len(payload.category_updates),
+        "import.confirm.start import_id=%s source=%s creates=%d updates=%d",
+        import_id,
+        source,
+        len(creates),
+        len(category_updates),
     )
     repo = ExpenseRepository(session)
     items = [
@@ -548,7 +561,7 @@ async def confirm_import_csv(
             note=row.note,
             importance=row.importance,
         )
-        for row in payload.creates
+        for row in creates
     ]
     # Creates come from a preview that AI-categorised them when the setting was
     # on; mark them 'ai' so a precise Amazon order category can still override.
@@ -562,7 +575,7 @@ async def confirm_import_csv(
     updated = 0
     stale_updates = 0
     kept_existing = 0
-    for row in payload.category_updates:
+    for row in category_updates:
         if not row.accept:
             kept_existing += 1
             continue
@@ -591,7 +604,7 @@ async def confirm_import_csv(
             logger.info(
                 "import.confirm.update_existing import_id=%s expense=%s old_category=%s "
                 "new_category=%s old_importance=%s new_importance=%s row=%s",
-                payload.import_id,
+                import_id,
                 expense.id,
                 old_category,
                 category.id,
@@ -604,18 +617,21 @@ async def confirm_import_csv(
 
     log_repo = ImportLogRepository(session)
     await log_repo.create(
-        files=payload.files,
+        files=files,
         imported=len(created_expenses),
         updated=updated,
         skipped_duplicates=skipped_duplicates,
         skipped_excluded=0,
         skipped_invalid_rows=0,
+        source=source,
+        raw_input=raw_input,
     )
     await session.commit()
     logger.info(
-        "import.confirm.done import_id=%s created=%d updated=%d duplicates=%d stale_updates=%d "
-        "kept_existing=%d categories_created=%d",
-        payload.import_id,
+        "import.confirm.done import_id=%s source=%s created=%d updated=%d duplicates=%d "
+        "stale_updates=%d kept_existing=%d categories_created=%d",
+        import_id,
+        source,
         len(created_expenses),
         updated,
         skipped_duplicates,
@@ -631,6 +647,139 @@ async def confirm_import_csv(
         kept_existing=kept_existing,
         categories_created=[CategoryOut.model_validate(c) for c in created_category_index.values()],
         expenses=[ExpenseOut.model_validate(e) for e in created_expenses],
+    )
+
+
+@router.post(
+    "/import-csv/confirm",
+    response_model=ImportCsvConfirmResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_import_csv(
+    payload: ImportCsvConfirmRequest, session: SessionDep
+) -> ImportCsvConfirmResponse:
+    return await _confirm_import(
+        session,
+        import_id=payload.import_id,
+        files=payload.files,
+        creates=payload.creates,
+        category_updates=payload.category_updates,
+        source="csv",
+        raw_input=None,
+    )
+
+
+FREEFORM_FILENAME = "AI free-form"
+
+
+@router.post(
+    "/import-freeform/preview",
+    response_model=ImportCsvPreviewResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def preview_import_freeform(
+    payload: ImportFreeformPreviewRequest,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> ImportCsvPreviewResponse:
+    """Parse free-form text via AI, then return the same review/confirm preview
+    shape as CSV import so the frontend can reuse one review UI."""
+    import_id = str(uuid4())
+    logger.info(
+        "import.freeform.preview.start import_id=%s chars=%d",
+        import_id,
+        len(payload.raw_input),
+    )
+    parsed_items = await parse_freeform_transactions(
+        payload.raw_input,
+        api_key=settings.openrouter_api_key,
+        model=settings.openrouter_model,
+    )
+    all_items = [
+        BulkItem(
+            name=item.name,
+            category="",
+            amount=_coerce_amount(item.amount),
+            date=item.date,
+            note=item.note,
+            importance="important",
+        )
+        for item in parsed_items
+    ]
+    app_settings = await AppSettingsRepository(session).get()
+    all_items, ai_categorized, ai_excluded_indices = await _categorize_if_requested(
+        session,
+        settings,
+        all_items,
+        app_settings.ai_categorize_enabled,
+        import_id,
+    )
+    # One synthetic upload represents the whole free-form block so the existing
+    # preview helpers (dedupe, rule matching, category suggestion) work as-is.
+    parsed_uploads = [
+        _ParsedUpload(
+            filename=FREEFORM_FILENAME,
+            items=all_items,
+            skipped_rows=0,
+            start=0,
+        )
+    ]
+    prepared = await _prepare_preview_items(session, parsed_uploads, all_items, ai_excluded_indices)
+    rows = await _build_preview_rows(session, prepared)
+    summary = ImportCsvPreviewSummary(
+        creates=sum(1 for row in rows if row.kind == "create"),
+        category_updates=sum(1 for row in rows if row.kind == "category_update"),
+        hidden_duplicates=sum(1 for row in rows if row.kind == "duplicate_same_category"),
+        excluded=sum(1 for row in rows if row.kind == "excluded"),
+        invalid_rows=0,
+        ai_categorized=ai_categorized,
+    )
+    logger.info(
+        "import.freeform.preview.plan import_id=%s extracted=%d creates=%d category_updates=%d "
+        "hidden_duplicates=%d excluded=%d ai_categorized=%d",
+        import_id,
+        len(all_items),
+        summary.creates,
+        summary.category_updates,
+        summary.hidden_duplicates,
+        summary.excluded,
+        summary.ai_categorized,
+    )
+    visible_rows = [row for row in rows if row.kind != "duplicate_same_category"]
+    reports = [
+        ImportCsvFileReport(
+            filename=FREEFORM_FILENAME,
+            rows=len(all_items),
+            imported=sum(1 for row in rows if row.kind == "create"),
+            skipped_duplicates=sum(1 for row in rows if row.kind == "duplicate_same_category"),
+            skipped_excluded=sum(1 for row in rows if row.kind == "excluded"),
+            skipped_invalid_rows=0,
+        )
+    ]
+    return ImportCsvPreviewResponse(
+        import_id=import_id,
+        rows=visible_rows,
+        summary=summary,
+        files=reports,
+    )
+
+
+@router.post(
+    "/import-freeform/confirm",
+    response_model=ImportCsvConfirmResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_import_freeform(
+    payload: ImportFreeformConfirmRequest, session: SessionDep
+) -> ImportCsvConfirmResponse:
+    return await _confirm_import(
+        session,
+        import_id=payload.import_id,
+        files=payload.files,
+        creates=payload.creates,
+        category_updates=payload.category_updates,
+        source="freeform",
+        raw_input=payload.raw_input,
     )
 
 

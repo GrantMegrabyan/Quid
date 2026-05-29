@@ -319,10 +319,27 @@ class AiRuleUpdate(_Camel):
     priority: int | None = None
 
 
+ImportSource = Literal["csv", "freeform"]
+
+
+class ImportFreeformPreviewRequest(_Camel):
+    raw_input: Annotated[str, Field(min_length=1, max_length=10_000)]
+
+
+class ImportFreeformConfirmRequest(_Camel):
+    import_id: str
+    raw_input: Annotated[str, Field(min_length=1, max_length=10_000)]
+    files: list[str] = Field(default_factory=list)
+    creates: list[ImportCsvConfirmCreateRow] = Field(default_factory=list)
+    category_updates: list[ImportCsvConfirmCategoryUpdateRow] = Field(default_factory=list)
+
+
 class ImportLogOut(_Camel):
     id: str
     imported_at: str
+    source: ImportSource = "csv"
     files: list[str]
+    raw_input: str | None = None
     imported: int
     updated: int
     skipped_duplicates: int

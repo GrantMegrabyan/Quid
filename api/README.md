@@ -62,11 +62,25 @@ uncategorised expense. It never overwrites an order's existing category or a
 non-uncategorised expense category, so it is safe to re-run. It calls
 OpenRouter, so it needs `QUID_OPENROUTER_API_KEY`.
 
+## Adding transactions
+
+The web UI's **Import** page is the single place to add transactions. It offers
+three modes, all of which ultimately write through the endpoints below:
+
+1. **CSV file** — preview/review/confirm a bank export (see below).
+2. **Single transaction** — a plain form that `POST`s one expense to
+   `/api/v1/expenses` (no AI; the user picks the category).
+3. **AI free-form** — paste free-form text; an AI extracts transactions which are
+   then reviewed/confirmed exactly like a CSV import (see _AI free-form import_).
+
+A single expense is created with `POST /api/v1/expenses` (JSON body matching
+`ExpenseCreate`: `name`, `amount`, `date`, `categoryId`, `note?`, `importance?`).
+
 ## CSV import
 
 Two transports import CSVs:
 
-1. **HTTP, multipart** — `POST /api/v1/expenses/import-csv` accepts one or many `files` parts. This is what the web UI uses (dashboard → **Import CSV**).
+1. **HTTP, multipart** — `POST /api/v1/expenses/import-csv` accepts one or many `files` parts. This is what the web UI's Import page uses (**Import → CSV file**).
 2. **CLI shim** — `uv run quid-api import-csv` posts JSON rows to `/api/v1/expenses/bulk`.
 
 ```sh
@@ -115,6 +129,40 @@ charges to the same merchant for the same amount on the same day) still accumula
 
 The response reports `imported`, `skippedDuplicates`, `skippedInvalidRows`,
 `skippedExcluded`, and a per-file breakdown.
+
+### Preview / confirm
+
+The Import page never writes straight from a file. It first calls
+`POST /api/v1/expenses/import-csv/preview` (multipart `files`) to get a reviewable
+plan (creates, category updates for existing rows, hidden duplicates, excluded
+rows), then `POST /api/v1/expenses/import-csv/confirm` with the reviewed rows to
+persist. Confirm records an import-log entry (see _Import history_).
+
+## AI free-form import
+
+Lets a user paste free-form text (e.g. `coffee 3.50 yesterday, Tesco 42 on the
+3rd`) and have an AI turn it into transactions. It mirrors the CSV
+preview/confirm flow so the same review UI is reused.
+
+- `POST /api/v1/expenses/import-freeform/preview` — JSON body `{ "rawInput": "…" }`
+  (1–10 000 chars). The text is parsed by OpenRouter into rows, then run through
+  the same AI categorisation (when `aiCategorizeEnabled`) and preview pipeline as
+  CSV. Returns the same `ImportCsvPreviewResponse` shape (rows use the synthetic
+  filename `AI free-form`). Requires `QUID_OPENROUTER_API_KEY`.
+- `POST /api/v1/expenses/import-freeform/confirm` — JSON body `{ "importId",
+  "rawInput", "creates": [...], "categoryUpdates": [...] }` (same reviewed-row
+  shapes as CSV confirm). Persists the rows and records an import-log entry with
+  `source = "freeform"` and the `rawInput` preserved.
+
+## Import history
+
+`GET /api/v1/import-logs` returns recent import batches (CSV and free-form),
+newest first. Each entry (`ImportLogOut`, camelCase) has: `id`, `importedAt`,
+`source` (`"csv"` | `"freeform"`), `files` (list; empty for free-form),
+`rawInput` (the submitted text for `freeform`, else `null`), `imported`,
+`updated`, `skippedDuplicates`, `skippedExcluded`, `skippedInvalidRows`. The web
+UI shows this as the **Import history** table below the Import tabs, with a
+**Source** column and an expandable raw-input view for AI free-form runs.
 
 ## Amazon orders
 

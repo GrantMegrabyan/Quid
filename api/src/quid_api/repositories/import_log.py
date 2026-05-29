@@ -30,11 +30,15 @@ class ImportLogRepository:
         skipped_duplicates: int,
         skipped_excluded: int,
         skipped_invalid_rows: int,
+        source: str = "csv",
+        raw_input: str | None = None,
     ) -> ImportLog:
         row = ImportLog(
             id=f"import-log-{uuid4()}",
             imported_at=_now_iso(),
+            source=source,
             files=json.dumps(files),
+            raw_input=raw_input,
             imported=imported,
             updated=updated,
             skipped_duplicates=skipped_duplicates,

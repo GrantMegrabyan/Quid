@@ -181,3 +181,27 @@ Verification checklist for any user-facing change:
   (because `set_generated_categories` only propagates for orders it newly
   categorises — orders categorised earlier whose linked expense is still
   `ai`/`import` need the standalone pass). Idempotent; needs `QUID_OPENROUTER_API_KEY`.
+
+## Adding transactions / Import page context
+
+- The webui **Import** page (`webui/src/routes/import/+page.svelte`) is the SINGLE
+  entry point for adding transactions, with three tabs: **CSV file**, **Single
+  transaction**, **AI free-form**. The dashboard only EDITS existing expenses
+  (`ExpenseFormModal` is opened in edit mode only); its empty state links to
+  `/import`. Don't reintroduce an "add" affordance on the dashboard.
+- The single-add tab is plain (no AI) and `POST`s to `/api/v1/expenses`. Its
+  amount input must use `value=` + `oninput` (string), NOT `bind:value` on a
+  `type=number` field — `bind:value` coerces to a number and `parseAmountInput`
+  expects a string (`.trim()`), which throws and silently aborts submit.
+- AI free-form import: `POST /api/v1/expenses/import-freeform/preview` (body
+  `{rawInput}`) parses text via OpenRouter (`api/src/quid_api/ai_freeform.py`),
+  then reuses the SAME categorisation + preview helpers as CSV
+  (`_categorize_if_requested`, `_prepare_preview_items`, `_build_preview_rows`)
+  with a synthetic `_ParsedUpload` (filename `AI free-form`). Confirm is
+  `/import-freeform/confirm`; both CSV and free-form confirm share
+  `_confirm_import(...)` in `routers/expenses.py`, parametrised by
+  `source`/`raw_input`. Free-form requires `QUID_OPENROUTER_API_KEY`.
+- `import_logs` now has `source` ('csv'|'freeform', CHECK-constrained, default
+  'csv') and a nullable `raw_input` (the submitted free-form text; NULL for CSV).
+  Migration `0017`. `GET /api/v1/import-logs` exposes them as `source`/`rawInput`;
+  the Import history table shows a Source column + expandable raw input.
