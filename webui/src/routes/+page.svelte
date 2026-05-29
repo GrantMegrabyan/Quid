@@ -254,15 +254,17 @@
 				<div class="min-w-0 flex-1">
 					<p class="text-xs font-medium text-ctp-subtext0">Top category</p>
 					{#if topCategory}
-						<p
-							class="truncate text-xl font-bold leading-tight tracking-tight text-ctp-text"
-							data-testid="top-category-name"
-							title={topCategory.name}
-						>
-							{topCategory.name}
-						</p>
-						<p class="mt-0.5 text-xs text-ctp-overlay0">
-							{formatAmount(topCategory.total, $settings.currency)}
+						<p class="flex items-baseline gap-1.5 leading-tight">
+							<span
+								class="truncate text-xl font-bold tracking-tight text-ctp-text"
+								data-testid="top-category-name"
+								title={topCategory.name}
+							>
+								{topCategory.name}
+							</span>
+							<span class="shrink-0 text-xs text-ctp-overlay0">
+								{formatAmount(topCategory.total, $settings.currency)}
+							</span>
 						</p>
 					{:else}
 						<p class="text-xl font-bold leading-tight tracking-tight text-ctp-overlay0">—</p>
