@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
@@ -9,7 +12,13 @@ from sqlalchemy import select
 
 from quid_api.ai_order_categorization import categorize_amazon_orders
 from quid_api.ai_short_names import ShortNameInput, generate_short_names
-from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
+from quid_api.amazon_csv_import import (
+    _ACCEPTED_STATUSES,
+    AmazonCsvFile,
+    _normalize_date,
+    _parse_decimal,
+    parse_amazon_csv,
+)
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category
@@ -24,8 +33,11 @@ from quid_api.repositories.amazon_orders import (
 from quid_api.repositories.app_settings import AppSettingsRepository
 from quid_api.schemas import (
     AmazonCategoryRequest,
+    AmazonExportOrder,
+    AmazonExportRequest,
     AmazonImportFileReport,
     AmazonImportResponse,
+    AmazonImportSkippedOrder,
     AmazonLinkRequest,
     AmazonMatchAllResponse,
     AmazonOrderItem,
@@ -282,6 +294,157 @@ async def _ingest_orders(
         auto_matched=match_result.auto_matched,
         ambiguous=match_result.ambiguous,
         combined_matched=match_result.combined_matched,
+    )
+
+
+_ISO_DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+
+
+def _normalized_iso_date(raw: str) -> str | None:
+    """Normalise an export ``order_date`` and re-assert the ``AmazonOrder``
+    date GLOB (``models.py``) IN CODE.
+
+    Returns the ``YYYY-MM-DD`` string, or ``None`` when the value can't be
+    normalised to a real ISO date. The regex re-asserts the exact DB CHECK
+    pattern so a bad value is SKIPPED here rather than reaching the CHECK as an
+    unhandled ``IntegrityError`` (-> HTTP 500; ``main.py`` registers no handler
+    for it). ``date.fromisoformat`` additionally rejects pattern-valid-but-
+    impossible dates (e.g. ``2026-13-40``) that the GLOB alone would accept and
+    that would otherwise be stored yet silently never match.
+    """
+    normalized = _normalize_date(raw)
+    if not _ISO_DATE_RE.match(normalized):
+        return None
+    try:
+        date.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return normalized
+
+
+@router.post(
+    "/import-export",
+    response_model=AmazonImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_amazon_export(
+    session: SessionDep, payload: AmazonExportRequest
+) -> AmazonImportResponse:
+    """Ingest browser-scraped Amazon orders (see ``AmazonExportRequest``).
+
+    Mirrors the CSV importer's validation policy: structural problems are 422s
+    (Pydantic handles body shape; ``orders`` min-length handles an empty list),
+    while row-level problems (blank order id, non-importable status,
+    unparseable date, missing/non-positive total) are SKIPPED per-order with a
+    reason and reported back, so a partial scrape still imports its good
+    orders. Surviving orders feed the SAME ``_ingest_orders`` pipeline as CSV.
+    """
+    settings_repo = AppSettingsRepository(session)
+    settings_row = await settings_repo.get()
+    default_currency = settings_row.currency
+
+    skipped: list[AmazonImportSkippedOrder] = []
+
+    # Dedupe by order id (last wins), mirroring the CSV parser's by-id dict so
+    # a re-scrape listing the same order twice isn't double-processed. Blank
+    # ids can't be deduped meaningfully, so they're reported individually.
+    deduped: dict[str, AmazonExportOrder] = {}
+    for order in payload.orders:
+        order_id = order.order_id.strip()
+        if not order_id:
+            skipped.append(AmazonImportSkippedOrder(order_id="", reason="Missing order id."))
+            continue
+        deduped[order_id] = order
+
+    parsed: list[ParsedOrderInput] = []
+    for order_id, order in deduped.items():
+        status_value = (order.status or "").strip().lower()
+        if status_value and status_value not in _ACCEPTED_STATUSES:
+            skipped.append(
+                AmazonImportSkippedOrder(
+                    order_id=order_id,
+                    reason=f"Order status not importable: {order.status}.",
+                )
+            )
+            continue
+        order_date = _normalized_iso_date(order.order_date)
+        if order_date is None:
+            skipped.append(
+                AmazonImportSkippedOrder(
+                    order_id=order_id,
+                    reason="Order date is not a valid YYYY-MM-DD date.",
+                )
+            )
+            continue
+        total = _parse_decimal(order.total or "")
+        if total is None or total <= 0:
+            skipped.append(
+                AmazonImportSkippedOrder(
+                    order_id=order_id,
+                    reason="Order total is missing or not a positive amount.",
+                )
+            )
+            continue
+        currency = (order.currency or "").strip().upper() or default_currency.upper()
+        parsed.append(
+            ParsedOrderInput(
+                order_id=order_id,
+                order_date=order_date,
+                total=total,
+                currency=currency,
+                items=[
+                    {
+                        "title": item.title,
+                        "quantity": item.quantity,
+                        "price": _parse_decimal(item.price or ""),
+                    }
+                    for item in order.items
+                ],
+                shipments=[
+                    ParsedShipmentInput(
+                        ship_date=shipment.ship_date,
+                        tracking=shipment.tracking,
+                        total=_parse_decimal(shipment.total or "") or Decimal(0),
+                        items=[
+                            {
+                                "title": item.title,
+                                "quantity": item.quantity,
+                                "price": _parse_decimal(item.price or ""),
+                            }
+                            for item in shipment.items
+                        ],
+                    )
+                    for shipment in order.shipments
+                ],
+                payment_last4=order.payment_last4,
+                order_url=order.order_url,
+            )
+        )
+
+    result = await _ingest_orders(session, parsed, source="export")
+    logger.info(
+        "amazon.export scraper_version=%s domain=%s parsed=%d skipped=%d created=%d updated=%d",
+        payload.scraper_version,
+        payload.domain,
+        len(parsed),
+        len(skipped),
+        result.created,
+        result.updated,
+    )
+    return AmazonImportResponse(
+        created=result.created,
+        updated=result.updated,
+        auto_matched=result.auto_matched,
+        ambiguous=result.ambiguous,
+        combined_matched=result.combined_matched,
+        files=[
+            AmazonImportFileReport(
+                filename=payload.domain or "Amazon browser export",
+                orders_parsed=len(parsed),
+                skipped_rows=len(skipped),
+                skipped=skipped,
+            )
+        ],
     )
 
 

@@ -1,17 +1,40 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from time import perf_counter
+from typing import Any
 
 import pytest
 
 from quid_api.ai_categorization import CategorizedBulkItems
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
+from quid_api.models import AmazonOrder
 from quid_api.repositories.amazon_orders import ParsedOrderInput
 from quid_api.routers.amazon_orders import _ingest_orders
 from quid_api.settings import reset_settings
+
+_FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+def _load_export_fixture() -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(
+        (_FIXTURES_DIR / "amazon_export_sample.json").read_text(encoding="utf-8")
+    )
+    return data
+
+
+async def _disable_ai(app_client) -> None:
+    """Disable both AI features so ingest never calls OpenRouter — deterministic
+    and network-free regardless of any QUID_OPENROUTER_API_KEY in the env/.env."""
+    res = await app_client.patch(
+        "/api/v1/settings",
+        json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False},
+    )
+    assert res.status_code == 200, res.text
 
 
 def _upload(name: str, body: str) -> tuple[str, tuple[str, bytes, str]]:
@@ -966,3 +989,242 @@ async def test_expense_out_includes_amazon_order_id(app_client):
     if res.json():
         first = res.json()[0]
         assert "amazonOrderId" in first
+
+
+# --- /import-export (browser-scraped JSON) ----------------------------------
+
+
+async def test_import_export_creates_and_matches_like_csv(app_client):
+    """Happy path: a captured export payload upserts orders and auto-matches
+    exactly like the CSV path."""
+    await _disable_ai(app_client)
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=19.99, date="2026-05-05"
+    )
+
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=_load_export_fixture())
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["created"] == 3
+    assert body["updated"] == 0
+    assert body["autoMatched"] == 1
+    report = body["files"][0]
+    assert report["filename"] == "amazon.co.uk"
+    assert report["ordersParsed"] == 3
+    assert report["skippedRows"] == 0
+    assert report["skipped"] == []
+
+    listed = {row["id"]: row for row in (await app_client.get("/api/v1/amazon-orders")).json()}
+    assert set(listed) == {
+        "111-2223334-4445556",
+        "222-3334445-5556667",
+        "333-4445556-6667778",
+    }
+    assert len(listed["111-2223334-4445556"]["linkedExpenseIds"]) == 1
+
+
+async def test_import_export_preserves_exact_decimal_and_matches(app_client, session):
+    """B2: a money string "19.99" is stored as exactly Decimal("19.99") and
+    auto-matches a 19.99 expense (the match itself proves exact fidelity — a
+    float-contaminated total would never equal the expense amount). Also
+    covers the synthetic-file-report filename fallback when domain is absent."""
+    await _disable_ai(app_client)
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=19.99, date="2026-05-05"
+    )
+
+    payload = {
+        "scraperVersion": "1.0.0",
+        "orders": [
+            {
+                "orderId": "999-0000001-0000001",
+                "orderDate": "2026-05-05",
+                "total": "19.99",
+                "currency": "GBP",
+                "status": "Delivered",
+                "items": [{"title": "Widget", "quantity": 1, "price": "19.99"}],
+            }
+        ],
+    }
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["created"] == 1
+    assert body["autoMatched"] == 1
+    assert body["files"][0]["filename"] == "Amazon browser export"
+
+    stored = await session.get(AmazonOrder, "999-0000001-0000001")
+    assert stored is not None
+    assert stored.total == Decimal("19.99")
+
+
+async def test_import_export_rejects_numeric_money_as_422(app_client):
+    """B2 contract: money must be a JSON string. A JSON number is a hard 422
+    (Pydantic string_type) so a scraper float-artifact can never silently
+    corrupt the amount matcher."""
+    payload = {
+        "scraperVersion": "1.0.0",
+        "domain": "amazon.co.uk",
+        "orders": [
+            {
+                "orderId": "777-0000001-0000001",
+                "orderDate": "2026-05-05",
+                "total": 19.99,
+                "items": [],
+            }
+        ],
+    }
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert res.status_code == 422, res.text
+
+
+async def test_import_export_large_history_is_fast(app_client):
+    """B1 at the endpoint level: 1,000 unmatched orders import well under ~2s,
+    guarding the bounded combined-match pass (a £6 candidate expense ensures
+    the combined pass actually runs)."""
+    await _disable_ai(app_client)
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=6.00, date="2030-01-01"
+    )
+    orders = [
+        {
+            "orderId": f"{i:03d}-1111111-2222222",
+            "orderDate": (date(2026, 1, 1) + timedelta(days=i)).isoformat(),
+            "total": "2.00",
+            "currency": "GBP",
+            "status": "Delivered",
+            "items": [{"title": f"Item {i}", "quantity": 1, "price": "2.00"}],
+        }
+        for i in range(1000)
+    ]
+    payload = {"scraperVersion": "1.0.0", "domain": "amazon.co.uk", "orders": orders}
+
+    start = perf_counter()
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    elapsed = perf_counter() - start
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["created"] == 1000
+    assert body["autoMatched"] == 0
+    assert elapsed < 2.0
+
+
+async def test_import_export_skips_order_missing_total(app_client):
+    """B3: one order missing its total -> 201, that order reported in `skipped`
+    with a reason, the others import."""
+    await _disable_ai(app_client)
+    payload = _load_export_fixture()
+    payload["orders"][0]["total"] = None  # 111-... loses its total
+
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["created"] == 2
+    report = body["files"][0]
+    assert report["skippedRows"] == 1
+    assert len(report["skipped"]) == 1
+    assert report["skipped"][0]["orderId"] == "111-2223334-4445556"
+    assert "total" in report["skipped"][0]["reason"].lower()
+
+    ids = {row["id"] for row in (await app_client.get("/api/v1/amazon-orders")).json()}
+    assert ids == {"222-3334445-5556667", "333-4445556-6667778"}
+
+
+async def test_import_export_skips_cancelled_status(app_client):
+    """S2: cancelled/returned orders are skipped, not imported."""
+    await _disable_ai(app_client)
+    payload = _load_export_fixture()
+    payload["orders"][1]["status"] = "Cancelled"  # 222-...
+
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["created"] == 2
+    report = body["files"][0]
+    assert report["skippedRows"] == 1
+    assert report["skipped"][0]["orderId"] == "222-3334445-5556667"
+    assert "status" in report["skipped"][0]["reason"].lower()
+
+    ids = {row["id"] for row in (await app_client.get("/api/v1/amazon-orders")).json()}
+    assert "222-3334445-5556667" not in ids
+
+
+async def test_import_export_skips_invalid_dates_without_422_or_500(app_client):
+    """B3: a bad order date is SKIPPED (201 + reason), never a 422 and never a
+    500. Covers a non-pattern date, a pattern-valid-but-impossible date (the DB
+    GLOB would accept "2026-13-40" -> the in-code fromisoformat check prevents
+    a silently-unmatchable order), and a slash date that won't normalise."""
+    await _disable_ai(app_client)
+    for bad_date in ("not-a-date", "2026-13-40", "13/2026"):
+        payload = _load_export_fixture()
+        payload["orders"] = [payload["orders"][0]]
+        payload["orders"][0]["orderDate"] = bad_date
+
+        res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+        assert res.status_code == 201, (bad_date, res.text)
+        body = res.json()
+        assert body["created"] == 0, bad_date
+        report = body["files"][0]
+        assert report["skippedRows"] == 1, bad_date
+        assert "date" in report["skipped"][0]["reason"].lower(), bad_date
+
+
+async def test_import_export_structural_errors_are_422(app_client):
+    """B3: structural problems (empty orders, orders not an array, missing
+    orders) are 422s, in contrast to row-level problems which are skipped."""
+    empty = await app_client.post(
+        "/api/v1/amazon-orders/import-export",
+        json={"scraperVersion": "1.0.0", "domain": "amazon.co.uk", "orders": []},
+    )
+    assert empty.status_code == 422, empty.text
+
+    not_array = await app_client.post(
+        "/api/v1/amazon-orders/import-export",
+        json={"orders": "nope"},
+    )
+    assert not_array.status_code == 422, not_array.text
+
+    missing = await app_client.post(
+        "/api/v1/amazon-orders/import-export",
+        json={"domain": "amazon.co.uk"},
+    )
+    assert missing.status_code == 422, missing.text
+
+
+async def test_import_export_is_idempotent(app_client):
+    """Re-POSTing the same payload upserts (all `updated`), creates no
+    duplicate links, and never overwrites a write-once short_name/category
+    (mirrors the CSV idempotency guarantee; upsert leaves those fields alone)."""
+    await _disable_ai(app_client)
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=19.99, date="2026-05-05"
+    )
+    payload = _load_export_fixture()
+
+    first = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert first.status_code == 201, first.text
+    assert first.json()["created"] == 3
+    assert first.json()["autoMatched"] == 1
+
+    # Write-once fields, set after the first import, must survive a re-import.
+    await app_client.patch(
+        "/api/v1/amazon-orders/222-3334445-5556667/short-name",
+        json={"shortName": "My custom name"},
+    )
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(
+        "/api/v1/amazon-orders/333-4445556-6667778/category",
+        json={"categoryId": travel["id"]},
+    )
+
+    second = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert second.status_code == 201, second.text
+    body = second.json()
+    assert body["created"] == 0
+    assert body["updated"] == 3
+
+    listed = {row["id"]: row for row in (await app_client.get("/api/v1/amazon-orders")).json()}
+    assert listed["222-3334445-5556667"]["shortName"] == "My custom name"
+    assert listed["333-4445556-6667778"]["categoryId"] == travel["id"]
+    # The auto-matched order still has exactly one link (no duplicates).
+    assert len(listed["111-2223334-4445556"]["linkedExpenseIds"]) == 1

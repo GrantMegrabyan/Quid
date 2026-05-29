@@ -1,0 +1,46 @@
+{
+  "scraperVersion": "1.0.0",
+  "domain": "amazon.co.uk",
+  "orders": [
+    {
+      "orderId": "111-2223334-4445556",
+      "orderDate": "2026-05-05",
+      "total": "19.99",
+      "currency": "GBP",
+      "status": "Delivered",
+      "items": [
+        { "title": "USB-C to USB-C Cable 2m", "quantity": 1, "price": "19.99" }
+      ],
+      "shipments": [],
+      "paymentLast4": "1234",
+      "orderUrl": "https://www.amazon.co.uk/gp/css/order-details?orderID=111-2223334-4445556"
+    },
+    {
+      "orderId": "222-3334445-5556667",
+      "orderDate": "2026-05-08",
+      "total": "42.50",
+      "currency": "GBP",
+      "status": "Delivered",
+      "items": [
+        { "title": "Mechanical Keyboard", "quantity": 1, "price": "35.00" },
+        { "title": "Keycap Puller", "quantity": 1, "price": "7.50" }
+      ],
+      "shipments": [],
+      "paymentLast4": "1234",
+      "orderUrl": "https://www.amazon.co.uk/gp/css/order-details?orderID=222-3334445-5556667"
+    },
+    {
+      "orderId": "333-4445556-6667778",
+      "orderDate": "2026-05-11",
+      "total": "8.75",
+      "currency": "GBP",
+      "status": "Delivered",
+      "items": [
+        { "title": "AAA Batteries 12-pack", "quantity": 1, "price": "8.75" }
+      ],
+      "shipments": [],
+      "paymentLast4": "9876",
+      "orderUrl": "https://www.amazon.co.uk/gp/css/order-details?orderID=333-4445556-6667778"
+    }
+  ]
+}

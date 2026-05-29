@@ -394,10 +394,25 @@ class AmazonOrderOut(_Camel):
         return float(value)
 
 
+class AmazonImportSkippedOrder(_Camel):
+    """An order dropped during import, with a human-readable reason.
+
+    Surfaced in the response so the user can see which scraped orders were not
+    imported and why. The CSV path leaves this empty (it tracks only an
+    aggregate ``skipped_rows`` count, with no per-row order id).
+    """
+
+    order_id: str
+    reason: str
+
+
 class AmazonImportFileReport(_Camel):
     filename: str
     orders_parsed: int
     skipped_rows: int
+    # Per-order skip reasons. Populated by the browser-export import; left
+    # empty by CSV import (additive + backwards compatible).
+    skipped: list[AmazonImportSkippedOrder] = Field(default_factory=list)
 
 
 class AmazonImportResponse(_Camel):
@@ -407,6 +422,79 @@ class AmazonImportResponse(_Camel):
     ambiguous: int
     combined_matched: int = 0
     files: list[AmazonImportFileReport]
+
+
+class AmazonExportItem(_Camel):
+    """A single line item from a browser-scraped Amazon order.
+
+    ``price`` is a per-item price transported as a STRING ("9.99"); see
+    ``AmazonExportRequest`` for the money-as-strings contract.
+    """
+
+    title: str
+    quantity: int = 1
+    price: str | None = None
+
+
+class AmazonExportShipment(_Camel):
+    """A scraped shipment group.
+
+    Display-only for matching: a single shipment contributes nothing to amount
+    matching (only multi-shipment orders use per-shipment totals,
+    ``repositories/amazon_orders.py`` ``_charge_amounts``), so the MVP scraper
+    emits none. ``total`` is a money STRING (see ``AmazonExportRequest``).
+    """
+
+    total: str | None = None
+    ship_date: str | None = None
+    tracking: str | None = None
+    items: list[AmazonExportItem] = Field(default_factory=list)
+
+
+class AmazonExportOrder(_Camel):
+    """One browser-scraped Amazon order.
+
+    Row-level fields are intentionally lenient so a partial scrape still
+    imports its good orders, mirroring the CSV importer: a blank/absent
+    ``order_id`` or ``order_date``, a non-importable ``status``, or a
+    missing/non-positive ``total`` causes the SERVER to skip just this order
+    (with a reason) — it does not 422 the whole request. ``total`` is therefore
+    optional (a missing total is skipped, not rejected) and enforced ``> 0`` in
+    code, never via the DB CHECK.
+    """
+
+    order_id: str = ""
+    order_date: str = ""
+    total: str | None = None
+    currency: str | None = None
+    status: str | None = None
+    items: list[AmazonExportItem] = Field(default_factory=list)
+    shipments: list[AmazonExportShipment] = Field(default_factory=list)
+    payment_last4: str | None = None
+    order_url: str | None = None
+
+
+class AmazonExportRequest(_Camel):
+    """Browser-scraped Amazon order history POSTed to ``/import-export``.
+
+    MONEY-AS-STRINGS CONTRACT (B2): every monetary field (order ``total``, item
+    ``price``, shipment ``total``) MUST be a JSON string ("19.99"), never a
+    JSON number. The amount matcher does exact ``Decimal`` equality, and a JSON
+    number produced by the scraper's own float arithmetic (e.g.
+    ``19.990000000000002``) would transport faithfully and then silently fail
+    to match a ``Decimal("19.99")`` expense. Typing money as ``str`` makes a
+    JSON number a hard 422 (Pydantic ``string_type``), forcing the scraper to
+    emit the exact scraped text; the server then parses each string to an exact
+    ``Decimal`` in code (the same ``_parse_decimal`` the CSV importer uses).
+
+    Structural problems (body not an object; ``orders`` missing, not an array,
+    or empty) are 422s; row-level problems are skipped per-order with a reason
+    (see ``AmazonExportOrder``).
+    """
+
+    scraper_version: str | None = None
+    domain: str | None = None
+    orders: list[AmazonExportOrder] = Field(min_length=1)
 
 
 class AmazonMatchAllResponse(_Camel):
