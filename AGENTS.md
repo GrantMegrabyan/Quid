@@ -7,6 +7,10 @@
 - Ask before destructive or shared-impact operations, especially database wipes, branch resets, force pushes, or deleting files.
 - Prefer small, direct changes that match existing patterns over broad refactors.
 
+## Local notes
+
+- If a `.notes/` directory exists (untracked, local-only, never committed), read it at the start of a session for in-progress experiment/context before acting.
+
 ## Documentation policy (REQUIRED — always document when work is done)
 
 Documentation is part of "done", not an optional follow-up. Update docs in the
