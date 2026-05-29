@@ -1,0 +1,111 @@
+<!doctype html>
+<!--
+  Sanitized amazon.co.uk "Returns & Orders" page fragment for parser tests.
+  NO real PII — order ids/items are invented. Mirrors the modern .co.uk
+  order-card layout (.order-card / [data-testid] anchors). The expected parser
+  output aligns with api/tests/fixtures/amazon_export_sample.json (S5).
+-->
+<html lang="en-GB">
+	<body>
+		<div id="ordersContainer" class="your-orders-content-container">
+			<div class="order-card js-order-card">
+				<div class="order-header">
+					<span class="a-color-secondary" data-testid="order-date">5 May 2026</span>
+					<span data-testid="order-total"
+						><span class="a-text-bold">£19.99</span></span
+					>
+					<span class="yohtmlc-order-id"
+						>ORDER # <bdi dir="ltr">111-2223334-4445556</bdi></span
+					>
+				</div>
+				<div class="delivery-box">
+					<span class="a-text-bold" data-testid="order-status">Delivered</span>
+				</div>
+				<div class="a-fixed-left-grid item-box" data-testid="item-row">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						data-testid="item-title"
+						href="/gp/product/B0EXAMPLE1"
+						>USB-C to USB-C Cable 2m</a
+					>
+					<span class="a-price"><span class="a-offscreen">£19.99</span></span>
+				</div>
+				<a
+					class="a-link-normal"
+					href="/gp/css/order-details?orderID=111-2223334-4445556"
+					>View order details</a
+				>
+				<span class="payment-info">Visa ending in 1234</span>
+			</div>
+
+			<div class="order-card js-order-card">
+				<div class="order-header">
+					<span class="a-color-secondary" data-testid="order-date">8 May 2026</span>
+					<span data-testid="order-total"
+						><span class="a-text-bold">£42.50</span></span
+					>
+					<span class="yohtmlc-order-id"
+						>ORDER # <bdi dir="ltr">222-3334445-5556667</bdi></span
+					>
+				</div>
+				<div class="delivery-box">
+					<span class="a-text-bold" data-testid="order-status">Delivered</span>
+				</div>
+				<div class="a-fixed-left-grid item-box" data-testid="item-row">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						data-testid="item-title"
+						href="/gp/product/B0EXAMPLE2"
+						>Mechanical Keyboard</a
+					>
+					<span class="a-price"><span class="a-offscreen">£35.00</span></span>
+				</div>
+				<div class="a-fixed-left-grid item-box" data-testid="item-row">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						data-testid="item-title"
+						href="/gp/product/B0EXAMPLE3"
+						>Keycap Puller</a
+					>
+					<span class="a-price"><span class="a-offscreen">£7.50</span></span>
+				</div>
+				<a
+					class="a-link-normal"
+					href="/gp/css/order-details?orderID=222-3334445-5556667"
+					>View order details</a
+				>
+				<span class="payment-info">Visa ending in 1234</span>
+			</div>
+
+			<div class="order-card js-order-card">
+				<div class="order-header">
+					<span class="a-color-secondary" data-testid="order-date">11 May 2026</span>
+					<span data-testid="order-total"
+						><span class="a-text-bold">£8.75</span></span
+					>
+					<span class="yohtmlc-order-id"
+						>ORDER # <bdi dir="ltr">333-4445556-6667778</bdi></span
+					>
+				</div>
+				<div class="delivery-box">
+					<span class="a-text-bold" data-testid="order-status">Delivered</span>
+				</div>
+				<div class="a-fixed-left-grid item-box" data-testid="item-row">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						data-testid="item-title"
+						href="/gp/product/B0EXAMPLE4"
+						>AAA Batteries 12-pack</a
+					>
+					<span class="a-price"><span class="a-offscreen">£8.75</span></span>
+				</div>
+				<a
+					class="a-link-normal"
+					href="/gp/css/order-details?orderID=333-4445556-6667778"
+					>View order details</a
+				>
+				<span class="payment-info">Amex ending in 9876</span>
+			</div>
+		</div>
+	</body>
+</html>

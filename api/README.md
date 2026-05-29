@@ -180,6 +180,66 @@ what an Amazon charge actually bought.
   upserts them (re-importing an order id replaces its details idempotently),
   AI-categorises new orders (when `aiCategorizeEnabled`), and runs auto-matching
   against unlinked expenses.
+- `POST /api/v1/amazon-orders/import-export` — JSON body, for orders scraped by
+  the webui browser bookmarklet (see `webui/README.md`). Feeds the SAME
+  ingest/upsert/AI/match pipeline as CSV (`source="export"` provenance, logged
+  only). CSV import remains fully supported as the canonical fallback.
+
+  **Money-as-strings contract:** every monetary field (order `total`, item
+  `price`, shipment `total`) MUST be a JSON **string** (`"19.99"`), never a JSON
+  number. The matcher does exact `Decimal` equality, so a JSON number produced
+  by the scraper's float arithmetic would silently fail to match. Typing money
+  as a string makes a number a hard 422.
+
+  Request body (camelCase):
+
+  ```json
+  {
+    "scraperVersion": "1.0.0",
+    "domain": "amazon.co.uk",
+    "orders": [
+      {
+        "orderId": "111-2223334-4445556",
+        "orderDate": "2026-05-05",
+        "total": "19.99",
+        "currency": "GBP",
+        "status": "Delivered",
+        "items": [{ "title": "USB-C Cable 2m", "quantity": 1, "price": "19.99" }],
+        "shipments": [],
+        "paymentLast4": "1234",
+        "orderUrl": "https://www.amazon.co.uk/gp/css/order-details?orderID=111-2223334-4445556"
+      }
+    ]
+  }
+  ```
+
+  Validation mirrors the CSV path: **structural** problems are 422s (body not an
+  object, `orders` missing/not an array/empty), while **row-level** problems are
+  SKIPPED per-order with a reason (blank `orderId`, non-importable `status`,
+  unparseable `orderDate`, missing/non-positive `total`) so a partial scrape
+  still imports its good orders. Response is the shared `AmazonImportResult`,
+  with the single synthetic file report carrying the skips:
+
+  ```json
+  {
+    "created": 1,
+    "updated": 0,
+    "autoMatched": 1,
+    "ambiguous": 0,
+    "combinedMatched": 0,
+    "files": [
+      {
+        "filename": "amazon.co.uk",
+        "ordersParsed": 1,
+        "skippedRows": 1,
+        "skipped": [{ "orderId": "903-…", "reason": "Order total is missing or not a positive amount." }]
+      }
+    ]
+  }
+  ```
+
+  The `skipped[]` per-order reasons are populated by this endpoint only; the CSV
+  importer leaves it empty (it tracks only the aggregate `skippedRows`).
 - `GET /api/v1/amazon-orders` / `GET /api/v1/amazon-orders/{id}` — list / fetch.
   Each order includes `categoryId` (the order's AI-derived category, or `null`).
 - `POST /api/v1/amazon-orders/match-all` — re-run auto-matching.

@@ -4,6 +4,7 @@
 		amazonOrders,
 		deleteAmazonOrder,
 		importAmazonCsv,
+		importAmazonExport,
 		linkAmazonOrder,
 		matchAllAmazonOrders,
 		refreshAmazonOrders,
@@ -12,15 +13,24 @@
 		updateAmazonOrderCategory,
 		updateAmazonShortName
 	} from '$lib/stores/amazonOrders';
+	import { buildBookmarkletHref } from '$lib/amazon/bookmarklet';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { expenses, refreshExpenses } from '$lib/stores/expenses';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { formatAmount } from '$lib/utils/money';
 	import { UNCATEGORIZED_ID } from '$lib/types';
-	import type { AmazonOrder, Category, Expense } from '$types';
+	import type {
+		AmazonImportResult,
+		AmazonImportSkippedOrder,
+		AmazonExportRequest,
+		AmazonOrder,
+		Category,
+		Expense
+	} from '$types';
 	import { Check, Link2, Link2Off, Pencil, Search, Trash2, X } from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
+	let exportFileInputEl: HTMLInputElement | null = $state(null);
 	let loading = $state(false);
 	let actionOrderId: string | null = $state(null);
 	let suggestionsByOrderId = $state<Record<string, Expense[]>>({});
@@ -28,6 +38,12 @@
 	let editingOrderId: string | null = $state(null);
 	let shortNameDraft = $state('');
 	let categoryEditingOrderId: string | null = $state(null);
+
+	// Browser-export import panel.
+	let exportPanelOpen = $state(false);
+	let exportPasteText = $state('');
+	let skippedOrders = $state<AmazonImportSkippedOrder[]>([]);
+	const bookmarkletHref = buildBookmarkletHref();
 
 	const expenseById = $derived.by(() => {
 		const map = new Map<string, Expense>();
@@ -124,17 +140,109 @@
 
 		loading = true;
 		banner = null;
+		skippedOrders = [];
 		try {
 			const result = await importAmazonCsv(picked);
-			banner = {
-				kind: 'success',
-				message: `Imported ${result.created}, updated ${result.updated}, auto-linked ${result.autoMatched}. ${result.ambiguous} need review.`
-			};
+			applyImportResult(result);
 		} catch (cause) {
 			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Import failed.' };
 		} finally {
 			loading = false;
 		}
+	}
+
+	function toggleExportPanel(): void {
+		banner = null;
+		exportPanelOpen = !exportPanelOpen;
+	}
+
+	function applyImportResult(result: AmazonImportResult): void {
+		const report = result.files[0];
+		skippedOrders = report?.skipped ?? [];
+		const skippedNote =
+			skippedOrders.length > 0 ? ` ${skippedOrders.length} skipped (see details).` : '';
+		banner = {
+			kind: 'success',
+			message: `Imported ${result.created}, updated ${result.updated}, auto-linked ${result.autoMatched}. ${result.ambiguous} need review.${skippedNote}`
+		};
+	}
+
+	function parseExportPayload(raw: string): AmazonExportRequest {
+		const trimmed = raw.trim();
+		if (!trimmed) throw new Error('Paste the exported JSON first.');
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			throw new Error('Invalid JSON — paste the file the bookmarklet downloaded.');
+		}
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			!Array.isArray((parsed as { orders?: unknown }).orders)
+		) {
+			throw new Error('Invalid JSON — expected an object with an "orders" array.');
+		}
+		return parsed as AmazonExportRequest;
+	}
+
+	async function submitExportPayload(payload: AmazonExportRequest): Promise<void> {
+		loading = true;
+		banner = null;
+		skippedOrders = [];
+		try {
+			const result = await importAmazonExport(payload);
+			applyImportResult(result);
+			exportPasteText = '';
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Import failed.'
+			};
+		} finally {
+			loading = false;
+		}
+	}
+
+	function openExportFilePicker(): void {
+		banner = null;
+		exportFileInputEl?.click();
+	}
+
+	async function handleExportFileSelected(event: Event): Promise<void> {
+		const input = event.target as HTMLInputElement;
+		const picked = input.files?.[0] ?? null;
+		input.value = '';
+		if (!picked) return;
+		banner = null;
+		skippedOrders = [];
+		let payload: AmazonExportRequest;
+		try {
+			payload = parseExportPayload(await picked.text());
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Invalid JSON.'
+			};
+			return;
+		}
+		await submitExportPayload(payload);
+	}
+
+	async function handleExportPasteSubmit(): Promise<void> {
+		banner = null;
+		skippedOrders = [];
+		let payload: AmazonExportRequest;
+		try {
+			payload = parseExportPayload(exportPasteText);
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Invalid JSON.'
+			};
+			return;
+		}
+		await submitExportPayload(payload);
 	}
 
 	async function matchAll(): Promise<void> {
@@ -227,7 +335,8 @@
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Amazon orders</h1>
 			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
-				Import Amazon order CSVs and link orders to matching transactions.
+				Import Amazon orders — from a CSV export or straight from your browser — and
+				link them to matching transactions.
 			</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
@@ -240,6 +349,14 @@
 				class="hidden"
 				onchange={handleFilesSelected}
 			/>
+			<input
+				bind:this={exportFileInputEl}
+				type="file"
+				accept=".json,application/json"
+				data-testid="amazon-export-file-input"
+				class="hidden"
+				onchange={handleExportFileSelected}
+			/>
 			<button
 				type="button"
 				data-testid="amazon-import-button"
@@ -248,6 +365,16 @@
 				class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
 			>
 				{loading ? 'Working…' : 'Import CSV'}
+			</button>
+			<button
+				type="button"
+				data-testid="amazon-export-import-button"
+				onclick={toggleExportPanel}
+				disabled={loading}
+				aria-expanded={exportPanelOpen}
+				class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
+			>
+				Import from browser
 			</button>
 			<button
 				type="button"
@@ -270,6 +397,92 @@
 				: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
 		>
 			{banner.message}
+		</div>
+	{/if}
+
+	{#if exportPanelOpen}
+		<div
+			data-testid="amazon-export-panel"
+			class="flex flex-col gap-4 rounded-lg border border-ctp-surface1 bg-ctp-base p-5"
+		>
+			<div>
+				<h2 class="text-sm font-semibold text-ctp-text">Import from your browser</h2>
+				<p class="mt-1 text-sm text-ctp-overlay1">
+					Drag the button below to your bookmarks bar. Open your Amazon orders page
+					(<span class="text-ctp-subtext0">Returns &amp; Orders</span>), click the
+					bookmark, then upload the downloaded <span class="font-mono">.json</span> here.
+					No Amazon password or session is ever sent to quid.
+				</p>
+			</div>
+
+			<div class="flex flex-wrap items-center gap-3">
+				<a
+					href={bookmarkletHref}
+					data-testid="amazon-bookmarklet-link"
+					onclick={(event) => event.preventDefault()}
+					class="inline-flex cursor-grab items-center gap-2 rounded-md border border-dashed border-ctp-accent/50 bg-ctp-accent/10 px-4 py-2 text-sm font-medium text-ctp-accent active:cursor-grabbing"
+					title="Drag me to your bookmarks bar"
+				>
+					Sync Amazon → quid
+				</a>
+				<span class="text-xs text-ctp-overlay1">Drag this to your bookmarks bar.</span>
+			</div>
+
+			<div class="flex flex-col gap-2">
+				<span class="text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
+					1 · Upload the downloaded file
+				</span>
+				<button
+					type="button"
+					data-testid="amazon-export-upload-button"
+					onclick={openExportFilePicker}
+					disabled={loading}
+					class="self-start rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
+				>
+					{loading ? 'Working…' : 'Upload .json'}
+				</button>
+			</div>
+
+			<div class="flex flex-col gap-2">
+				<span class="text-xs font-medium uppercase tracking-wide text-ctp-overlay1">
+					2 · Or paste the JSON
+				</span>
+				<textarea
+					data-testid="amazon-export-textarea"
+					bind:value={exportPasteText}
+					rows="4"
+					placeholder={'{ "orders": [ … ] }'}
+					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 font-mono text-xs text-ctp-text focus:border-ctp-accent focus:outline-none"
+				></textarea>
+				<button
+					type="button"
+					data-testid="amazon-export-submit"
+					onclick={handleExportPasteSubmit}
+					disabled={loading || exportPasteText.trim() === ''}
+					class="self-start rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
+				>
+					Import pasted JSON
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if skippedOrders.length > 0}
+		<div
+			data-testid="amazon-export-skipped"
+			class="rounded-md border border-ctp-yellow/40 bg-ctp-yellow/10 px-4 py-3 text-sm text-ctp-text"
+		>
+			<p class="font-medium text-ctp-yellow">
+				{skippedOrders.length} order{skippedOrders.length === 1 ? '' : 's'} skipped
+			</p>
+			<ul class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
+				{#each skippedOrders as skipped (skipped.orderId + skipped.reason)}
+					<li data-testid="amazon-export-skipped-row">
+						<span class="font-mono">{skipped.orderId || '(no order id)'}</span> —
+						{skipped.reason}
+					</li>
+				{/each}
+			</ul>
 		</div>
 	{/if}
 

@@ -161,6 +161,31 @@ Verification checklist for any user-facing change:
 - Amazon orders are imported from CSV (`POST /api/v1/amazon-orders/import-csv`) and
   linked to `expenses` via the `expense_amazon_orders` many-to-many table.
   Auto-matching runs on import and via `/match-all`.
+- The import pipeline's shared seam is
+  `_ingest_orders(session, parsed_orders, *, source=...)` in
+  `routers/amazon_orders.py` (upsert → AI short-names → AI categorize →
+  `auto_match_all` → commit). A new source just produces `list[ParsedOrderInput]`
+  and calls it. CSV passes `source="csv"`; the browser export passes
+  `source="export"`. `source` is provenance for logging only (no per-order
+  column). CSV is the canonical fallback and must not be removed/regressed.
+- `POST /api/v1/amazon-orders/import-export` ingests browser-scraped orders as
+  JSON (`AmazonExportRequest`, camelCase). **MONEY-AS-STRINGS contract:** order
+  `total`, item `price`, shipment `total` are JSON strings (`"19.99"`), never
+  numbers — typed `str` in the schema so a number is a hard 422; the matcher
+  does exact `Decimal` equality. Row-level bad data (blank id, non-importable
+  status, bad date, missing/≤0 total) is SKIPPED per-order with a reason
+  (returned in `files[0].skipped`); only structural payload errors 422 (mirrors
+  CSV). Order ids are deduped (last wins) before ingest.
+- The webui scraper lives in `webui/src/lib/amazon/`. `scraper.ts` is the
+  canonical, fixture-tested (`webui/tests/amazon-scraper.e2e.ts`) pure parser
+  (`parseOrdersFromDocument(doc, domain)`); it is **fail-loud** on DOM drift
+  (throws `AmazonScrapeError` when an orders-shell yields zero cards or a card
+  lacks an id/total — never emits truncated/garbage data). `bookmarklet.ts` is a
+  self-contained `javascript:` derivative (no remote fetch/eval; runs in the
+  amazon.* origin, downloads a `.json` + copies to clipboard) and MUST be kept
+  in sync with `scraper.ts`. The "Import from browser" panel on `/amazon`
+  uploads/pastes that JSON same-origin to `/import-export` (CORS blocks a direct
+  amazon.*→API POST by design; don't relax it).
 - Each order has a `short_name` (≤60 chars): a brief AI-generated description of what
   was purchased, generated ONCE at import time (only when `ai_short_names_enabled`)
   and stored. Re-importing the same order id never overwrites it. Users edit it via

@@ -43,18 +43,24 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 		buffer: Buffer.from(csv)
 	});
 
-	const row = page.getByTestId('amazon-order-row');
+	// The e2e DB is shared across tests and Amazon orders are not wiped by the
+	// seed-state reset, so scope to this order's row by its id.
+	const row = page
+		.getByTestId('amazon-order-row')
+		.filter({ hasText: '123-4567890-1234567' });
 	await expect(row).toHaveCount(1);
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute('data-link-status', 'linked');
 	await expect(row).toContainText('Wireless mouse');
 
 	await row.getByTestId('amazon-short-name-edit').click();
 	await row.getByTestId('amazon-short-name-input').fill('Gaming mouse');
-	await page.getByRole('button', { name: /save/i }).click();
+	await row.getByRole('button', { name: /save/i }).click();
 	await expect(row).toContainText('Gaming mouse');
 
 	await page.reload();
-	await expect(page.getByTestId('amazon-order-row')).toContainText('Gaming mouse');
+	await expect(
+		page.getByTestId('amazon-order-row').filter({ hasText: '123-4567890-1234567' })
+	).toContainText('Gaming mouse');
 
 	await page.goto('/');
 	const expenseRow = page.getByTestId('expense-row').filter({ hasText: 'AMZN Mktp' });

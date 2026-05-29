@@ -1,4 +1,5 @@
 import type {
+	AmazonExportRequest,
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
@@ -28,6 +29,13 @@ export class HttpAmazonOrderRepository implements AmazonOrderRepository {
 		return this.client.request<AmazonImportResult>('api/v1/amazon-orders/import-csv', {
 			method: 'POST',
 			formData: form
+		});
+	}
+
+	async importExport(payload: AmazonExportRequest): Promise<AmazonImportResult> {
+		return this.client.request<AmazonImportResult>('api/v1/amazon-orders/import-export', {
+			method: 'POST',
+			body: payload
 		});
 	}
 

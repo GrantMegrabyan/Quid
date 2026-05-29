@@ -1,0 +1,15 @@
+<!doctype html>
+<!--
+  An orders page SHELL with zero order cards and NO empty-state marker — the
+  signature of a layout change (Amazon moved/renamed the card container). The
+  parser MUST throw AmazonScrapeError here rather than silently emit 0 orders.
+-->
+<html lang="en-GB">
+	<body>
+		<div id="ordersContainer" class="your-orders-content-container">
+			<div class="some-unrecognised-wrapper">
+				<p>Your orders rendered with a layout we don't recognise.</p>
+			</div>
+		</div>
+	</body>
+</html>

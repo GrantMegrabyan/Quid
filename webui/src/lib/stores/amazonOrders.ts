@@ -1,6 +1,12 @@
 import { writable } from 'svelte/store';
 import { amazonOrderRepository } from '$lib/repos';
-import type { AmazonImportResult, AmazonMatchAllResult, AmazonOrder, Expense } from '$types';
+import type {
+	AmazonExportRequest,
+	AmazonImportResult,
+	AmazonMatchAllResult,
+	AmazonOrder,
+	Expense
+} from '$types';
 import { refreshExpenses } from './expenses.js';
 
 export const amazonOrders = writable<AmazonOrder[]>([]);
@@ -12,6 +18,15 @@ export async function refreshAmazonOrders(): Promise<void> {
 
 export async function importAmazonCsv(files: File[]): Promise<AmazonImportResult> {
 	const result = await amazonOrderRepository.importCsv(files);
+	await refreshAmazonOrders();
+	await refreshExpenses();
+	return result;
+}
+
+export async function importAmazonExport(
+	payload: AmazonExportRequest
+): Promise<AmazonImportResult> {
+	const result = await amazonOrderRepository.importExport(payload);
 	await refreshAmazonOrders();
 	await refreshExpenses();
 	return result;

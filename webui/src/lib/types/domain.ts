@@ -255,10 +255,18 @@ export interface AmazonOrder {
 	linkedExpenseIds: string[];
 }
 
+export interface AmazonImportSkippedOrder {
+	orderId: string;
+	reason: string;
+}
+
 export interface AmazonImportFileReport {
 	filename: string;
 	ordersParsed: number;
 	skippedRows: number;
+	/** Per-order skip reasons. Populated by the browser-export import; left
+	 *  empty/undefined by CSV import (additive + backwards compatible). */
+	skipped?: AmazonImportSkippedOrder[];
 }
 
 export interface AmazonImportResult {
@@ -277,4 +285,50 @@ export interface AmazonMatchAllResult {
 	ambiguous: number;
 	totalOrders: number;
 	combinedMatched?: number;
+}
+
+/**
+ * Browser-export payload shape POSTed to `POST /api/v1/amazon-orders/import-export`.
+ *
+ * MONEY-AS-STRINGS CONTRACT: every monetary field (order `total`, item
+ * `price`, shipment `total`) is a JSON STRING ("19.99"), never a number — the
+ * backend does exact `Decimal` matching, and a JSON number produced by float
+ * arithmetic would silently fail to match. The scraper emits the exact scraped
+ * text; never `parseFloat` a price. See `webui/src/lib/amazon/scraper.ts`.
+ */
+export interface AmazonExportItem {
+	title: string;
+	quantity: number;
+	/** Money STRING ("9.99"), never a number. Null when not parseable. */
+	price: string | null;
+}
+
+export interface AmazonExportShipment {
+	/** Money STRING ("9.99"), never a number. */
+	total: string | null;
+	shipDate: string | null;
+	tracking: string | null;
+	items: AmazonExportItem[];
+}
+
+export interface AmazonExportOrder {
+	orderId: string;
+	/** Normalised `YYYY-MM-DD`. */
+	orderDate: string;
+	/** Money STRING ("19.99"), never a number. Null when not parseable. */
+	total: string | null;
+	currency?: string | null;
+	status?: string | null;
+	items: AmazonExportItem[];
+	shipments: AmazonExportShipment[];
+	paymentLast4?: string | null;
+	orderUrl?: string | null;
+}
+
+export interface AmazonExportRequest {
+	/** Version of the scraper that produced this payload (e.g. "1.0.0"). */
+	scraperVersion?: string;
+	/** Source domain (e.g. "amazon.co.uk"); used for provenance/logging. */
+	domain?: string;
+	orders: AmazonExportOrder[];
 }

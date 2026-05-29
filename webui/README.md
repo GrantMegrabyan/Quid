@@ -52,10 +52,29 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   A shared **Import history** table below the tabs lists every import with a
   **Source** column (CSV vs AI); AI rows can be expanded to show the original
   pasted text.
-- **Amazon orders** (`/amazon`) — import Amazon order CSVs, see which orders are
+- **Amazon orders** (`/amazon`) — import Amazon orders, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
   AI-generated **short name** and detected **category** inline (the category
-  chip opens a dropdown; clearing it is allowed).
+  chip opens a dropdown; clearing it is allowed). Two import paths:
+  - **Import CSV** — upload one or more Amazon order-export CSVs (the canonical,
+    reliable path).
+  - **Import from browser** — for when you don't want to hunt for a CSV. Opens a
+    panel with a **bookmarklet** ("Sync Amazon → quid") to drag onto your
+    bookmarks bar. On your Amazon orders page (Returns & Orders), click the
+    bookmark: it scrapes the visible orders **in your own logged-in browser**
+    (no Amazon password or session ever reaches quid), downloads a `.json` file,
+    and copies the JSON to your clipboard. Back in quid, **upload the `.json`**
+    (primary) or **paste the JSON** into the textarea and submit. Orders feed the
+    same ingest/match pipeline as CSV. Any orders the server drops (missing
+    total, cancelled, bad date) are listed with reasons below the banner.
+
+    The scraper is **fail-loud**: if Amazon's page layout has drifted beyond
+    recognition it aborts with an explanatory alert and exports nothing, so you
+    never import truncated/garbage data — fall back to the CSV import. The
+    parser lives in `src/lib/amazon/scraper.ts` (canonical, fixture-tested via
+    `tests/amazon-scraper.e2e.ts`); the bookmarklet in
+    `src/lib/amazon/bookmarklet.ts` is a self-contained derivative that must be
+    kept in sync with it.
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
   on). (Theme switching was removed; the UI uses a single Dasher-style dark

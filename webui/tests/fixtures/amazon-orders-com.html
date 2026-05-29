@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  Sanitized amazon.com order-history fragment for parser tests. NO real PII.
+  Uses the legacy ".a-box-group.order" card shape and US "May 12, 2026" dates
+  with "$" totals to exercise a second selector/date/currency variant.
+-->
+<html lang="en-US">
+	<body>
+		<div class="a-section your-orders-content">
+			<div class="a-box-group order">
+				<div class="order-info">
+					<span class="a-color-secondary value">May 12, 2026</span>
+					<div class="order-total">
+						<span class="value">$24.00</span>
+					</div>
+					<div class="yohtmlc-order-id">
+						<span>ORDER # 100-1112223-3334445</span>
+					</div>
+				</div>
+				<div class="shipment-top-row">
+					<span class="a-text-bold">Delivered</span>
+				</div>
+				<div class="a-fixed-left-grid item-box">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						href="/gp/product/B0EXAMPLEA"
+						>Stainless Water Bottle 1L</a
+					>
+					<span class="item-price">$24.00</span>
+				</div>
+				<a class="a-link-normal" href="/gp/css/order-details?orderID=100-1112223-3334445"
+					>View order details</a
+				>
+				<span>Mastercard ending 5555</span>
+			</div>
+
+			<div class="a-box-group order">
+				<div class="order-info">
+					<span class="a-color-secondary value">May 20, 2026</span>
+					<div class="order-total">
+						<span class="value">$1,299.00</span>
+					</div>
+					<div class="yohtmlc-order-id">
+						<span>ORDER # 200-2223334-4445556</span>
+					</div>
+				</div>
+				<div class="shipment-top-row">
+					<span class="a-text-bold">Shipped</span>
+				</div>
+				<div class="a-fixed-left-grid item-box">
+					<a
+						class="a-link-normal yohtmlc-product-title"
+						href="/gp/product/B0EXAMPLEB"
+						>27-inch Monitor</a
+					>
+					<span class="item-price">$1,299.00</span>
+				</div>
+				<a class="a-link-normal" href="/gp/css/order-details?orderID=200-2223334-4445556"
+					>View order details</a
+				>
+				<span>Visa ending in 4242</span>
+			</div>
+		</div>
+	</body>
+</html>

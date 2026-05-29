@@ -1,4 +1,5 @@
 import type {
+	AmazonExportRequest,
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
@@ -80,6 +81,7 @@ export interface AmazonOrderRepository {
 	list(): Promise<AmazonOrder[]>;
 	get(id: string): Promise<AmazonOrder>;
 	importCsv(files: File[]): Promise<AmazonImportResult>;
+	importExport(payload: AmazonExportRequest): Promise<AmazonImportResult>;
 	matchAll(): Promise<AmazonMatchAllResult>;
 	suggestedMatches(id: string): Promise<Expense[]>;
 	link(orderId: string, expenseId: string): Promise<Expense>;
