@@ -85,7 +85,7 @@
 	);
 
 	function groupIdFor(expense: Expense): string {
-		if (groupBy === 'merchant') return expense.name;
+		if (groupBy === 'merchant') return expense.displayName ?? expense.name;
 		if (groupBy === 'importance') return expense.importance;
 		return expense.categoryId;
 	}
