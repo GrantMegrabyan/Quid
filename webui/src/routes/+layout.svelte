@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/favicon.ico';
 	import { page } from '$app/stores';
 
 	let { children } = $props();
@@ -29,7 +29,7 @@
 			class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8"
 		>
 			<a href="/" class="shrink-0 text-lg font-semibold tracking-tight text-ctp-text">
-				Expenses
+				Quid
 			</a>
 
 			<nav class="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
