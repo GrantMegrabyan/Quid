@@ -544,6 +544,92 @@ async def test_reimport_does_not_overwrite_existing_order_category(app_client, m
     assert order["categoryId"] == "cat-office-supplies"
 
 
+async def _import_expenses_with_ai(app_client, monkeypatch, csv_body: str, category: str) -> None:
+    """Import expenses via CSV with mocked expense-AI assigning `category`."""
+
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category=category) for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("monzo.csv", csv_body)],
+    )
+    assert res.status_code == 201, res.text
+
+
+async def test_order_category_overrides_ai_shopping_on_expense(app_client, monkeypatch):
+    """The core precision fix: an Amazon expense the expense-AI coarsely tagged
+    'Shopping' (source 'ai') is overridden by the order's precise category."""
+    # Expense imported via CSV + expense-AI -> "Shopping" (source 'ai').
+    await _import_expenses_with_ai(
+        app_client,
+        monkeypatch,
+        "name,amount,date\nAmazon Mktp,-42.50,2026-04-22\n",
+        "Shopping",
+    )
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["name"] == "Amazon Mktp")
+    assert exp["categoryId"] == "cat-shopping"
+    assert exp["categorySource"] == "ai"
+
+    # Order import categorises the order precisely and auto-matches it.
+    async def order_fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", order_fake)
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    after = (await app_client.get("/api/v1/expenses")).json()
+    exp_after = next(e for e in after if e["name"] == "Amazon Mktp")
+    assert exp_after["categoryId"] == "cat-office-supplies"
+    assert exp_after["categorySource"] == "amazon"
+
+
+async def test_order_category_does_not_override_manual_expense(app_client, monkeypatch):
+    """A hand-set (manual) expense category is protected from order overrides."""
+    expense = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 42.50,
+            "date": "2026-04-22",
+            "categoryId": "uncategorized",
+        },
+    )
+    expense_id = expense.json()["id"]
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(f"/api/v1/expenses/{expense_id}", json={"categoryId": travel["id"]})
+
+    async def order_fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Office Supplies") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", order_fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+
+    after = (await app_client.get("/api/v1/expenses")).json()
+    exp_after = next(e for e in after if e["id"] == expense_id)
+    assert exp_after["categoryId"] == travel["id"]
+    assert exp_after["categorySource"] == "manual"
+
+
 async def test_manual_link_and_unlink(app_client):
     expense_id = await _seed_categories_and_expense(
         app_client, name="Amazon Mktp", amount=99.99, date="2026-05-04"

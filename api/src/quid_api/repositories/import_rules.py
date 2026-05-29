@@ -214,7 +214,7 @@ class ImportRuleRepository:
         await self.session.execute(
             update(Expense)
             .where(Expense.id.in_([expense.id for expense in matched]))
-            .values(category_id=rule.target_category_id)
+            .values(category_id=rule.target_category_id, category_source="rule")
         )
         await self.session.flush()
         return ApplyResult(matched=len(matched), updated=len(matched), deleted=0)
@@ -248,7 +248,7 @@ class ImportRuleRepository:
             await self.session.execute(
                 update(Expense)
                 .where(Expense.id.in_(expense_ids))
-                .values(category_id=target_category_id)
+                .values(category_id=target_category_id, category_source="rule")
             )
             updated_total += len(expense_ids)
 

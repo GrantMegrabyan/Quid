@@ -30,6 +30,7 @@ from quid_api.schemas import (
     AmazonOrderOut,
     AmazonOrderShipment,
     AmazonShortNameRequest,
+    CategorySource,
     ExpenseOut,
     Importance,
 )
@@ -287,6 +288,7 @@ async def _expense_with_links(repo: AmazonOrderRepository, expense: Expense) -> 
         note=expense.note,
         display_name=expense.display_name,
         importance=cast("Importance", expense.importance),
+        category_source=cast("CategorySource", expense.category_source),
         amazon_order_ids=linked_map.get(expense.id, []),
     )
 
@@ -306,6 +308,7 @@ async def list_suggested_matches(order_id: str, session: SessionDep) -> list[Exp
             note=candidate.note,
             display_name=candidate.display_name,
             importance=cast("Importance", candidate.importance),
+            category_source=cast("CategorySource", candidate.category_source),
             amazon_order_ids=linked.get(candidate.id, []),
         )
         for candidate in candidates

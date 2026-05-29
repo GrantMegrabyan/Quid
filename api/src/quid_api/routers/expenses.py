@@ -550,7 +550,10 @@ async def confirm_import_csv(
         )
         for row in payload.creates
     ]
-    import_result = await repo.bulk_import(items) if items else None
+    # Creates come from a preview that AI-categorised them when the setting was
+    # on; mark them 'ai' so a precise Amazon order category can still override.
+    confirm_used_ai = (await AppSettingsRepository(session).get()).ai_categorize_enabled
+    import_result = await repo.bulk_import(items, used_ai=confirm_used_ai) if items else None
 
     created_categories = list(import_result.categories_created) if import_result else []
     created_expenses = list(import_result.expenses) if import_result else []
@@ -577,6 +580,8 @@ async def confirm_import_csv(
         changed = False
         if category.id != old_category:
             expense.category_id = category.id
+            # The user reviewed and accepted this category, so protect it.
+            expense.category_source = "manual"
             changed = True
         if row.importance != old_importance:
             expense.importance = row.importance
@@ -717,7 +722,9 @@ async def import_csv(
     excluded_indices = ai_excluded_indices | refund_indices
 
     repo = ExpenseRepository(session)
-    result = await repo.bulk_import(all_items, ai_excluded_indices=excluded_indices)
+    result = await repo.bulk_import(
+        all_items, ai_excluded_indices=excluded_indices, used_ai=ai_categorize
+    )
     log_repo = ImportLogRepository(session)
     await log_repo.create(
         files=[p.filename for p in parsed_files],

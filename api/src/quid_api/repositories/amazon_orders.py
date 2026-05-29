@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
 
-from quid_api.category_helpers import UNCATEGORIZED_ID
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import AmazonOrder, Expense, ExpenseAmazonOrderLink
 
@@ -91,6 +90,15 @@ _COMBINED_ORDER_DATE_SPAN_DAYS = 2
 _COMBINED_EXPENSE_WINDOW_DAYS = 3
 _COMBINED_MIN_TOTAL = Decimal("5")
 _COMBINED_MAX_SIZE = 3
+
+# An Amazon order's category may overwrite an expense's category only when the
+# expense category came from a low-priority guess. A 'manual' (user-edited),
+# 'rule' (import-rule), or existing 'amazon' category is never overwritten.
+_OVERRIDABLE_CATEGORY_SOURCES = frozenset({"import", "ai"})
+
+
+def _expense_accepts_inherited_category(expense: Expense) -> bool:
+    return expense.category_source in _OVERRIDABLE_CATEGORY_SOURCES
 
 
 def serialize_items(items: list[dict[str, object]] | None) -> str:
@@ -295,18 +303,42 @@ class AmazonOrderRepository:
         await self.session.flush()
         return named
 
-    async def _propagate_category_to_links(self, order: AmazonOrder) -> None:
-        """Push the order's category onto each linked expense that is still
-        uncategorised. Hand-set / AI-set expense categories are never
-        overwritten; only ``UNCATEGORIZED_ID`` expenses inherit."""
+    async def propagate_all_categories_to_links(self) -> int:
+        """Push every categorised order's category onto its linked expenses
+        that still carry a low-priority category (``import``/``ai``).
+
+        This is the standalone cleanup pass: ``set_generated_categories`` only
+        propagates for orders it newly categorises, so orders that already had
+        a category (e.g. categorised at import while their linked expense was
+        an AI ``Shopping`` guess) would never be reconciled without this.
+        Idempotent and safe to re-run. Returns the number of expenses changed.
+        """
+        changed = 0
+        for order in await self.list_all():
+            if not order.category_id:
+                continue
+            changed += await self._propagate_category_to_links(order)
+        await self.session.flush()
+        return changed
+
+    async def _propagate_category_to_links(self, order: AmazonOrder) -> int:
+        """Push the order's category onto each linked expense whose category
+        came from a low-priority guess (``import`` default or expense ``ai``).
+        Hand-set (``manual``), import-rule (``rule``), and already-inherited
+        (``amazon``) categories are never overwritten. Returns the number of
+        expenses changed."""
         if not order.category_id:
-            return
+            return 0
+        changed = 0
         expense_ids = await self.linked_expense_ids(order.id)
         for expense_id in expense_ids:
             expense = await self.session.get(Expense, expense_id)
-            if expense is None or expense.category_id != UNCATEGORIZED_ID:
+            if expense is None or not _expense_accepts_inherited_category(expense):
                 continue
             expense.category_id = order.category_id
+            expense.category_source = "amazon"
+            changed += 1
+        return changed
 
     async def _linked_expense_ids_set(self) -> set[str]:
         rows = (await self.session.scalars(select(ExpenseAmazonOrderLink.expense_id))).all()
@@ -430,16 +462,19 @@ class AmazonOrderRepository:
             await self._inherit_category_on_link(order_id, expense_id)
 
     async def _inherit_category_on_link(self, order_id: str, expense_id: str) -> None:
-        """When a single order links to an expense, an uncategorised expense
-        inherits the order's category. Never overwrites a category the user
-        (or expense AI) already chose."""
+        """When a single order links to an expense, the expense inherits the
+        order's (precise) category when its own category came from a
+        low-priority guess (``import`` default or expense ``ai``). A
+        hand-set (``manual``) or import-rule (``rule``) category is never
+        overwritten."""
         order = await self.session.get(AmazonOrder, order_id)
         if order is None or not order.category_id:
             return
         expense = await self.session.get(Expense, expense_id)
-        if expense is None or expense.category_id != UNCATEGORIZED_ID:
+        if expense is None or not _expense_accepts_inherited_category(expense):
             return
         expense.category_id = order.category_id
+        expense.category_source = "amazon"
 
     async def link_expense(self, order_id: str, expense_id: str) -> Expense:
         order = await self.get(order_id)
@@ -671,8 +706,9 @@ class AmazonOrderRepository:
             for o in combo:
                 await self._link_pair(o.id, expense.id, inherit_category=False)
                 consumed_order_ids.add(o.id)
-            if shared_category is not None and expense.category_id == UNCATEGORIZED_ID:
+            if shared_category is not None and _expense_accepts_inherited_category(expense):
                 expense.category_id = shared_category
+                expense.category_source = "amazon"
             used_expense_ids.add(expense.id)
             linked_count += len(combo)
 

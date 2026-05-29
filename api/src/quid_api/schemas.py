@@ -52,6 +52,9 @@ class CategoryUpdate(_Camel):
     description: Annotated[str | None, Field(max_length=1000)] = None
 
 
+CategorySource = Literal["manual", "rule", "amazon", "ai", "import"]
+
+
 class ExpenseOut(_Camel):
     id: str
     name: str
@@ -61,6 +64,7 @@ class ExpenseOut(_Camel):
     note: str
     display_name: str | None = None
     importance: Importance
+    category_source: CategorySource = "import"
     amazon_order_ids: list[str] = Field(default_factory=list)
 
     @field_serializer("amount")

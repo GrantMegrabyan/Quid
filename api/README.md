@@ -149,12 +149,31 @@ titles. It is generated once at import time (only when `aiCategorizeEnabled` is
 true) and stored; re-importing never overwrites a non-null category. Backfill
 missing categories with `uv run quid-api backfill-amazon-categories`.
 
-**Category inheritance:** when an order is linked to an expense whose category
-is still `uncategorized` (auto-match or manual link), the expense inherits the
-order's category. A category set by the user or by expense AI is never
-overwritten. For a combined charge (2–3 orders → one expense), the expense
-inherits a category only when all participating orders agree on it. Unlinking
-does not revert an inherited category.
+**Category inheritance & precision.** Each expense records a
+`categorySource` (read-only on `ExpenseOut`) marking where its category came
+from, with priority high→low: `manual` > `rule` > `amazon` > `ai` > `import`.
+When an order is linked to an expense (auto-match or manual link), the expense
+inherits the order's (precise, item-derived) category **only when its current
+source is `ai` or `import`** — i.e. a generic expense-AI guess (the typical
+Amazon "Shopping") or an unset/import default. A category set by the user
+(`manual`), an import rule (`rule`), or a previous order (`amazon`) is never
+overwritten. This is the precision fix: per-order categories replace the coarse
+"Shopping" bucket but protect deliberate choices.
+
+`categorySource` is set per write path: manual create / edit / accepted import
+suggestion → `manual`; import-rule match → `rule`; expense-import AI → `ai`;
+bulk/default import → `import`; Amazon inheritance → `amazon`. Deleting a
+category resets affected expenses to `uncategorized`/`import` (re-categorisable).
+
+For a combined charge (2–3 orders → one expense), the expense inherits a
+category only when all participating orders agree on it. Unlinking does not
+revert an inherited category.
+
+The `backfill-amazon-categories` command, after categorising orders, runs a
+standalone pass that pushes every categorised order's category onto its linked
+`ai`/`import` expenses — so already-imported "Shopping" Amazon expenses get the
+precise category even though their orders were linked before this feature
+existed.
 
 **Matching is restricted to Amazon merchants:** auto-matching and
 `suggested-matches` only consider expenses whose name looks like an Amazon

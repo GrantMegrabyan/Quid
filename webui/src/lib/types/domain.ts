@@ -14,6 +14,10 @@ export interface Expense {
 	note: string;
 	displayName?: string | null;
 	importance: ExpenseImportance;
+	/** Provenance of `categoryId`, controlling whether a linked Amazon order's
+	 *  category may override it. Read-only (set server-side). Optional in mocks
+	 *  and creation payloads. */
+	categorySource?: ExpenseCategorySource;
 	/** Amazon orders this expense is linked to. Multiple when Amazon bills
 	 *  several orders together as a single bank charge. Optional in mocks
 	 *  and creation payloads; the API always returns at least []. */
@@ -21,6 +25,8 @@ export interface Expense {
 }
 
 export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
+
+export type ExpenseCategorySource = 'manual' | 'rule' | 'amazon' | 'ai' | 'import';
 
 export interface Category {
 	id: string;

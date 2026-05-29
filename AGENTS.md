@@ -165,3 +165,19 @@ Verification checklist for any user-facing change:
 - Backfill names for already-imported orders missing one with
   `uv run quid-api backfill-amazon-short-names` (idempotent; never overwrites). It
   calls OpenRouter, so it needs `QUID_OPENROUTER_API_KEY`.
+- Each order also has a `category_id` (nullable FK, AI-derived from item titles,
+  generated ONCE at import when `ai_categorize_enabled`; re-import never
+  overwrites a non-null one). Order matching is restricted to Amazon-merchant
+  expenses (`Expense.name` matching `amazon`/`amzn`/`amz`); manual `/link` is
+  unrestricted.
+- Expense category provenance lives in `expenses.category_source` (priority
+  high→low: `manual` > `rule` > `amazon` > `ai` > `import`). An Amazon order's
+  category overrides an expense category ONLY when its source is `ai` or
+  `import` (so the coarse expense-AI "Shopping" gets replaced by the precise
+  per-order category, but `manual`/`rule` choices are protected). Set source on
+  every expense write path; the category-delete cascade resets to `import`.
+- `uv run quid-api backfill-amazon-categories` AI-categorises orders missing a
+  category AND runs a standalone propagation pass over ALL categorised orders
+  (because `set_generated_categories` only propagates for orders it newly
+  categorises — orders categorised earlier whose linked expense is still
+  `ai`/`import` need the standalone pass). Idempotent; needs `QUID_OPENROUTER_API_KEY`.

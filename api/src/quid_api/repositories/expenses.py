@@ -210,6 +210,9 @@ class ExpenseRepository:
             category_id=category_id,
             note=note or "",
             importance=clean_importance,
+            # A real chosen category is protected ('manual'); an expense left
+            # uncategorized stays overridable so it can inherit an order's.
+            category_source="import" if category_id == UNCATEGORIZED_ID else "manual",
         )
         self.session.add(row)
         await self.session.flush()
@@ -238,6 +241,9 @@ class ExpenseRepository:
         if category_id is not None:
             await self._ensure_category_exists(category_id)
             row.category_id = category_id
+            # A user-chosen real category is protected from Amazon overrides;
+            # setting it back to uncategorized leaves it overridable.
+            row.category_source = "import" if category_id == UNCATEGORIZED_ID else "manual"
         if note is not None:
             row.note = note
         if display_name is not _UNSET:
@@ -326,6 +332,7 @@ class ExpenseRepository:
                 category_id=category.id,
                 note=item.note or "",
                 importance=clean_importance,
+                category_source="import",
             )
             self.session.add(expense)
             created_expenses.append(expense)
@@ -337,7 +344,11 @@ class ExpenseRepository:
         )
 
     async def bulk_import(
-        self, items: list[BulkItem], *, ai_excluded_indices: frozenset[int] = frozenset()
+        self,
+        items: list[BulkItem],
+        *,
+        ai_excluded_indices: frozenset[int] = frozenset(),
+        used_ai: bool = False,
     ) -> ImportResult:
         """Idempotent bulk insert.
 
@@ -368,7 +379,7 @@ class ExpenseRepository:
         logger.info("import.bulk.start items=%d", len(items))
         created_categories: dict[str, Category] = {}
         rule_repo = ImportRuleRepository(self.session)
-        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None, str]] = []
+        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None, str, str]] = []
         decisions = ["pending" for _ in items]
         rule_excluded = 0
         rule_categorised = 0
@@ -406,6 +417,7 @@ class ExpenseRepository:
                 category = await self.session.get(Category, rule.target_category_id)
                 assert category is not None
                 rule_categorised += 1
+                category_source = "rule"
                 logger.debug(
                     "import.bulk.rule_categorised row=%d name=%r rule=%s category=%s",
                     idx,
@@ -415,6 +427,9 @@ class ExpenseRepository:
                 )
             else:
                 category = await self.resolve_or_create_category(item.category, created_categories)
+                # AI-categorised rows are overridable by a precise Amazon order
+                # category; non-AI imports likewise sit in the low-priority tier.
+                category_source = "ai" if used_ai else "import"
             item_display_name: str | None = rule.set_display_name if rule is not None else None
             prepared.append(
                 (
@@ -426,12 +441,13 @@ class ExpenseRepository:
                     item.note or "",
                     item_display_name,
                     clean_importance,
+                    category_source,
                 )
             )
 
         DedupKey = tuple[str, str, Decimal, str]
         in_file_counts: Counter[DedupKey] = Counter()
-        for _, _cat, amount, date, name, note, _dn, _imp in prepared:
+        for _, _cat, amount, date, name, note, _dn, _imp, _src in prepared:
             in_file_counts[(date, _normalize_text(name), amount, _normalize_text(note))] += 1
 
         quotas: dict[DedupKey, int] = {}
@@ -467,7 +483,7 @@ class ExpenseRepository:
 
         created_expenses: list[Expense] = []
         skipped = 0
-        for item_idx, cat, amount, date, name, note, display_name, importance in prepared:
+        for item_idx, cat, amount, date, name, note, display_name, importance, source in prepared:
             key = (date, _normalize_text(name), amount, _normalize_text(note))
             if quotas[key] > 0:
                 quotas[key] -= 1
@@ -480,6 +496,7 @@ class ExpenseRepository:
                     note=note,
                     display_name=display_name,
                     importance=importance,
+                    category_source=source,
                 )
                 self.session.add(row)
                 created_expenses.append(row)

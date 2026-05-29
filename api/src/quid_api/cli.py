@@ -171,13 +171,15 @@ async def _backfill_amazon_short_names_runner() -> dict[str, int]:
 @app.command("backfill-amazon-categories")
 def backfill_amazon_categories() -> None:
     """AI-categorise already-imported Amazon orders that don't have a category
-    yet, and propagate the result to any already-linked uncategorised
-    expenses. Idempotent: never overwrites an existing order or expense
-    category."""
+    yet, then push every categorised order's category onto its linked
+    expenses that still carry a low-priority (import/AI) category. Idempotent:
+    never overwrites an order's existing category nor a hand-set / import-rule
+    expense category."""
     result = asyncio.run(_backfill_amazon_categories_runner())
     typer.echo(
-        f"Amazon categories: {result['named']} categorised "
-        f"({result['missing']} missing, {result['skipped']} already categorised)"
+        f"Amazon categories: {result['named']} orders categorised "
+        f"({result['missing']} missing, {result['skipped']} already categorised); "
+        f"{result['propagated']} expenses re-categorised from linked orders"
     )
 
 
@@ -216,8 +218,17 @@ async def _backfill_amazon_categories_runner() -> dict[str, int]:
                 chunk_size=settings.openrouter_chunk_size,
             )
             named = await repo.set_generated_categories(derived)
+            # Standalone pass: reconcile expenses linked to orders that already
+            # carried a category (which set_generated_categories skips), e.g.
+            # the existing "everything is Shopping" Amazon expenses.
+            propagated = await repo.propagate_all_categories_to_links()
             await session.commit()
-            return {"missing": len(missing), "named": named, "skipped": skipped}
+            return {
+                "missing": len(missing),
+                "named": named,
+                "skipped": skipped,
+                "propagated": propagated,
+            }
     finally:
         await engine.dispose()
 

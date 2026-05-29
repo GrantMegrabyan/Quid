@@ -152,10 +152,13 @@ class CategoryRepository:
                 f'Category "{category_id}" not found.',
             )
 
+        # Reset to the low-priority 'import' source: the category was forcibly
+        # changed to a system default the user did not choose, so it should be
+        # re-categorisable by Amazon inheritance / rules / re-import.
         await self.session.execute(
             update(Expense)
             .where(Expense.category_id == category_id)
-            .values(category_id=UNCATEGORIZED_ID)
+            .values(category_id=UNCATEGORIZED_ID, category_source="import")
         )
         await self.session.delete(row)
         await self.session.flush()

@@ -54,6 +54,15 @@ class Expense(Base):
         server_default=text("'important'"),
         default="important",
     )
+    # Provenance of category_id, used to decide whether an Amazon order's
+    # category may override it. Priority high->low: manual > rule > amazon >
+    # ai > import. Amazon inheritance only overrides 'import' and 'ai'.
+    category_source: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'import'"),
+        default="import",
+    )
 
     category: Mapped[Category] = relationship(
         back_populates="expenses",
@@ -87,6 +96,10 @@ class Expense(Base):
         CheckConstraint(
             "importance IN ('essential', 'important', 'discretionary')",
             name="ck_expenses_importance",
+        ),
+        CheckConstraint(
+            "category_source IN ('manual', 'rule', 'amazon', 'ai', 'import')",
+            name="ck_expenses_category_source",
         ),
         Index("ix_expenses_date", "date"),
         Index("ix_expenses_category", "category_id"),
