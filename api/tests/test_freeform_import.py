@@ -113,6 +113,74 @@ async def test_freeform_confirm_creates_and_logs_raw_input(app_client, monkeypat
     assert latest["files"] == []
 
 
+async def test_freeform_confirm_is_idempotent(app_client, monkeypatch):
+    """Confirming the same free-form import twice must not double-import.
+
+    The confirm path re-runs the dedup against the DB at write time using
+    (date, name, amount, note), so re-submitting an identical create row is a
+    no-op. Editing the amount makes it a genuinely different transaction that
+    is created once.
+    """
+    monkeypatch.setattr(
+        "quid_api.routers.expenses.parse_freeform_transactions",
+        _fake_parse([ParsedFreeformItem(name="Coffee", amount="3.50", date="2026-04-01", note="")]),
+    )
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+
+    preview = await app_client.post(
+        "/api/v1/expenses/import-freeform/preview",
+        json={"rawInput": "coffee 3.50 on 2026-04-01"},
+    )
+    assert preview.status_code == 200, preview.text
+    row = preview.json()["rows"][0]
+    import_id = preview.json()["importId"]
+
+    def confirm_payload(amount: object) -> dict[str, object]:
+        return {
+            "importId": import_id,
+            "rawInput": "coffee 3.50 on 2026-04-01",
+            "creates": [
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "name": row["name"],
+                    "amount": amount,
+                    "date": row["date"],
+                    "note": row["note"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "importance": row["suggestedImportance"],
+                }
+            ],
+            "categoryUpdates": [],
+        }
+
+    first = await app_client.post(
+        "/api/v1/expenses/import-freeform/confirm", json=confirm_payload(3.50)
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["created"] == 1
+
+    # Same transaction again → deduped, nothing new created.
+    second = await app_client.post(
+        "/api/v1/expenses/import-freeform/confirm", json=confirm_payload(3.50)
+    )
+    assert second.status_code == 201, second.text
+    assert second.json()["created"] == 0
+    assert second.json()["skippedDuplicates"] == 1
+
+    # Edited amount → a different transaction, created once.
+    edited = await app_client.post(
+        "/api/v1/expenses/import-freeform/confirm", json=confirm_payload(9.99)
+    )
+    assert edited.status_code == 201, edited.text
+    assert edited.json()["created"] == 1
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    coffees = [e for e in expenses if e["name"] == "Coffee"]
+    assert len(coffees) == 2
+    assert sorted(e["amount"] for e in coffees) == [3.50, 9.99]
+
+
 async def test_csv_import_log_reports_csv_source(app_client):
     await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     resp = await app_client.post(

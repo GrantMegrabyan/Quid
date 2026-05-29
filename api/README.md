@@ -151,8 +151,13 @@ preview/confirm flow so the same review UI is reused.
   filename `AI free-form`). Requires `QUID_OPENROUTER_API_KEY`.
 - `POST /api/v1/expenses/import-freeform/confirm` — JSON body `{ "importId",
   "rawInput", "creates": [...], "categoryUpdates": [...] }` (same reviewed-row
-  shapes as CSV confirm). Persists the rows and records an import-log entry with
-  `source = "freeform"` and the `rawInput` preserved.
+  shapes as CSV confirm). The `amount` on each create row is whatever the user
+  reviewed/edited in the UI (it is not forced back to the AI-parsed value), so a
+  corrected amount is persisted. Persists the rows and records an import-log entry
+  with `source = "freeform"` and the `rawInput` preserved. Idempotent: confirm
+  re-runs the bulk dedup against the DB by `(date, name, amount, note)` at write
+  time, so re-confirming identical rows creates nothing (`skippedDuplicates`),
+  while an edited amount counts as a distinct transaction.
 
 ## Import history
 

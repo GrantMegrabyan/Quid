@@ -41,8 +41,13 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   - **Single transaction** — an inline form (merchant, amount, date, category,
     importance, note) for adding one transaction at a time.
   - **AI free-form** — paste plain-English lines (e.g. `coffee 3.50 yesterday`)
-    and let AI parse them into a preview you review (category/importance) before
-    confirming. Backed by `POST /api/v1/expenses/import-freeform/{preview,confirm}`.
+    and let AI parse them into a preview you review (amount/category/importance)
+    before confirming. The **amount** on each new row is editable in the review
+    table, so you can correct what the AI parsed; the edited amount is what gets
+    saved. Confirming is idempotent — re-confirming the same transactions does not
+    re-import them (dedup is by date/name/amount/note at save time, so changing the
+    amount makes it a genuinely new transaction). Backed by
+    `POST /api/v1/expenses/import-freeform/{preview,confirm}`.
 
   A shared **Import history** table below the tabs lists every import with a
   **Source** column (CSV vs AI); AI rows can be expanded to show the original

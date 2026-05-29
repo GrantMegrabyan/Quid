@@ -17,6 +17,8 @@
 	type ReviewRow = ImportPreviewRow & {
 		selectedCategoryName: string;
 		selectedImportance: ExpenseImportance;
+		selectedAmountInput: string;
+		amountError: boolean;
 		acceptUpdate: boolean;
 	};
 
@@ -84,6 +86,8 @@
 			...row,
 			selectedCategoryName: row.suggestedCategory.name,
 			selectedImportance: row.suggestedImportance,
+			selectedAmountInput: row.amount.toFixed(2),
+			amountError: false,
 			acceptUpdate: row.kind === 'category_update'
 		}));
 	}
@@ -100,6 +104,24 @@
 			});
 		}
 		return options;
+	}
+
+	function onAmountInput(row: ReviewRow, value: string): void {
+		row.selectedAmountInput = value;
+		const parsed = parseAmountInput(value);
+		row.amountError = parsed === null || parsed <= 0;
+	}
+
+	function hasAmountErrors(rows: ReviewRow[]): boolean {
+		let invalid = false;
+		for (const row of rows) {
+			const parsed = parseAmountInput(row.selectedAmountInput);
+			if (parsed === null || parsed <= 0) {
+				row.amountError = true;
+				invalid = true;
+			}
+		}
+		return invalid;
 	}
 
 	function importanceLabel(value: ExpenseImportance): string {
@@ -160,6 +182,10 @@
 	async function confirmCsvImport(): Promise<void> {
 		if (!csvReview) return;
 		const review = csvReview;
+		if (hasAmountErrors(csvCreateRows)) {
+			banner = { kind: 'error', message: 'Fix the highlighted amounts before saving.' };
+			return;
+		}
 		saving = true;
 		banner = null;
 		try {
@@ -170,7 +196,7 @@
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					name: row.name,
-					amount: row.amount,
+					amount: parseAmountInput(row.selectedAmountInput) as number,
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,
@@ -303,6 +329,10 @@
 	async function confirmFreeformImport(): Promise<void> {
 		if (!freeformReview) return;
 		const review = freeformReview;
+		if (hasAmountErrors(freeformCreateRows)) {
+			banner = { kind: 'error', message: 'Fix the highlighted amounts before saving.' };
+			return;
+		}
 		freeformSaving = true;
 		banner = null;
 		try {
@@ -313,7 +343,7 @@
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					name: row.name,
-					amount: row.amount,
+					amount: parseAmountInput(row.selectedAmountInput) as number,
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,
@@ -400,7 +430,26 @@
 							<div class="text-xs text-ctp-overlay1">{row.note}</div>
 						{/if}
 					</div>
-					<div class="text-ctp-subtext0">{formatAmount(row.amount, $settings.currency)}</div>
+					<div>
+						{#if row.kind === 'category_update'}
+							<div class="text-ctp-subtext0">{formatAmount(row.amount, $settings.currency)}</div>
+						{:else}
+							<input
+								type="text"
+								inputmode="decimal"
+								data-testid="review-amount-input"
+								value={row.selectedAmountInput}
+								oninput={(event) => onAmountInput(row, event.currentTarget.value)}
+								aria-invalid={row.amountError}
+								class="h-10 w-full rounded-md border bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:outline-none {row.amountError
+									? 'border-red-500 focus:border-red-500'
+									: 'border-ctp-surface1 focus:border-ctp-accent'}"
+							/>
+							{#if row.amountError}
+								<p class="mt-1 text-xs text-red-600 dark:text-red-400">Enter an amount &gt; 0</p>
+							{/if}
+						{/if}
+					</div>
 					<div>
 						<select
 							bind:value={row.selectedCategoryName}
