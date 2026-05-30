@@ -1368,6 +1368,117 @@ async def test_import_export_large_history_is_fast(app_client):
     assert elapsed < 2.0
 
 
+@pytest.mark.parametrize(
+    ("variant", "mutator"),
+    [
+        (
+            "item_price",
+            lambda order: order.__setitem__(
+                "items", [{"title": "Widget", "quantity": 1, "price": 19.99}]
+            ),
+        ),
+        (
+            "shipment_total",
+            lambda order: order.__setitem__(
+                "shipments",
+                [
+                    {
+                        "total": 19.99,
+                        "shipDate": "2026-05-05",
+                        "tracking": "T1",
+                        "items": [],
+                    }
+                ],
+            ),
+        ),
+    ],
+)
+async def test_import_export_rejects_numeric_item_price_and_shipment_total_as_422(
+    app_client, variant, mutator
+):
+    payload = _load_export_fixture()
+    order = payload["orders"][0]
+    order.update(
+        {
+            "orderId": "777-0000001-0000001",
+            "orderDate": "2026-05-05",
+            "total": "19.99",
+            "currency": "GBP",
+            "status": "Delivered",
+            "items": [],
+            "shipments": [],
+        }
+    )
+    mutator(order)
+
+    res = await app_client.post("/api/v1/amazon-orders/import-export", json=payload)
+    assert res.status_code == 422, (variant, res.text)
+
+
+async def test_amazon_order_category_does_not_override_rule_sourced_expense(app_client):
+    await _disable_ai(app_client)
+
+    rule_category = (await app_client.post("/api/v1/categories", json={"name": "RuleCat"})).json()
+    other_category = (await app_client.post("/api/v1/categories", json={"name": "OtherCat"})).json()
+
+    rule_res = await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Amazon name rule",
+            "action": "categorize",
+            "targetCategoryId": rule_category["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "amazon",
+        },
+    )
+    assert rule_res.status_code == 201, rule_res.text
+
+    expense_res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "rule-expense.csv",
+                "name,amount,date\nAmazon Mktp,-19.99,2026-05-05\n",
+            )
+        ],
+    )
+    assert expense_res.status_code == 201, expense_res.text
+    expense_id = expense_res.json()["expenses"][0]["id"]
+
+    listed_before = await app_client.get("/api/v1/expenses")
+    expense_before = next(row for row in listed_before.json() if row["id"] == expense_id)
+    assert expense_before["categoryId"] == rule_category["id"]
+    assert expense_before["categorySource"] == "rule"
+
+    import_payload = {
+        "scraperVersion": "1.0.0",
+        "domain": "amazon.co.uk",
+        "orders": [
+            {
+                "orderId": "777-0000001-0000001",
+                "orderDate": "2026-05-05",
+                "total": "19.99",
+                "currency": "GBP",
+                "status": "Delivered",
+                "items": [{"title": "Widget", "quantity": 1, "price": "19.99"}],
+            }
+        ],
+    }
+    import_res = await app_client.post("/api/v1/amazon-orders/import-export", json=import_payload)
+    assert import_res.status_code == 201, import_res.text
+
+    patch_res = await app_client.patch(
+        "/api/v1/amazon-orders/777-0000001-0000001/category",
+        json={"categoryId": other_category["id"]},
+    )
+    assert patch_res.status_code == 200, patch_res.text
+
+    listed_after = await app_client.get("/api/v1/expenses")
+    expense_after = next(row for row in listed_after.json() if row["id"] == expense_id)
+    assert expense_after["categoryId"] == rule_category["id"]
+    assert expense_after["categorySource"] == "rule"
+
+
 async def test_import_export_skips_order_missing_total(app_client):
     """B3: one order missing its total -> 201, that order reported in `skipped`
     with a reason, the others import."""

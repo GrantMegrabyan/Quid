@@ -841,3 +841,31 @@ async def test_preview_rejects_between_without_second_value(app_client):
         json={"matchAmountOp": "between", "matchAmountValue": 10},
     )
     assert res.status_code == 422
+
+
+async def test_import_csv_applies_set_display_name(app_client):
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Maria display name",
+            "action": "categorize",
+            "targetCategoryId": home["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "maria",
+            "setDisplayName": "Maria Andreeva",
+        },
+    )
+
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = "name,category,amount,date,note\nMARIA ANDREEVA REF 99281,other,-500,2026-04-22,\n"
+    imported = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("maria.csv", csv)]
+    )
+    assert imported.status_code == 201, imported.text
+    assert imported.json()["imported"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 1
+    assert rows[0]["displayName"] == "Maria Andreeva"
+    assert rows[0]["categoryId"] == home["id"]

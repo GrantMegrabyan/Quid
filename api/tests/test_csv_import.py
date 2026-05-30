@@ -521,3 +521,168 @@ async def test_import_can_ai_exclude_transactions(app_client, monkeypatch):
     assert body["imported"] == 0
     assert body["skippedExcluded"] == 1
     assert (await app_client.get("/api/v1/expenses")).json() == []
+
+
+async def test_confirm_reject_keeps_existing(app_client, monkeypatch):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv", "name,category,amount,date\nGg Platform,transport,-4.31,2026-04-25\n"
+            )
+        ],
+    )
+    assert first.status_code == 201, first.text
+    existing_category_id = first.json()["expenses"][0]["categoryId"]
+
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
+        return CategorizedBulkItems(
+            items=[replace(item, category="groceries") for item in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("again.csv", "name,amount,date\nGg Platform,-4.31,2026-04-25\n")],
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    row = preview_body["rows"][0]
+
+    confirm = await app_client.post(
+        "/api/v1/expenses/import-csv/confirm",
+        json={
+            "importId": preview_body["importId"],
+            "creates": [],
+            "categoryUpdates": [
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "existingExpenseId": row["existingExpenseId"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "accept": False,
+                }
+            ],
+        },
+    )
+    assert confirm.status_code == 201, confirm.text
+    body = confirm.json()
+    assert body["keptExisting"] == 1
+    assert body["updated"] == 0
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert expenses[0]["categoryId"] == existing_category_id
+
+
+async def test_confirm_skips_stale_update_when_expense_deleted(app_client, monkeypatch):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv", "name,category,amount,date\nGg Platform,transport,-4.31,2026-04-25\n"
+            )
+        ],
+    )
+    assert first.status_code == 201, first.text
+    expense_id = first.json()["expenses"][0]["id"]
+
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
+        return CategorizedBulkItems(
+            items=[replace(item, category="groceries") for item in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("again.csv", "name,amount,date\nGg Platform,-4.31,2026-04-25\n")],
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    row = preview_body["rows"][0]
+
+    deleted = await app_client.delete(f"/api/v1/expenses/{expense_id}")
+    assert deleted.status_code == 204, deleted.text
+
+    confirm = await app_client.post(
+        "/api/v1/expenses/import-csv/confirm",
+        json={
+            "importId": preview_body["importId"],
+            "creates": [],
+            "categoryUpdates": [
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "existingExpenseId": row["existingExpenseId"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "accept": True,
+                }
+            ],
+        },
+    )
+    assert confirm.status_code == 201, confirm.text
+    body = confirm.json()
+    assert body["skippedStaleUpdates"] == 1
+    assert body["updated"] == 0
+
+
+async def test_confirm_skips_stale_update_when_hash_mismatch(app_client, monkeypatch):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[
+            _upload(
+                "first.csv", "name,category,amount,date\nGg Platform,transport,-4.31,2026-04-25\n"
+            )
+        ],
+    )
+    assert first.status_code == 201, first.text
+    expense = first.json()["expenses"][0]
+
+    async def fake_categorize(items, *, existing_categories, ai_rules, api_key, model, **_: Any):
+        return CategorizedBulkItems(
+            items=[replace(item, category="groceries") for item in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.routers.expenses.categorize_transactions", fake_categorize)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("again.csv", "name,amount,date\nGg Platform,-4.31,2026-04-25\n")],
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    row = preview_body["rows"][0]
+
+    changed = await app_client.patch(
+        f"/api/v1/expenses/{expense['id']}",
+        json={"amount": "5.00"},
+    )
+    assert changed.status_code == 200, changed.text
+
+    confirm = await app_client.post(
+        "/api/v1/expenses/import-csv/confirm",
+        json={
+            "importId": preview_body["importId"],
+            "creates": [],
+            "categoryUpdates": [
+                {
+                    "previewRowId": row["previewRowId"],
+                    "dedupeKeyHash": row["dedupeKeyHash"],
+                    "existingExpenseId": row["existingExpenseId"],
+                    "categoryName": row["suggestedCategory"]["name"],
+                    "accept": True,
+                }
+            ],
+        },
+    )
+    assert confirm.status_code == 201, confirm.text
+    body = confirm.json()
+    assert body["skippedStaleUpdates"] == 1
+    assert body["updated"] == 0

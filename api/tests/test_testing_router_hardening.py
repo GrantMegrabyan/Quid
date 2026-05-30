@@ -151,3 +151,42 @@ async def test_seed_state_requires_token(testing_app_client_factory):
             json={"categories": [], "expenses": []},
         )
     assert res.status_code == 401
+
+
+# --- mount gate: destructive router absent when testing=False -------------
+
+
+async def test_testing_router_not_mounted_when_testing_disabled(
+    engine: AsyncEngine, database_url: str
+):
+    """The destructive testing router is mounted ONLY when testing=True.
+
+    The token/DB-name guards are tested above; this asserts the first line of
+    defense — that with testing disabled, the wipe endpoints don't exist at all
+    (404), so a regression mounting them unconditionally fails CI.
+    """
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def override_get_session() -> AsyncIterator[AsyncSession]:
+        async with sm() as sess:
+            yield sess
+
+    settings = Settings(
+        database_url=database_url,
+        testing=False,
+        openrouter_api_key=None,
+    )
+    app = create_app(settings=settings)
+    app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        reset = await client.post("/api/v1/testing/reset", headers={"X-Testing-Token": "anything"})
+        seed = await client.post(
+            "/api/v1/testing/seed-state",
+            headers={"X-Testing-Token": "anything"},
+            json={"categories": [], "expenses": []},
+        )
+    assert reset.status_code == 404
+    assert seed.status_code == 404
