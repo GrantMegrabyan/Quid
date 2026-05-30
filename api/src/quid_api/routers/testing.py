@@ -57,6 +57,11 @@ SessionDep = Annotated["AsyncSession", Depends(get_session)]
 
 async def _wipe(session: AsyncSession) -> None:
     await session.execute(text("DELETE FROM expenses"))
+    # Rules carry a FK to categories (target_category_id); clear them before
+    # deleting categories so a test that created a rule doesn't leave a dangling
+    # reference that breaks the next seed.
+    await session.execute(text("DELETE FROM import_rules"))
+    await session.execute(text("DELETE FROM ai_rules"))
     await session.execute(
         text("DELETE FROM categories WHERE id != :uid"), {"uid": UNCATEGORIZED_ID}
     )
