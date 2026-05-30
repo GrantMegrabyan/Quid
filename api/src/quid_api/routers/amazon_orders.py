@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, cast
 
@@ -19,6 +17,7 @@ from quid_api.amazon_csv_import import (
     _parse_decimal,
     parse_amazon_csv,
 )
+from quid_api.datelib import normalize_iso_date
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category
@@ -297,29 +296,19 @@ async def _ingest_orders(
     )
 
 
-_ISO_DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-
-
 def _normalized_iso_date(raw: str) -> str | None:
     """Normalise an export ``order_date`` and re-assert the ``AmazonOrder``
-    date GLOB (``models.py``) IN CODE.
+    date CHECK (``models.py``) IN CODE.
 
     Returns the ``YYYY-MM-DD`` string, or ``None`` when the value can't be
-    normalised to a real ISO date. The regex re-asserts the exact DB CHECK
-    pattern so a bad value is SKIPPED here rather than relying on the app-level
-    ``IntegrityError`` handler. ``date.fromisoformat`` additionally rejects
-    pattern-valid-but-impossible dates (e.g. ``2026-13-40``) that the GLOB
-    alone would accept and that would otherwise be stored yet silently never
-    match.
+    normalised to a real ISO calendar date. ``_normalize_date`` first coerces
+    the scraper's looser inputs (``/`` separators, trailing time) to the
+    ``YYYY-MM-DD`` shape; ``normalize_iso_date`` then enforces the strict shape
+    AND real-calendar-date contract (rejecting e.g. ``2026-13-40`` or
+    ``2025-02-29``) so a bad value is SKIPPED here rather than stored and
+    silently never matched.
     """
-    normalized = _normalize_date(raw)
-    if not _ISO_DATE_RE.match(normalized):
-        return None
-    try:
-        date.fromisoformat(normalized)
-    except ValueError:
-        return None
-    return normalized
+    return normalize_iso_date(_normalize_date(raw))
 
 
 @router.post(

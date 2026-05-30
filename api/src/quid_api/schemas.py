@@ -14,6 +14,18 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
+from quid_api.datelib import validate_iso_date
+
+
+def _validate_required_date(value: str) -> str:
+    """Pydantic validator for a required ``YYYY-MM-DD`` calendar date."""
+    return validate_iso_date(value)
+
+
+def _validate_optional_date(value: str | None) -> str | None:
+    """Pydantic validator for an optional ``YYYY-MM-DD`` calendar date."""
+    return None if value is None else validate_iso_date(value)
+
 
 class _Camel(BaseModel):
     model_config = ConfigDict(
@@ -75,10 +87,12 @@ class ExpenseOut(_Camel):
 class ExpenseCreate(_Camel):
     name: Annotated[str, Field(min_length=1, max_length=200)]
     amount: Decimal
-    date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    date: str
     category_id: Annotated[str, Field(min_length=1)]
     note: str = ""
     importance: Importance = "important"
+
+    _validate_date = field_validator("date")(_validate_required_date)
 
     @field_validator("amount")
     @classmethod
@@ -97,6 +111,8 @@ class ExpenseUpdate(_Camel):
     display_name: str | None = None
     importance: Importance | None = None
 
+    _validate_date = field_validator("date")(_validate_optional_date)
+
     @field_validator("amount")
     @classmethod
     def _amount_positive(cls, v: Decimal | None) -> Decimal | None:
@@ -109,9 +125,11 @@ class BulkExpenseItem(_Camel):
     name: Annotated[str, Field(min_length=1, max_length=200)]
     category: str
     amount: Decimal
-    date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    date: str
     note: str = ""
     importance: Importance = "important"
+
+    _validate_date = field_validator("date")(_validate_required_date)
 
 
 class BulkExpenseRequest(_Camel):
@@ -199,10 +217,12 @@ class ImportCsvConfirmCreateRow(_Camel):
     dedupe_key_hash: str
     name: Annotated[str, Field(min_length=1, max_length=200)]
     amount: Decimal
-    date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    date: str
     note: str = ""
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
     importance: Importance = "important"
+
+    _validate_date = field_validator("date")(_validate_required_date)
 
 
 class ImportCsvConfirmCategoryUpdateRow(_Camel):
@@ -271,11 +291,13 @@ class ImportRuleCreate(_Camel):
     match_amount_op: AmountMatchOp | None = None
     match_amount_value: Decimal | None = None
     match_amount_value2: Decimal | None = None
-    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
-    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_from: str | None = None
+    match_date_to: str | None = None
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
     set_note: str | None = None
+
+    _validate_dates = field_validator("match_date_from", "match_date_to")(_validate_optional_date)
 
 
 class ImportRuleUpdate(_Camel):
@@ -289,11 +311,13 @@ class ImportRuleUpdate(_Camel):
     match_amount_op: AmountMatchOp | None = None
     match_amount_value: Decimal | None = None
     match_amount_value2: Decimal | None = None
-    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
-    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_from: str | None = None
+    match_date_to: str | None = None
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
     set_note: str | None = None
+
+    _validate_dates = field_validator("match_date_from", "match_date_to")(_validate_optional_date)
 
 
 class ImportRuleApplyResponse(_Camel):
@@ -314,9 +338,11 @@ class ImportRulePreviewRequest(_Camel):
     match_amount_op: AmountMatchOp | None = None
     match_amount_value: Decimal | None = None
     match_amount_value2: Decimal | None = None
-    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
-    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_from: str | None = None
+    match_date_to: str | None = None
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
+
+    _validate_dates = field_validator("match_date_from", "match_date_to")(_validate_optional_date)
 
 
 class ImportRulePreviewResponse(_Camel):

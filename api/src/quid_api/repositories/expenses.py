@@ -18,6 +18,7 @@ from quid_api.category_helpers import (
     slugify_category,
     titleize_slug,
 )
+from quid_api.datelib import validate_iso_date
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 _UNSET: object = object()
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _WS_RE = re.compile(r"\s+")
 
 VALID_IMPORTANCE: frozenset[str] = frozenset({"essential", "important", "discretionary"})
@@ -95,12 +95,13 @@ def _validate_amount(amount: Decimal) -> Decimal:
 
 
 def _validate_date(date: str) -> str:
-    if not _DATE_RE.match(date):
+    try:
+        return validate_iso_date(date)
+    except ValueError as exc:
         raise RepositoryError(
             RepositoryErrorCode.VALIDATION,
-            f"Date must be YYYY-MM-DD, got {date!r}",
-        )
-    return date
+            str(exc),
+        ) from exc
 
 
 def _validate_name(name: str) -> str:

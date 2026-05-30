@@ -5,6 +5,7 @@ from decimal import Decimal  # noqa: TC003  pydantic Field reads this at runtime
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import field_validator
 from sqlalchemy import select, text
 
 from quid_api.category_helpers import UNCATEGORIZED_COLOR, UNCATEGORIZED_ID
@@ -12,7 +13,7 @@ from quid_api.db import get_session
 from quid_api.models import Category, Expense
 from quid_api.repositories.categories import CategoryRepository
 from quid_api.repositories.expenses import ExpenseRepository
-from quid_api.schemas import CategoryOut, ExpenseOut, _Camel
+from quid_api.schemas import CategoryOut, ExpenseOut, _Camel, _validate_required_date
 from quid_api.seed import seed_samples
 from quid_api.settings import Settings, get_settings
 
@@ -106,6 +107,8 @@ class _SeedExpense(_Camel):
     date: str
     category_id: str
     note: str = ""
+
+    _validate_date = field_validator("date")(_validate_required_date)
 
 
 class _SeedState(_Camel):
