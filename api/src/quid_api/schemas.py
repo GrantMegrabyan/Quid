@@ -494,7 +494,10 @@ class AmazonExportRequest(_Camel):
 
     scraper_version: str | None = None
     domain: str | None = None
-    orders: list[AmazonExportOrder] = Field(min_length=1)
+    # Upper bound is defense-in-depth against a pathological pasted payload
+    # (a heavy buyer's full history is well under this); structural so an
+    # over-size payload 422s rather than tying up the ingest/match pass.
+    orders: list[AmazonExportOrder] = Field(min_length=1, max_length=5000)
 
 
 class AmazonMatchAllResponse(_Camel):

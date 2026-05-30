@@ -117,6 +117,47 @@ test('parses a .com order-history page (legacy cards, US dates, $ + thousands)',
 	expect(second.status).toBe('Shipped');
 });
 
+test('bookmarklet stays in sync with the canonical parser (version + payload)', async ({
+	page
+}) => {
+	// Guards the manual scraper.ts <-> bookmarklet.ts sync the architecture
+	// leans on. (1) Version can never drift — the bookmarklet sources its
+	// version from scraper.ts. (2) Run the bookmarklet's ACTUAL parse logic
+	// against the same fixture and assert payload parity with the canonical
+	// parser, minus the download/clipboard side effects.
+	const { BOOKMARKLET_SCRAPER_VERSION, BOOKMARKLET_SOURCE } = await import(
+		'../src/lib/amazon/bookmarklet.js'
+	);
+	const { SCRAPER_VERSION } = await import('../src/lib/amazon/scraper.js');
+	expect(BOOKMARKLET_SCRAPER_VERSION).toBe(SCRAPER_VERSION);
+
+	const html = await loadFixture('amazon-orders-couk.html');
+	const canonical = await runParser(page, html, 'amazon.co.uk');
+
+	// The bookmarklet body is `(function(){ ... try{<side effects>}catch{} })();`.
+	// Replace the whole IIFE-invoking tail with one that captures the internal
+	// `parse` onto window, so we exercise the real parse logic without firing
+	// the download/alert side effects.
+	const marker = '  try{';
+	const idx = BOOKMARKLET_SOURCE.indexOf(marker);
+	expect(idx).toBeGreaterThan(0);
+	const capture =
+		BOOKMARKLET_SOURCE.slice(0, idx) + '  window.__quidBookmarkletParse = parse;\n})();';
+
+	await page.setContent(html);
+	const fromBookmarklet = await page.evaluate((src: string) => {
+		eval(src);
+		const fn = (
+			window as unknown as {
+				__quidBookmarkletParse: (doc: Document, domain: string) => unknown;
+			}
+		).__quidBookmarkletParse;
+		return fn(document, 'amazon.co.uk');
+	}, capture);
+
+	expect(fromBookmarklet).toEqual(canonical);
+});
+
 test('throws AmazonScrapeError on an orders shell with zero cards (layout drift)', async ({
 	page
 }) => {

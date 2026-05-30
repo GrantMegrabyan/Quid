@@ -19,14 +19,20 @@
  * to the clipboard as a convenience fallback.
  */
 
-export const BOOKMARKLET_SCRAPER_VERSION = '1.0.0';
+import { SCRAPER_VERSION } from './scraper.js';
+
+/**
+ * Re-exported for tests/version display. Sourced from the canonical parser so
+ * the bookmarklet's reported version can never drift from `scraper.ts`.
+ */
+export const BOOKMARKLET_SCRAPER_VERSION = SCRAPER_VERSION;
 
 /**
  * The bookmarklet body as a readable IIFE string. Rendered into a
  * `javascript:` URL by `buildBookmarkletHref()`. Inspectable on purpose.
  */
 export const BOOKMARKLET_SOURCE = `(function(){
-  var VERSION='${BOOKMARKLET_SCRAPER_VERSION}';
+  var VERSION='${SCRAPER_VERSION}';
   var MONTHS={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12'};
   function fail(d){throw new Error('Amazon page layout not recognised (scraper v'+VERSION+') — '+d+' The format may have changed.');}
   function txt(el){return (el&&el.textContent?el.textContent:'').replace(/\\s+/g,' ').trim();}
@@ -42,7 +48,7 @@ export const BOOKMARKLET_SOURCE = `(function(){
   var DATESEL=['[data-testid=order-date]','.yohtmlc-order-date .a-color-secondary','.order-date .value','.a-color-secondary.value'];
   var TITLESEL=['.yohtmlc-product-title','.a-link-normal.yohtmlc-product-title','[data-testid=item-title]','.a-row .a-link-normal'];
   function orderId(card){for(var i=0;i<IDSEL.length;i++){var v=txt(card.querySelector(IDSEL[i]));var mm=v.match(/\\d{3}-\\d{7}-\\d{7}/);if(mm)return mm[0];}var ft=txt(card).match(/\\d{3}-\\d{7}-\\d{7}/);return ft?ft[0]:null;}
-  function items(card){var out=[],seen={};for(var i=0;i<TITLESEL.length;i++){var nodes=card.querySelectorAll(TITLESEL[i]);for(var j=0;j<nodes.length;j++){var title=txt(nodes[j]);if(!title||seen[title])continue;seen[title]=1;var box=nodes[j].closest('.a-fixed-left-grid, .item-box, [data-testid=item-row]');var pe=box?box.querySelector('.a-price .a-offscreen, .item-price, [data-testid=item-price]'):null;out.push({title:title,quantity:1,price:money(txt(pe))});}if(out.length)break;}return out;}
+  function items(card){var out=[],seen=Object.create(null);for(var i=0;i<TITLESEL.length;i++){var nodes=card.querySelectorAll(TITLESEL[i]);for(var j=0;j<nodes.length;j++){var title=txt(nodes[j]);if(!title||seen[title])continue;seen[title]=1;var box=nodes[j].closest('.a-fixed-left-grid, .item-box, [data-testid=item-row]');var pe=box?box.querySelector('.a-price .a-offscreen, .item-price, [data-testid=item-price]'):null;out.push({title:title,quantity:1,price:money(txt(pe))});}if(out.length)break;}return out;}
   function status(card){var el=pick(card,['[data-testid=order-status]','.delivery-box .a-text-bold','.shipment-top-row .a-text-bold']);var v=txt(el);return v||null;}
   function last4(card){var m=txt(card).match(/(?:ending in|ending|••••|\\*{4})\\s*(\\d{4})/i);return m?m[1]:null;}
   function orderUrl(card,domain){var a=card.querySelector('a[href*=order-details], a[href*=orderID], a[href*="css/order-details"]');if(!a)return null;var href=a.getAttribute('href')||'';if(!href)return null;if(/^https?:\\/\\//.test(href))return href;return 'https://www.'+domain+(href.charAt(0)==='/'?'':'/')+href;}

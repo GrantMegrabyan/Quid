@@ -265,6 +265,42 @@ async def test_combined_match_pass_scales_to_large_unmatched_sets(app_client, se
     assert elapsed < 2.0
 
 
+async def test_combined_match_pass_scales_to_dense_same_date_cluster(
+    app_client, session, monkeypatch
+):
+    """Worst case for the date-windowed combined pass: many UNMATCHED orders all
+    on the SAME date (so every order's window contains every other). The bound
+    anchors each combo at its earliest member so it's generated exactly once;
+    without that anchor constraint overlapping windows regress to O(n**4) and
+    this would hang. 300 same-date orders must still finish quickly."""
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    await app_client.patch(
+        "/api/v1/settings", json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False}
+    )
+    # No Amazon-merchant expense → nothing matches → all 300 stay unmatched and
+    # flow into the combined pass together.
+    parsed_orders = [
+        ParsedOrderInput(
+            order_id=f"{i:03d}-2222222-2222222",
+            order_date="2026-03-15",
+            total=Decimal("3.00"),
+            currency="GBP",
+            items=[{"title": f"Dense {i}", "quantity": 1, "price": Decimal("3.00")}],
+            shipments=[],
+            payment_last4=None,
+            order_url=None,
+        )
+        for i in range(300)
+    ]
+
+    start = perf_counter()
+    result = await _ingest_orders(session, parsed_orders, source="test")
+    elapsed = perf_counter() - start
+    assert result.auto_matched == 0
+    assert elapsed < 3.0
+
+
 async def test_import_generates_short_name_fallback(app_client, monkeypatch):
     monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
     reset_settings()

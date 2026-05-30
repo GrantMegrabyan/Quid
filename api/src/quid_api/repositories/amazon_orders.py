@@ -651,16 +651,26 @@ class AmazonOrderRepository:
 
         eligible.sort(key=lambda o: (parsed_dates[o.id], o.id))
         for start, first in enumerate(eligible):
-            window: list[AmazonOrder] = [first]
             first_date = parsed_dates[first.id]
+            # Orders strictly after `first` that are within the date span. Every
+            # combo is uniquely anchored at its EARLIEST member, so we only form
+            # combos that INCLUDE `first` (choosing the remaining members from
+            # `followers`). This both (a) keeps the accepted-combo set identical
+            # to the old `combinations(eligible)` + span-filter and (b) avoids
+            # re-generating the same combo once per overlapping window — without
+            # the anchor constraint a dense same-date cluster degenerates to
+            # O(k**4) (worse than the unbounded O(k**3) this replaced).
+            followers: list[AmazonOrder] = []
             for other in eligible[start + 1 :]:
                 if (parsed_dates[other.id] - first_date).days > _COMBINED_ORDER_DATE_SPAN_DAYS:
                     break
-                window.append(other)
+                followers.append(other)
             for size in range(2, _COMBINED_MAX_SIZE + 1):
-                if len(window) < size:
+                # combo = {first} + (size-1 chosen from followers).
+                if len(followers) < size - 1:
                     break
-                for combo in combinations(window, size):
+                for rest in combinations(followers, size - 1):
+                    combo = (first, *rest)
                     dates = [parsed_dates[o.id] for o in combo]
                     last4s = {o.payment_last4 for o in combo if o.payment_last4}
                     if len(last4s) > 1:

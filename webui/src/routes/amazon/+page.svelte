@@ -476,7 +476,7 @@
 				{skippedOrders.length} order{skippedOrders.length === 1 ? '' : 's'} skipped
 			</p>
 			<ul class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
-				{#each skippedOrders as skipped (skipped.orderId + skipped.reason)}
+				{#each skippedOrders as skipped, i (skipped.orderId + skipped.reason + i)}
 					<li data-testid="amazon-export-skipped-row">
 						<span class="font-mono">{skipped.orderId || '(no order id)'}</span> —
 						{skipped.reason}
