@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from itertools import combinations
 from typing import TYPE_CHECKING
@@ -13,10 +15,13 @@ from sqlalchemy import func, or_, select
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import AmazonOrder, Category, Expense, ExpenseAmazonOrderLink
+from quid_api.settings import get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.sql.elements import ColumnElement
+
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
@@ -86,6 +91,13 @@ class AutoMatchResult:
 # (combo, expense) match. £5 catches small same-day pairs (e.g. nappies +
 # toothpaste billed together) while still rejecting trivial £0.99 + £1.50
 # coincidences.
+#
+# The combo enumerator (_generate_combos) is additionally bounded so the pass
+# can never enumerate global combinations: combos are partitioned into the
+# _COMBINED_ORDER_DATE_SPAN_DAYS date windows and capped by two configurable
+# settings — amazon_combined_max_window_orders (skip a pathologically dense
+# window) and amazon_combined_max_combinations (global ceiling). See
+# settings.py for the defaults and _generate_combos for the rationale.
 _COMBINED_ORDER_DATE_SPAN_DAYS = 2
 _COMBINED_EXPENSE_WINDOW_DAYS = 3
 _COMBINED_MIN_TOTAL = Decimal("5")
@@ -642,44 +654,14 @@ class AmazonOrderRepository:
             by_amount[e.amount].append(e)
 
         # Build the universe of combos that pass all safeguards.
-        combos: list[tuple[tuple[AmazonOrder, ...], Decimal, date]] = []
         parsed_dates: dict[str, date] = {}
         for o in unmatched_orders:
             with contextlib.suppress(ValueError):
                 parsed_dates[o.id] = _parse_date(o.order_date)
         eligible = [o for o in unmatched_orders if o.id in parsed_dates]
-
         eligible.sort(key=lambda o: (parsed_dates[o.id], o.id))
-        for start, first in enumerate(eligible):
-            first_date = parsed_dates[first.id]
-            # Orders strictly after `first` that are within the date span. Every
-            # combo is uniquely anchored at its EARLIEST member, so we only form
-            # combos that INCLUDE `first` (choosing the remaining members from
-            # `followers`). This both (a) keeps the accepted-combo set identical
-            # to the old `combinations(eligible)` + span-filter and (b) avoids
-            # re-generating the same combo once per overlapping window — without
-            # the anchor constraint a dense same-date cluster degenerates to
-            # O(k**4) (worse than the unbounded O(k**3) this replaced).
-            followers: list[AmazonOrder] = []
-            for other in eligible[start + 1 :]:
-                if (parsed_dates[other.id] - first_date).days > _COMBINED_ORDER_DATE_SPAN_DAYS:
-                    break
-                followers.append(other)
-            for size in range(2, _COMBINED_MAX_SIZE + 1):
-                # combo = {first} + (size-1 chosen from followers).
-                if len(followers) < size - 1:
-                    break
-                for rest in combinations(followers, size - 1):
-                    combo = (first, *rest)
-                    dates = [parsed_dates[o.id] for o in combo]
-                    last4s = {o.payment_last4 for o in combo if o.payment_last4}
-                    if len(last4s) > 1:
-                        # Mixed payment methods → almost certainly distinct charges.
-                        continue
-                    total = sum((o.total for o in combo), Decimal(0))
-                    if total < _COMBINED_MIN_TOTAL:
-                        continue
-                    combos.append((combo, total, max(dates)))
+
+        combos = self._generate_combos(eligible, parsed_dates)
 
         # For each combo, find matching expenses within the expense window.
         combo_matches: list[tuple[tuple[AmazonOrder, ...], Decimal, date, Expense]] = []
@@ -750,3 +732,108 @@ class AmazonOrderRepository:
             linked_count += len(combo)
 
         return linked_count, ambiguous_count
+
+    def _generate_combos(
+        self,
+        eligible: list[AmazonOrder],
+        parsed_dates: dict[str, date],
+    ) -> list[tuple[tuple[AmazonOrder, ...], Decimal, date]]:
+        """Enumerate the safeguarded 2..N order combinations to try.
+
+        This is the formerly-explosive step. Two hard bounds keep it from
+        enumerating global combinations over the whole unmatched set:
+
+        1. **Date-window partitioning.** ``eligible`` is sorted by date, then
+           combos are anchored at their EARLIEST member: for each anchor we
+           only pair it with the ``followers`` that fall within
+           ``_COMBINED_ORDER_DATE_SPAN_DAYS``. Combos never cross window
+           boundaries, so a long, sparse history is processed as many tiny
+           independent windows rather than one O(n**k) blob. (Anchoring also
+           means each accepted combo is generated exactly once, matching the
+           old ``combinations(eligible)`` + span-filter result for normal
+           inputs.)
+
+        2. **Per-window and global caps.** A single window with more than
+           ``amazon_combined_max_window_orders`` orders is a pathological dense
+           cluster (e.g. hundreds of same-day orders); generating its
+           combinations is meaningless noise, so the whole window is skipped
+           and logged. A global ceiling
+           (``amazon_combined_max_combinations``) stops generation entirely
+           once reached, logged once.
+
+        Both caps are generous relative to real Amazon billing clusters, so
+        ordinary small histories produce the exact same combo set as before.
+        """
+        settings = get_settings()
+        max_window_orders = settings.amazon_combined_max_window_orders
+        max_combinations = settings.amazon_combined_max_combinations
+
+        # Sorted dates parallel to `eligible` so the per-anchor window end can be
+        # found by binary search in O(log n) instead of an O(n) scan — without
+        # this the window walk alone is O(n**2) and dominates on huge dense
+        # clusters even though every window is ultimately skipped.
+        sorted_dates = [parsed_dates[o.id] for o in eligible]
+        span = timedelta(days=_COMBINED_ORDER_DATE_SPAN_DAYS)
+
+        combos: list[tuple[tuple[AmazonOrder, ...], Decimal, date]] = []
+        capped = False
+        skipped_windows = 0
+        for start, first in enumerate(eligible):
+            if capped:
+                break
+            first_date = sorted_dates[start]
+            # Window = orders in [first_date, first_date + span]. `eligible` is
+            # date-sorted, so the window is a contiguous slice ending just before
+            # the first date past the span; bisect_right finds that boundary.
+            # Every combo is anchored at `first` (its earliest member), so combos
+            # for this anchor live entirely inside the window and each accepted
+            # combo is generated exactly once.
+            window_end = bisect_right(sorted_dates, first_date + span)
+            follower_count = window_end - start - 1
+            # Dense-cluster guard: a window this large is noise, not a real
+            # multi-order bill. Skip it wholesale (and log) WITHOUT materialising
+            # the followers, instead of paying O(window**(size-1)) to enumerate
+            # combinations we'd never trust.
+            if follower_count > max_window_orders:
+                skipped_windows += 1
+                continue
+            followers = eligible[start + 1 : window_end]
+            for size in range(2, _COMBINED_MAX_SIZE + 1):
+                # combo = {first} + (size-1 chosen from followers).
+                if len(followers) < size - 1:
+                    break
+                for rest in combinations(followers, size - 1):
+                    if len(combos) >= max_combinations:
+                        capped = True
+                        break
+                    combo = (first, *rest)
+                    dates = [parsed_dates[o.id] for o in combo]
+                    last4s = {o.payment_last4 for o in combo if o.payment_last4}
+                    if len(last4s) > 1:
+                        # Mixed payment methods → almost certainly distinct charges.
+                        continue
+                    total = sum((o.total for o in combo), Decimal(0))
+                    if total < _COMBINED_MIN_TOTAL:
+                        continue
+                    combos.append((combo, total, max(dates)))
+                if capped:
+                    break
+
+        if skipped_windows:
+            logger.warning(
+                "amazon.combined.window_capped skipped_windows=%d max_window_orders=%d "
+                "eligible_orders=%d span_days=%d",
+                skipped_windows,
+                max_window_orders,
+                len(eligible),
+                _COMBINED_ORDER_DATE_SPAN_DAYS,
+            )
+        if capped:
+            logger.warning(
+                "amazon.combined.combination_capped generated=%d max_combinations=%d "
+                "eligible_orders=%d (remaining combinations skipped)",
+                len(combos),
+                max_combinations,
+                len(eligible),
+            )
+        return combos

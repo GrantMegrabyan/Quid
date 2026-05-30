@@ -61,6 +61,23 @@ class Settings(BaseSettings):
     openrouter_chunk_size: int = 25
     refund_window_days: int = 60
 
+    # --- Amazon combined-order matching (pass 2) safeguards ---------------
+    # The combined-order pass sums 2..N nearby unmatched orders to find a
+    # single bank charge. To keep it bounded on large histories it (a) works
+    # within tight date windows, never globally, and (b) is hard-capped. Both
+    # caps are generous enough that ordinary small histories are unaffected;
+    # they only engage on pathological inputs (hundreds/thousands of orders
+    # clustered in one date window). When a cap engages it is logged.
+    #
+    # Max eligible orders considered inside a single date-window partition.
+    # A partition larger than this is skipped (logged) rather than risking a
+    # combinatorial explosion.
+    amazon_combined_max_window_orders: int = 60
+    # Hard ceiling on the total number of candidate combinations generated
+    # across all partitions in one pass. Generation stops once reached
+    # (logged); behaviour for inputs under the ceiling is unchanged.
+    amazon_combined_max_combinations: int = 50_000
+
     # --- Production hardening ---------------------------------------------
     # Deployment environment. "development" (default) keeps the permissive
     # localhost behaviour; "production" turns on fail-fast safety checks and

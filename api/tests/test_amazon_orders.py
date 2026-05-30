@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
@@ -13,9 +14,9 @@ import pytest
 from quid_api.ai_categorization import CategorizedBulkItems
 from quid_api.amazon_csv_import import AmazonCsvFile, parse_amazon_csv
 from quid_api.models import AmazonOrder
-from quid_api.repositories.amazon_orders import ParsedOrderInput
+from quid_api.repositories.amazon_orders import AmazonOrderRepository, ParsedOrderInput
 from quid_api.routers.amazon_orders import _ingest_orders
-from quid_api.settings import reset_settings
+from quid_api.settings import get_settings, reset_settings
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -299,6 +300,228 @@ async def test_combined_match_pass_scales_to_dense_same_date_cluster(
     elapsed = perf_counter() - start
     assert result.auto_matched == 0
     assert elapsed < 3.0
+
+
+def _make_order(order_id: str, order_date: str, total: str) -> AmazonOrder:
+    """Build a bare AmazonOrder for direct (DB-free) _generate_combos tests."""
+    return AmazonOrder(
+        id=order_id,
+        order_date=order_date,
+        total=Decimal(total),
+        currency="GBP",
+        items_json="[]",
+        shipments_json="[]",
+        imported_at="2026-01-01T00:00:00Z",
+    )
+
+
+def _combo_repo() -> AmazonOrderRepository:
+    """A repository instance with no session — _generate_combos is pure and
+    never touches the DB, so this is safe and keeps the perf tests fast."""
+    return AmazonOrderRepository.__new__(AmazonOrderRepository)
+
+
+@contextmanager
+def _capture_combo_logs(monkeypatch):
+    """Capture the combined-pass cap warnings deterministically.
+
+    We swap the module-level ``logger`` for a tiny recorder rather than using
+    ``caplog``. pytest's logging plugin manipulates the global
+    ``logging.disable`` level / per-logger cache across tests, which made
+    record-based capture flaky here (a stale ``isEnabledFor`` cache swallowed
+    the WARNING). Replacing the logger object sidesteps the logging machinery
+    entirely, so the assertion only depends on our code calling
+    ``logger.warning(...)``."""
+    messages: list[str] = []
+
+    class _Recorder:
+        def warning(self, msg: str, *args: object) -> None:
+            messages.append(msg % args if args else msg)
+
+        def info(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def debug(self, *args: object, **kwargs: object) -> None:
+            pass
+
+    monkeypatch.setattr("quid_api.repositories.amazon_orders.logger", _Recorder(), raising=True)
+    yield messages
+
+
+def test_generate_combos_dense_window_is_capped_and_logged(monkeypatch):
+    """A single date window stuffed with thousands of unmatched orders must NOT
+    enumerate global combinations. The per-window cap skips the pathological
+    cluster wholesale (and logs it) so the pass stays bounded regardless of how
+    dense the cluster is. Without the cap, 5000 same-date orders would generate
+    ~2x10^10 size-3 combos and hang; with it, generation is near-instant."""
+    reset_settings()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "amazon_combined_max_window_orders", 60)
+
+    repo = _combo_repo()
+    orders = [_make_order(f"{i:05d}-9-9", "2026-06-01", "3.00") for i in range(5000)]
+    parsed = {o.id: date(2026, 6, 1) for o in orders}
+
+    with _capture_combo_logs(monkeypatch) as messages:
+        start = perf_counter()
+        combos = repo._generate_combos(orders, parsed)
+        elapsed = perf_counter() - start
+
+    # Every window past the first ~60 anchors exceeds the cap and is skipped,
+    # so the combo count is bounded by the cap, not by the 5000 input size.
+    assert elapsed < 1.0
+    assert len(combos) < 100_000
+    assert any("amazon.combined.window_capped" in m for m in messages), messages
+
+
+def test_generate_combos_global_combination_cap_engages_and_logs(monkeypatch):
+    """When many distinct date windows together produce more combos than the
+    global ceiling, generation stops AT the ceiling (and logs) rather than
+    running unbounded."""
+    reset_settings()
+    settings = get_settings()
+    # Tiny global ceiling + a window cap above per-window size so windows aren't
+    # skipped — only the global combination cap should engage.
+    monkeypatch.setattr(settings, "amazon_combined_max_combinations", 100)
+    monkeypatch.setattr(settings, "amazon_combined_max_window_orders", 10_000)
+
+    repo = _combo_repo()
+    # 1000 orders, two per day: each anchor window holds a handful of followers.
+    orders = []
+    parsed = {}
+    for i in range(1000):
+        day = date(2026, 1, 1) + timedelta(days=i // 2)
+        oid = f"{i:05d}-8-8"
+        orders.append(_make_order(oid, day.isoformat(), "4.00"))
+        parsed[oid] = day
+    orders.sort(key=lambda o: (parsed[o.id], o.id))
+
+    with _capture_combo_logs(monkeypatch) as messages:
+        combos = repo._generate_combos(orders, parsed)
+
+    # Generation halts exactly at the ceiling, never running unbounded.
+    assert len(combos) == 100
+    assert any("amazon.combined.combination_capped" in m for m in messages), messages
+
+
+async def test_combined_pass_dense_window_ingest_is_bounded(app_client, session, monkeypatch):
+    """End-to-end: ingesting hundreds of unmatched same-date orders (the worst
+    case for the combined pass) stays fast because the per-window cap prevents
+    the combinatorial explosion. A candidate expense forces the pass to actually
+    enter combo generation."""
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    await app_client.patch(
+        "/api/v1/settings", json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False}
+    )
+    # £7.50 is not a multiple of £3, so no order/combo ever sums to it → nothing
+    # links, but the candidate still drives the pass into combo generation.
+    await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 7.50,
+            "date": "2026-06-02",
+            "categoryId": "uncategorized",
+        },
+    )
+    parsed_orders = [
+        ParsedOrderInput(
+            order_id=f"{i:05d}-9999999-9999999",
+            order_date="2026-06-01",
+            total=Decimal("3.00"),
+            currency="GBP",
+            items=[{"title": f"Bulk {i}", "quantity": 1, "price": Decimal("3.00")}],
+            shipments=[],
+            payment_last4=None,
+            order_url=None,
+        )
+        for i in range(800)
+    ]
+
+    start = perf_counter()
+    result = await _ingest_orders(session, parsed_orders, source="test")
+    elapsed = perf_counter() - start
+
+    assert result.auto_matched == 0
+    assert elapsed < 5.0
+
+
+async def test_combined_pass_still_matches_small_cluster_in_large_history(
+    app_client, session, monkeypatch
+):
+    """Behaviour preservation: a genuine 2-order combined charge embedded in a
+    large, sparse history must still auto-match. The caps only suppress
+    pathological dense windows — ordinary small clusters are untouched."""
+    monkeypatch.setenv("QUID_OPENROUTER_API_KEY", "")
+    reset_settings()
+    await app_client.patch(
+        "/api/v1/settings", json={"aiShortNamesEnabled": False, "aiCategorizeEnabled": False}
+    )
+    # One real combined charge: two orders on 2026-07-10 summing to £40.
+    await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 40.00,
+            "date": "2026-07-11",
+            "categoryId": "uncategorized",
+        },
+    )
+
+    parsed_orders = [
+        ParsedOrderInput(
+            order_id="AAA-7777777-7777777",
+            order_date="2026-07-10",
+            total=Decimal("18.00"),
+            currency="GBP",
+            items=[{"title": "Combo A", "quantity": 1, "price": Decimal("18.00")}],
+            shipments=[],
+            payment_last4=None,
+            order_url=None,
+        ),
+        ParsedOrderInput(
+            order_id="BBB-7777777-7777777",
+            order_date="2026-07-10",
+            total=Decimal("22.00"),
+            currency="GBP",
+            items=[{"title": "Combo B", "quantity": 1, "price": Decimal("22.00")}],
+            shipments=[],
+            payment_last4=None,
+            order_url=None,
+        ),
+    ]
+    # Surround the real cluster with hundreds of unrelated sparse orders that
+    # never sum to a real charge (one per distant day, no matching expense).
+    for i in range(800):
+        day = date(2027, 1, 1) + timedelta(days=i)
+        parsed_orders.append(
+            ParsedOrderInput(
+                order_id=f"{i:05d}-6666666-6666666",
+                order_date=day.isoformat(),
+                total=Decimal("7.00"),
+                currency="GBP",
+                items=[{"title": f"Lonely {i}", "quantity": 1, "price": Decimal("7.00")}],
+                shipments=[],
+                payment_last4=None,
+                order_url=None,
+            )
+        )
+
+    start = perf_counter()
+    result = await _ingest_orders(session, parsed_orders, source="test")
+    elapsed = perf_counter() - start
+
+    assert result.combined_matched == 2
+    assert elapsed < 3.0
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    rows = {row["id"]: row for row in listed.json()}
+    assert (
+        rows["AAA-7777777-7777777"]["linkedExpenseIds"]
+        == rows["BBB-7777777-7777777"]["linkedExpenseIds"]
+    )
+    assert len(rows["AAA-7777777-7777777"]["linkedExpenseIds"]) == 1
 
 
 async def test_import_generates_short_name_fallback(app_client, monkeypatch):

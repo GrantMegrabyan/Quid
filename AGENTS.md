@@ -174,6 +174,26 @@ Verification checklist for any user-facing change:
 - Amazon orders are imported from CSV (`POST /api/v1/amazon-orders/import-csv`) and
   linked to `expenses` via the `expense_amazon_orders` many-to-many table.
   Auto-matching runs on import and via `/match-all`.
+- Auto-matching (`AmazonOrderRepository.auto_match_all`) is two passes: pass 1
+  links each unmatched order to its sole matching expense; pass 2
+  (`_run_combined_pass`) sums 2..`_COMBINED_MAX_SIZE` (3) nearby orders to a
+  single combined bank charge. Pass 2 is bounded and MUST stay that way — it
+  used to enumerate global combinations over every unmatched eligible order
+  (O(n^3+) → hangs on large histories). `_generate_combos` now (a) partitions
+  candidates into the `_COMBINED_ORDER_DATE_SPAN_DAYS` (2) date windows via a
+  binary search on the date-sorted list and anchors each combo at its earliest
+  member (so each combo is generated once and never crosses a window), and (b)
+  is hard-capped by two settings: `QUID_AMAZON_COMBINED_MAX_WINDOW_ORDERS`
+  (default 60 — a denser single-date window is a pathological cluster and is
+  skipped wholesale) and `QUID_AMAZON_COMBINED_MAX_COMBINATIONS` (default 50000
+  — global ceiling; generation stops once reached). Both caps log a WARNING
+  (`amazon.combined.window_capped` / `amazon.combined.combination_capped`) when
+  they engage. The defaults are generous enough that ordinary small histories
+  produce the identical combo set as before; only set them lower to be more
+  aggressive on huge imports. Perf tests in `tests/test_amazon_orders.py`
+  (`test_generate_combos_*`, `test_combined_pass_dense_window_ingest_is_bounded`,
+  `test_combined_match_pass_scales_to_*`) prove bounded runtime on
+  thousands of orders and MUST keep passing.
 - The import pipeline's shared seam is
   `_ingest_orders(session, parsed_orders, *, source=...)` in
   `routers/amazon_orders.py` (upsert → AI short-names → AI categorize →

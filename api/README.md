@@ -33,6 +33,8 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for the AI features (CSV import categorisation, Amazon order categorisation, and Amazon order short names). Required when an AI feature is enabled. |
 | `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for both AI categorisation and Amazon short names. |
 | `QUID_OPENROUTER_CHUNK_SIZE` | `25` | Max items per OpenRouter call. Larger imports are split into sequential chunks; for categorisation each chunk's prompt carries forward the merchant→category decisions made by earlier chunks. Set lower if the model struggles on long batches; raise (or set to a very large number) to revert to single-shot behaviour. |
+| `QUID_AMAZON_COMBINED_MAX_WINDOW_ORDERS` | `60` | Safeguard for the Amazon "combined orders" auto-match pass (which sums 2–3 nearby orders to one bank charge). A single ≤2-day date window holding more than this many unmatched orders is treated as a pathological cluster and **skipped wholesale** (logged as `amazon.combined.window_capped`). Real Amazon billing clusters are tiny, so the default never affects ordinary imports; lower it to be more aggressive on huge histories. |
+| `QUID_AMAZON_COMBINED_MAX_COMBINATIONS` | `50000` | Global ceiling on the total number of candidate combinations the combined-orders pass generates in one run. Generation stops once reached (logged as `amazon.combined.combination_capped`). Prevents the pass from ever running unbounded; the default is far above what normal imports produce. |
 
 Whether the two AI features actually run is controlled by persisted **app
 settings** (not env vars): `aiCategorizeEnabled` and `aiShortNamesEnabled`
