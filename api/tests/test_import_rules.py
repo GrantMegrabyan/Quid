@@ -242,6 +242,151 @@ async def test_apply_all_sets_display_name(app_client):
     assert rows[0]["displayName"] == "Maria Andreeva"
 
 
+async def test_set_note_round_trips_through_create_and_list(app_client):
+    created = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Coffee note",
+                "action": "exclude",
+                "matchNameOp": "contains",
+                "matchNameValue": "coffee",
+                "setNote": "Coffee run",
+            },
+        )
+    ).json()
+    assert created["setNote"] == "Coffee run"
+
+    defaulted = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "No note",
+                "action": "exclude",
+                "matchNameOp": "contains",
+                "matchNameValue": "tea",
+            },
+        )
+    ).json()
+    assert defaulted["setNote"] is None
+
+    rules = (await app_client.get("/api/v1/import-rules")).json()
+    by_name = {rule["name"]: rule for rule in rules}
+    assert by_name["Coffee note"]["setNote"] == "Coffee run"
+    assert by_name["No note"]["setNote"] is None
+
+
+async def test_apply_existing_sets_note(app_client):
+    groceries = (
+        await app_client.post(
+            "/api/v1/categories", json={"name": "Groceries", "icon": "shopping-cart"}
+        )
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={
+                "name": "STARBUCKS #123",
+                "amount": 5.25,
+                "date": "2026-01-15",
+                "categoryId": "uncategorized",
+                "note": "original note",
+            },
+        )
+    ).json()
+    rule = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Starbucks note",
+                "action": "categorize",
+                "targetCategoryId": groceries["id"],
+                "matchNameOp": "contains",
+                "matchNameValue": "starbucks",
+                "setNote": "Coffee run",
+            },
+        )
+    ).json()
+
+    applied = await app_client.post(f"/api/v1/import-rules/{rule['id']}/apply")
+    assert applied.status_code == 200
+    assert applied.json() == {"matched": 1, "updated": 1, "deleted": 0}
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    row = next(e for e in rows if e["id"] == created["id"])
+    assert row["note"] == "Coffee run"
+
+
+async def test_apply_all_sets_note_overrides_existing(app_client):
+    groceries = (
+        await app_client.post(
+            "/api/v1/categories", json={"name": "Groceries", "icon": "shopping-cart"}
+        )
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={
+                "name": "STARBUCKS #123",
+                "amount": 5.25,
+                "date": "2026-01-15",
+                "categoryId": "uncategorized",
+                "note": "original note",
+            },
+        )
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Starbucks note",
+            "action": "categorize",
+            "targetCategoryId": groceries["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "starbucks",
+            "setNote": "Coffee run",
+        },
+    )
+
+    applied = await app_client.post("/api/v1/import-rules/apply-all")
+    assert applied.status_code == 200
+    assert applied.json()["updated"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    row = next(e for e in rows if e["id"] == created["id"])
+    assert row["note"] == "Coffee run"
+
+
+async def test_import_csv_applies_set_note(app_client):
+    groceries = (
+        await app_client.post(
+            "/api/v1/categories", json={"name": "Groceries", "icon": "shopping-cart"}
+        )
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Starbucks note",
+            "action": "categorize",
+            "targetCategoryId": groceries["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "starbucks",
+            "setNote": "Coffee run",
+        },
+    )
+
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = "name,category,amount,date,note\nSTARBUCKS #123,other,-5.25,2026-01-15,original note\n"
+    imported = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("starbucks.csv", csv)]
+    )
+    assert imported.status_code == 201, imported.text
+    assert imported.json()["imported"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 1
+    assert rows[0]["note"] == "Coffee run"
+
+
 async def test_rule_update_and_delete(app_client):
     created = (
         await app_client.post(
