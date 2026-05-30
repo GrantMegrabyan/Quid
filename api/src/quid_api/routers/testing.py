@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import secrets
 from decimal import Decimal  # noqa: TC003  pydantic Field reads this at runtime
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy import select, text
 
 from quid_api.category_helpers import UNCATEGORIZED_COLOR, UNCATEGORIZED_ID
@@ -13,11 +14,43 @@ from quid_api.repositories.categories import CategoryRepository
 from quid_api.repositories.expenses import ExpenseRepository
 from quid_api.schemas import CategoryOut, ExpenseOut, _Camel
 from quid_api.seed import seed_samples
+from quid_api.settings import Settings, get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/api/v1/testing", tags=["testing"])
+#: Header carrying the shared secret that authorizes destructive testing calls.
+TESTING_TOKEN_HEADER = "X-Testing-Token"
+
+
+async def require_testing_token(
+    settings: Annotated[Settings, Depends(get_settings)],
+    x_testing_token: Annotated[str | None, Header(alias=TESTING_TOKEN_HEADER)] = None,
+) -> None:
+    """Authorize a request to the destructive testing router.
+
+    Fails closed: if no token is configured the router rejects every request,
+    even though it is mounted. A configured token must match exactly (constant
+    time) for the request to proceed.
+    """
+    configured = settings.testing_token
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Testing endpoints are locked: QUID_TESTING_TOKEN is not configured.",
+        )
+    if not x_testing_token or not secrets.compare_digest(x_testing_token, configured):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Missing or invalid {TESTING_TOKEN_HEADER} header.",
+        )
+
+
+router = APIRouter(
+    prefix="/api/v1/testing",
+    tags=["testing"],
+    dependencies=[Depends(require_testing_token)],
+)
 
 SessionDep = Annotated["AsyncSession", Depends(get_session)]
 

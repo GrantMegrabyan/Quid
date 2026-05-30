@@ -21,7 +21,9 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | --- | --- | --- |
 | `QUID_DATABASE_URL` | `sqlite+aiosqlite:///./.data/quid.db` | Async SQLAlchemy database URL. |
 | `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins **in development**. Defaults to any `http://localhost` port. Ignored in production (use `QUID_CORS_ALLOWED_ORIGINS`). |
-| `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. Must be `false` in production. |
+| `QUID_TESTING` | `false` | Mounts the **destructive** `/api/v1/testing/*` helpers when true (see _Testing endpoints_ below). Must be `false` in production. |
+| `QUID_TESTING_TOKEN` | empty | Shared secret required on **every** `/api/v1/testing/*` request via the `X-Testing-Token` header. When `QUID_TESTING=true` but this is empty the router is mounted yet **rejects all requests** (`403`). A wrong/missing header returns `401`. |
+| `QUID_TESTING_ALLOW_UNSAFE_DB` | `false` | Override the startup guard that refuses to boot when `QUID_TESTING=true` and `QUID_DATABASE_URL` does not look like a throwaway test/e2e DB (must contain `test`, `e2e`, or `:memory:`). Leave `false` so the data-wiping router can never be pointed at a real DB by accident. |
 | `QUID_ENVIRONMENT` | `development` | Deployment mode. Set to `production` to enable fail-fast safety checks and lock down docs/CORS/hosts (see _Production hardening_). |
 | `QUID_ALLOWED_HOSTS` | empty | Comma-separated list of trusted `Host` header values, enforced by `TrustedHostMiddleware`. Empty means "any host" (fine for local dev; **required** and must not contain `*` in production). |
 | `QUID_CORS_ALLOWED_ORIGINS` | empty | Comma-separated list of exact allowed browser origins used **in production** (e.g. `https://app.example.com`). **Required** and must not contain `*` in production; ignored in development. |
@@ -94,6 +96,48 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid.db" \
 
 Multiple hosts/origins are comma-separated, e.g.
 `QUID_CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"`.
+
+## Testing endpoints
+
+> [!WARNING]
+> The `/api/v1/testing/*` router is **destructive**. `POST /api/v1/testing/reset`
+> and `POST /api/v1/testing/seed-state` **delete every expense and every
+> category** (except the built-in `Uncategorized`) before optionally seeding
+> sample/given data. It exists only so the e2e harness can reset state between
+> tests. **Never enable it against a database whose data you care about.**
+
+These endpoints are guarded three ways so they cannot be triggered by accident:
+
+1. **Not mounted by default.** They only exist when `QUID_TESTING=true`. With the
+   default (`false`) the routes return `404`.
+2. **Token required.** Even when mounted, every request must send the
+   `X-Testing-Token` header matching `QUID_TESTING_TOKEN`. A missing/incorrect
+   token returns `401`; if `QUID_TESTING_TOKEN` is unset the router rejects
+   everything with `403` (fail-closed — mounting alone is not enough).
+3. **Database-safety startup guard.** When `QUID_TESTING=true` the app **refuses
+   to start** (`TestingConfigError`) if `QUID_DATABASE_URL` does not look like a
+   throwaway test database (it must contain `test`, `e2e`, or `:memory:`). Set
+   `QUID_TESTING_ALLOW_UNSAFE_DB=true` only if you deliberately need to bypass
+   this. In production, `QUID_TESTING=true` is rejected outright by the
+   production hardening checks above.
+
+The Playwright e2e harness boots its own API with
+`QUID_TESTING=1`, `QUID_TESTING_TOKEN` set, and `QUID_DATABASE_URL` pointing at
+`api/.data/quid-e2e.db`; the test helpers send the matching `X-Testing-Token`
+header on every reset/seed call.
+
+Example (local, throwaway DB):
+
+```sh
+QUID_TESTING=1 \
+QUID_TESTING_TOKEN="dev-testing-token" \
+QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-test.db" \
+  uv run quid-api serve --port 8001
+
+# Reset (wipes data) — requires the token:
+curl -X POST http://localhost:8001/api/v1/testing/reset \
+  -H "X-Testing-Token: dev-testing-token"
+```
 
 ## CLI
 

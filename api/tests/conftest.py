@@ -82,6 +82,7 @@ async def app_client(engine: AsyncEngine, database_url: str):
     settings = Settings(
         database_url=database_url,
         testing=True,
+        testing_token="test-token",
         openrouter_api_key=None,
     )
     app = create_app(settings=settings)
@@ -89,5 +90,9 @@ async def app_client(engine: AsyncEngine, database_url: str):
     app.dependency_overrides[get_settings] = lambda: settings
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Testing-Token": "test-token"},
+    ) as client:
         yield client

@@ -112,6 +112,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_logging(cfg.log_level, cfg.log_file)
     # Fail fast before serving a single request if production config is unsafe.
     cfg.validate_production()
+    # Refuse to start if the destructive testing router is enabled against a
+    # database that does not look like a throwaway test/e2e DB.
+    cfg.validate_testing()
 
     docs_enabled = cfg.is_docs_enabled
     app = FastAPI(

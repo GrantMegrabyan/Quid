@@ -5,6 +5,10 @@ export const UNCATEGORIZED_ID = 'uncategorized';
 
 export const API_BASE_URL = process.env.QUID_API_URL ?? 'http://localhost:8001';
 
+// Shared secret required on every /api/v1/testing/* request. Must match the
+// QUID_TESTING_TOKEN the e2e API server is booted with (see playwright.config.ts).
+export const TESTING_TOKEN = process.env.QUID_TESTING_TOKEN ?? 'e2e-testing-token';
+
 export interface SeedCategory {
 	id: string;
 	name: string;
@@ -78,7 +82,10 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 async function postSeedState(state: SeedState): Promise<void> {
 	const response = await fetch(`${API_BASE_URL}/api/v1/testing/seed-state`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			'X-Testing-Token': TESTING_TOKEN
+		},
 		body: JSON.stringify({
 			categories: state.categories,
 			expenses: state.expenses

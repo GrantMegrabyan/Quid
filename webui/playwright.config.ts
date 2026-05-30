@@ -8,6 +8,8 @@ const API_URL = `http://localhost:${API_PORT}`;
 const TEST_DB_PATH = resolve(here, '..', 'api', '.data', 'quid-e2e.db');
 const TEST_DATABASE_URL = `sqlite+aiosqlite:///${TEST_DB_PATH}`;
 const API_DIR = resolve(here, '..', 'api');
+// Shared secret the e2e harness sends on every /api/v1/testing/* request.
+const TESTING_TOKEN = 'e2e-testing-token';
 
 export default defineConfig({
 	webServer: [
@@ -19,7 +21,8 @@ export default defineConfig({
 			timeout: 60_000,
 			env: {
 				QUID_DATABASE_URL: TEST_DATABASE_URL,
-				QUID_TESTING: '1'
+				QUID_TESTING: '1',
+				QUID_TESTING_TOKEN: TESTING_TOKEN
 			}
 		},
 		{

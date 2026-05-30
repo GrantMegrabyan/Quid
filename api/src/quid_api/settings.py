@@ -8,6 +8,20 @@ class ProductionConfigError(RuntimeError):
     """Raised when production mode is requested with unsafe or missing config."""
 
 
+class TestingConfigError(RuntimeError):
+    """Raised when the destructive testing router is enabled unsafely."""
+
+
+# Substrings that mark a database URL as a throwaway test/e2e database. The
+# testing router (which wipes all data) may only run against one of these
+# unless testing_allow_unsafe_db is explicitly set.
+_TEST_DB_MARKERS = ("test", "e2e", ":memory:")
+
+
+def _looks_like_test_database(database_url: str) -> bool:
+    return any(marker in database_url.lower() for marker in _TEST_DB_MARKERS)
+
+
 def _split_csv(value: str | list[str] | None) -> list[str]:
     """Parse a comma-separated string (or list) into a clean list of entries.
 
@@ -31,6 +45,15 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./.data/quid.db"
     cors_origin_regex: str = r"^http://localhost(:\d+)?$"
     testing: bool = False
+    # Shared secret required on every /api/v1/testing/* request (sent as the
+    # X-Testing-Token header). The testing router wipes ALL data, so even when
+    # it is mounted (testing=True) it stays locked unless this token is set and
+    # matches. Empty token => the router refuses every request (fail closed).
+    testing_token: str | None = None
+    # Escape hatch: allow testing=True against a database URL that does not look
+    # like a throwaway test/e2e DB. Off by default so the destructive testing
+    # router can never be pointed at a real database by accident.
+    testing_allow_unsafe_db: bool = False
     log_level: str = "INFO"
     log_file: str = "./.data/quid.log"
     openrouter_api_key: str | None = None
@@ -104,6 +127,30 @@ class Settings(BaseSettings):
         if problems:
             raise ProductionConfigError(
                 "Unsafe production configuration:\n  - " + "\n  - ".join(problems)
+            )
+
+    def validate_testing(self) -> None:
+        """Fail fast when the destructive testing router is enabled unsafely.
+
+        The /api/v1/testing/* router wipes ALL expenses and categories. When it
+        is mounted (testing=True) we refuse to start against a database URL that
+        does not look like a throwaway test/e2e database, unless the operator
+        has explicitly opted in via QUID_TESTING_ALLOW_UNSAFE_DB=true.
+
+        No-op when testing is disabled.
+        """
+        if not self.testing:
+            return
+        if self.testing_allow_unsafe_db:
+            return
+        if not _looks_like_test_database(self.database_url):
+            raise TestingConfigError(
+                "QUID_TESTING is enabled but QUID_DATABASE_URL does not look like a "
+                "test/e2e database (expected one of "
+                f"{', '.join(_TEST_DB_MARKERS)!r} in the URL). The testing router "
+                "wipes ALL data. Point QUID_DATABASE_URL at a throwaway test DB, or "
+                "set QUID_TESTING_ALLOW_UNSAFE_DB=true to override this guard.\n"
+                f"  configured QUID_DATABASE_URL={self.database_url!r}"
             )
 
 

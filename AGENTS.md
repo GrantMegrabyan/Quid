@@ -85,6 +85,16 @@ When NOT to commit:
 
 ## Backend notes
 
+- The `/api/v1/testing/*` router (`routers/testing.py`) is DESTRUCTIVE (wipes all
+  expenses + categories). It is hardened three ways and all three must be
+  satisfied for it to work: (1) mounted only when `QUID_TESTING=true`; (2) every
+  request must send `X-Testing-Token` matching `QUID_TESTING_TOKEN` (unset token
+  ⇒ fail-closed 403, wrong/missing ⇒ 401); (3) `Settings.validate_testing()` (run
+  in `create_app`) refuses startup when `QUID_TESTING=true` and the DB URL doesn't
+  contain `test`/`e2e`/`:memory:`, unless `QUID_TESTING_ALLOW_UNSAFE_DB=true`. The
+  Playwright harness sets the token in `webui/playwright.config.ts` and sends it
+  from `webui/tests/helpers.ts`; backend `app_client` fixture sets/sends
+  `test-token`. If you add a testing route or a new caller, send the header.
 - Run backend commands from `api/`.
 - Common verification:
   - `uv run ruff format --check .`
