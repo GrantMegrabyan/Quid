@@ -5,10 +5,12 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_for
 from quid_api.routers import (
@@ -56,6 +58,29 @@ def configure_logging(level: str, log_file: str | None = None) -> None:
     quid.setLevel(resolved)
 
 
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Cross-Origin-Opener-Policy": "same-origin",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach a small set of safe, static response headers to every response.
+
+    Intentionally conservative: only headers that are safe for an API/JSON
+    backend and won't break the local dev frontend. No HSTS here (it is
+    HTTPS/deployment-specific and best set at the TLS terminator).
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        for header, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(header, value)
+        return response
+
+
 def _error_body(code: RepositoryErrorCode | str, message: str) -> dict[str, str]:
     code_value = code.value if isinstance(code, RepositoryErrorCode) else code
     return {"code": code_value, "message": message}
@@ -85,19 +110,45 @@ async def _validation_error_handler(_: Request, exc: Exception) -> JSONResponse:
 def create_app(settings: Settings | None = None) -> FastAPI:
     cfg = settings or get_settings()
     configure_logging(cfg.log_level, cfg.log_file)
+    # Fail fast before serving a single request if production config is unsafe.
+    cfg.validate_production()
+
+    docs_enabled = cfg.is_docs_enabled
     app = FastAPI(
         title="Quid API",
         version="0.1.0",
         description="Expense tracker backend.",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=cfg.cors_origin_regex,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # In production, restrict to an explicit CORS allow-list; in development
+    # keep the permissive localhost regex unchanged.
+    if cfg.is_production:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cfg.cors_allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=cfg.cors_origin_regex,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    # TrustedHostMiddleware only when an allow-list is configured (always so in
+    # production, where validate_production() guarantees it is non-empty).
+    if cfg.allowed_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=cfg.allowed_hosts)
+
+    if cfg.security_headers_enabled:
+        app.add_middleware(SecurityHeadersMiddleware)
 
     app.add_exception_handler(RepositoryError, _repository_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)

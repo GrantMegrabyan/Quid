@@ -20,8 +20,13 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `QUID_DATABASE_URL` | `sqlite+aiosqlite:///./.data/quid.db` | Async SQLAlchemy database URL. |
-| `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins. Defaults to any `http://localhost` port. |
-| `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. |
+| `QUID_CORS_ORIGIN_REGEX` | `^http://localhost(:\d+)?$` | Allowed browser origins **in development**. Defaults to any `http://localhost` port. Ignored in production (use `QUID_CORS_ALLOWED_ORIGINS`). |
+| `QUID_TESTING` | `false` | Mounts `/api/v1/testing/*` helpers when true. Must be `false` in production. |
+| `QUID_ENVIRONMENT` | `development` | Deployment mode. Set to `production` to enable fail-fast safety checks and lock down docs/CORS/hosts (see _Production hardening_). |
+| `QUID_ALLOWED_HOSTS` | empty | Comma-separated list of trusted `Host` header values, enforced by `TrustedHostMiddleware`. Empty means "any host" (fine for local dev; **required** and must not contain `*` in production). |
+| `QUID_CORS_ALLOWED_ORIGINS` | empty | Comma-separated list of exact allowed browser origins used **in production** (e.g. `https://app.example.com`). **Required** and must not contain `*` in production; ignored in development. |
+| `QUID_DOCS_ENABLED` | `false` | Whether to expose `/docs`, `/redoc` and `/openapi.json`. Docs are **always on in development** regardless of this flag; in production they are **off** unless this is `true`. |
+| `QUID_SECURITY_HEADERS_ENABLED` | `true` | Attach safe static response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`) to every response. |
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
 | `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for the AI features (CSV import categorisation, Amazon order categorisation, and Amazon order short names). Required when an AI feature is enabled. |
 | `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for both AI categorisation and Amazon short names. |
@@ -38,6 +43,57 @@ Example dev database:
 QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api migrate
 QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serve --reload
 ```
+
+## Production hardening
+
+The API ships in **development mode** by default, which keeps the permissive
+localhost behaviour: CORS allows any `http://localhost` port, any `Host` header
+is accepted, and `/docs` + `/openapi.json` are served. Nothing below changes
+local development.
+
+Setting `QUID_ENVIRONMENT=production` turns on production hardening:
+
+- **Fail-fast config validation.** The app refuses to start (raises
+  `ProductionConfigError`) when `QUID_ALLOWED_HOSTS` or
+  `QUID_CORS_ALLOWED_ORIGINS` is missing or contains `*`, or when
+  `QUID_TESTING` is true. This prevents accidentally deploying with a wildcard
+  CORS/host configuration.
+- **Locked-down CORS.** The development `QUID_CORS_ORIGIN_REGEX` is ignored;
+  only the exact origins in `QUID_CORS_ALLOWED_ORIGINS` are allowed.
+- **`TrustedHostMiddleware`.** Requests whose `Host` header is not in
+  `QUID_ALLOWED_HOSTS` get a `400 Bad Request`. (This middleware is also added
+  in development if you choose to set `QUID_ALLOWED_HOSTS` there.)
+- **Docs disabled.** `/docs`, `/redoc` and `/openapi.json` return `404` unless
+  you explicitly set `QUID_DOCS_ENABLED=true`.
+
+Security response headers (`X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, `Cross-Origin-Opener-Policy`) are attached in **both** modes
+(toggle with `QUID_SECURITY_HEADERS_ENABLED`). HSTS is intentionally not set
+here — terminate TLS and set `Strict-Transport-Security` at your reverse proxy.
+
+### Local (development) — unchanged
+
+```sh
+uv run quid-api migrate
+uv run quid-api serve --reload
+# CORS: any http://localhost:* ; any Host accepted ; /docs available
+```
+
+### Production
+
+```sh
+QUID_ENVIRONMENT=production \
+QUID_ALLOWED_HOSTS="api.example.com" \
+QUID_CORS_ALLOWED_ORIGINS="https://app.example.com" \
+QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid.db" \
+  uv run quid-api serve --host 0.0.0.0 --port 8000
+
+# To expose the API docs in production as well, add:
+#   QUID_DOCS_ENABLED=true
+```
+
+Multiple hosts/origins are comma-separated, e.g.
+`QUID_CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"`.
 
 ## CLI
 
