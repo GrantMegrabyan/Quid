@@ -46,6 +46,29 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api migr
 QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid-dev.db" uv run quid-api serve --reload
 ```
 
+## Money format (decimal strings)
+
+Every monetary value crosses the API boundary as a **canonical decimal string
+with exactly two fractional digits** (`"12.50"`, `"42.00"`), never a JSON
+number. This applies to all amount/total/price fields, e.g.:
+
+- **Responses:** `ExpenseOut.amount`, import preview/confirm row `amount`,
+  `ImportRuleOut.matchAmountValue` / `matchAmountValue2`, `AmazonOrderOut.total`,
+  Amazon item `price`, Amazon shipment `total` — all serialized as 2dp strings.
+- **Requests:** the same fields are **accepted as either a string (`"12.50"`,
+  preferred) or a JSON number (`12.5`)**. The server coerces both to an exact
+  `Decimal`, validates ≤ 2dp, and stores `Numeric(12, 2)`. New/updated clients
+  should send strings.
+
+JSON numbers are IEEE-754 floats, so round-tripping money through them can
+introduce silent precision drift (e.g. `19.990000000000002`) that breaks the
+exact-`Decimal` matching used for Amazon orders and import dedup. Strings
+transport the exact scraped/entered value.
+
+The Amazon **browser-export** request (`POST /api/v1/amazon-orders/import-export`)
+is stricter: its money fields (`order.total`, item `price`, shipment `total`)
+MUST be strings — a JSON number there is a hard `422` (see _Amazon orders_).
+
 ## Production hardening
 
 The API ships in **development mode** by default, which keeps the permissive
@@ -179,6 +202,8 @@ three modes, all of which ultimately write through the endpoints below:
 
 A single expense is created with `POST /api/v1/expenses` (JSON body matching
 `ExpenseCreate`: `name`, `amount`, `date`, `categoryId`, `note?`, `importance?`).
+`amount` is a decimal string (`"12.50"`); a JSON number is also accepted (see
+_Money format_). The created expense is returned with `amount` as a 2dp string.
 
 ## CSV import
 
