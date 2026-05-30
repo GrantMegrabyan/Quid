@@ -28,7 +28,7 @@ import type {
 } from '$types';
 
 /** Bump when the emitted contract or parse logic changes materially. */
-export const SCRAPER_VERSION = '1.0.0';
+export const SCRAPER_VERSION = '1.1.0';
 
 /**
  * Thrown when the page looks like an orders page but the layout can't be
@@ -166,7 +166,6 @@ const EMPTY_STATE_MARKERS = [
 const ORDER_ID_SELECTORS = [
 	'bdi[dir="ltr"]',
 	'.yohtmlc-order-id bdi',
-	'.yohtmlc-order-id span',
 	'[data-testid="order-id"]'
 ];
 
@@ -184,6 +183,31 @@ const ORDER_DATE_SELECTORS = [
 	'.a-color-secondary.value'
 ];
 
+/**
+ * Current amazon.co.uk / .com "order header" layout puts each summary field in
+ * a `.a-column` whose first line is a `.a-text-caps` LABEL ("Order placed",
+ * "Total", "Order #") and whose value sits in a following `.a-row`. The value
+ * spans share generic classes (date and total are both
+ * `a-size-base a-color-secondary aok-break-word`), so we must anchor on the
+ * label text and read the value from the same column, not select by class.
+ *
+ * Returns the value text for the column whose label matches `labelRe`, or null.
+ */
+function valueByLabel(card: Element, labelRe: RegExp): string | null {
+	const labels = Array.from(card.querySelectorAll('.a-text-caps'));
+	for (const label of labels) {
+		if (!labelRe.test(textOf(label))) continue;
+		const column = label.closest('.a-column, .a-fixed-right-grid-col') ?? label.parentElement;
+		if (!column) continue;
+		// Prefer an explicit value row; fall back to the column's text minus the
+		// label so we still work if the `.a-row` wrapper changes.
+		const valueRow = column.querySelector('.a-row');
+		const valueText = valueRow ? textOf(valueRow) : textOf(column).replace(textOf(label), '').trim();
+		if (valueText) return valueText;
+	}
+	return null;
+}
+
 const ITEM_TITLE_SELECTORS = [
 	'.yohtmlc-product-title',
 	'.a-link-normal.yohtmlc-product-title',
@@ -191,16 +215,23 @@ const ITEM_TITLE_SELECTORS = [
 	'.a-row .a-link-normal'
 ];
 
+const ORDER_ID_RE = /\d{3}-\d{7}-\d{7}/;
+
 /** Pull the order id out of a card, trying selectors then a text fallback. */
 function parseOrderId(card: Element): string | null {
+	// Current layout: the "Order #" label's column holds the id value.
+	const byLabel = valueByLabel(card, /order\s*#/i);
+	const fromLabel = byLabel?.match(ORDER_ID_RE);
+	if (fromLabel) return fromLabel[0];
+
 	for (const sel of ORDER_ID_SELECTORS) {
 		const value = textOf(card.querySelector(sel));
-		if (/\d{3}-\d{7}-\d{7}/.test(value)) {
-			return value.match(/\d{3}-\d{7}-\d{7}/)![0];
+		if (ORDER_ID_RE.test(value)) {
+			return value.match(ORDER_ID_RE)![0];
 		}
 	}
 	// Fallback: scan the card text for an Amazon order id pattern.
-	const fromText = textOf(card).match(/\d{3}-\d{7}-\d{7}/);
+	const fromText = textOf(card).match(ORDER_ID_RE);
 	return fromText ? fromText[0] : null;
 }
 
@@ -238,14 +269,35 @@ function parseOrderUrl(card: Element, domain: string): string | null {
 	return `https://www.${domain}${href.startsWith('/') ? '' : '/'}${href}`;
 }
 
+// Statuses the server's `_ACCEPTED_STATUSES` imports (lower-cased). The .co.uk
+// delivery box reads e.g. "Delivered 7 May", so we extract the leading keyword.
+const ACCEPTED_STATUS = /\b(delivered|shipped|closed|complete|completed)\b/i;
+// Explicit not-importable states (cancelled/returned/refunded) — emit these so
+// the server SKIPS them with a reason.
+const REJECTED_STATUS = /\b(cancelled|canceled|returned|refunded)\b/i;
+
+/**
+ * Extract a status the server will act on. The order TOTAL is what gates
+ * import; status only matters for excluding cancelled/returned orders. So:
+ * emit an accepted keyword ("Delivered") or an explicit rejected one
+ * ("Cancelled"); for in-flight states the server doesn't list (e.g.
+ * "Dispatched", "Preparing"), emit null so a still-valid order isn't wrongly
+ * skipped by the status filter.
+ */
 function parseStatus(card: Element): string | null {
 	const el = pick(card, [
 		'[data-testid="order-status"]',
+		'.delivery-box__primary-text',
 		'.delivery-box .a-text-bold',
 		'.shipment-top-row .a-text-bold'
 	]);
 	const value = textOf(el);
-	return value || null;
+	if (!value) return null;
+	const rejected = value.match(REJECTED_STATUS);
+	if (rejected) return rejected[1];
+	const accepted = value.match(ACCEPTED_STATUS);
+	if (accepted) return accepted[1];
+	return null;
 }
 
 function parseLast4(card: Element): string | null {
@@ -265,14 +317,22 @@ function parseOrderCard(card: Element, domain: string, index: number): AmazonExp
 		throw layoutError(`order card #${index + 1} has no recognisable order id.`);
 	}
 
-	const total = extractMoneyString(textOf(pick(card, ORDER_TOTAL_SELECTORS)));
+	// Total: anchor on the "Total" label's column (current layout), then fall
+	// back to the legacy selectors.
+	const total =
+		extractMoneyString(valueByLabel(card, /^\s*total\s*$/i)) ??
+		extractMoneyString(textOf(pick(card, ORDER_TOTAL_SELECTORS)));
 	if (!total) {
 		throw layoutError(`order ${orderId} has no parseable total.`);
 	}
 
-	// Date is normalised here but the server also re-validates + skips, so a
-	// null here is non-fatal: emit it raw-empty and let the server skip it.
-	const orderDate = normalizeOrderDate(textOf(pick(card, ORDER_DATE_SELECTORS))) ?? '';
+	// Date: anchor on the "Order placed" label's column, then legacy selectors.
+	// Normalised here but the server also re-validates + skips, so a null here
+	// is non-fatal: emit it raw-empty and let the server skip it.
+	const orderDate =
+		normalizeOrderDate(valueByLabel(card, /order\s*placed/i)) ??
+		normalizeOrderDate(textOf(pick(card, ORDER_DATE_SELECTORS))) ??
+		'';
 
 	return {
 		orderId,

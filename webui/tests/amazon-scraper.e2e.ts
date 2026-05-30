@@ -64,7 +64,7 @@ test('parses a .co.uk order-history page matching the backend export contract', 
 	const html = await loadFixture('amazon-orders-couk.html');
 	const result = await runParser(page, html, 'amazon.co.uk');
 
-	expect(result.scraperVersion).toBe('1.0.0');
+	expect(result.scraperVersion).toBe('1.1.0');
 	expect(result.domain).toBe('amazon.co.uk');
 	expect(result.orders).toHaveLength(3);
 
