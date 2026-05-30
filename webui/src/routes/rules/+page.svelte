@@ -124,7 +124,7 @@
 		if (!card) return;
 		const rect = card.getBoundingClientRect();
 		const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
-		if (!fullyVisible) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		if (!fullyVisible) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
 	function cancelEdit(): void {
