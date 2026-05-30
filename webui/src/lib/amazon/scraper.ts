@@ -28,7 +28,7 @@ import type {
 } from '$types';
 
 /** Bump when the emitted contract or parse logic changes materially. */
-export const SCRAPER_VERSION = '1.1.0';
+export const SCRAPER_VERSION = '1.2.0';
 
 /**
  * Thrown when the page looks like an orders page but the layout can't be
@@ -197,13 +197,20 @@ function valueByLabel(card: Element, labelRe: RegExp): string | null {
 	const labels = Array.from(card.querySelectorAll('.a-text-caps'));
 	for (const label of labels) {
 		if (!labelRe.test(textOf(label))) continue;
-		const column = label.closest('.a-column, .a-fixed-right-grid-col') ?? label.parentElement;
+		const column = label.closest('.a-column, .a-fixed-right-grid-col, li') ?? label.parentElement;
 		if (!column) continue;
-		// Prefer an explicit value row; fall back to the column's text minus the
-		// label so we still work if the `.a-row` wrapper changes.
-		const valueRow = column.querySelector('.a-row');
-		const valueText = valueRow ? textOf(valueRow) : textOf(column).replace(textOf(label), '').trim();
-		if (valueText) return valueText;
+		const labelText = textOf(label);
+		// The label itself is wrapped in a `.a-row` (e.g. "Order placed"), and
+		// the VALUE is in a SEPARATE `.a-row` sibling ("24 May 2026"). Pick the
+		// first `.a-row` whose text isn't just the label.
+		const rows = Array.from(column.querySelectorAll('.a-row'));
+		for (const row of rows) {
+			const text = textOf(row);
+			if (text && text !== labelText && !labelRe.test(text)) return text;
+		}
+		// Fallback: the column's text minus the label.
+		const stripped = textOf(column).replace(labelText, '').trim();
+		if (stripped) return stripped;
 	}
 	return null;
 }
@@ -219,7 +226,17 @@ const ORDER_ID_RE = /\d{3}-\d{7}-\d{7}/;
 
 /** Pull the order id out of a card, trying selectors then a text fallback. */
 function parseOrderId(card: Element): string | null {
-	// Current layout: the "Order #" label's column holds the id value.
+	// Current layout: a `.yohtmlc-order-id` container holding an "Order #"
+	// label span and the id value span (the id is a plain span[dir="ltr"],
+	// NOT a <bdi>). Read the container text and pull the id pattern out.
+	const idContainer = card.querySelector('.yohtmlc-order-id');
+	if (idContainer) {
+		const fromContainer = textOf(idContainer).match(ORDER_ID_RE);
+		if (fromContainer) return fromContainer[0];
+	}
+
+	// Label-anchored fallback (handles layouts where the label/value sit in a
+	// shared column rather than a `.yohtmlc-order-id` wrapper).
 	const byLabel = valueByLabel(card, /order\s*#/i);
 	const fromLabel = byLabel?.match(ORDER_ID_RE);
 	if (fromLabel) return fromLabel[0];

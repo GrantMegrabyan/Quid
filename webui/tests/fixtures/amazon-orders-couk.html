@@ -1,15 +1,19 @@
 <!doctype html>
 <!--
   Sanitized amazon.co.uk "Returns & Orders" page fragment for parser tests.
-  NO real PII — order ids/items/prices are invented.
+  NO real PII — order ids/items/addresses are invented. Captured 2026-05 from a
+  live account and trimmed to the structural essentials the parser depends on.
 
-  Mirrors the REAL modern .co.uk order-header layout (captured 2026-05 from a
-  live account): each summary field is an `.a-column` whose first line is a
-  `.a-text-caps` LABEL ("Order placed" / "Total" / "Order #") and whose value
-  sits in a following `.a-row`. The date and total value spans share the same
-  generic classes (`a-size-base a-color-secondary aok-break-word`), so the
-  parser anchors on the label text, not the value class. The expected parser
-  output aligns with api/tests/fixtures/amazon_export_sample.json (S5).
+  Real-DOM specifics this fixture preserves (the ones that broke earlier
+  guesses):
+  - order id is a plain `<span dir="ltr">` inside `.yohtmlc-order-id`, NOT a
+    `<bdi>`, alongside an "Order #" `.a-text-caps` label;
+  - each summary field is a `.a-column`; the `.a-text-caps` label sits in a
+    `.a-row.a-size-mini` and the VALUE is in a SEPARATE `.a-row` sibling
+    (so a naive "first .a-row" grabs the label — the parser skips label rows);
+  - status is `.delivery-box__primary-text` reading "Delivered 26 May" (the
+    parser extracts the leading keyword "Delivered").
+  Output aligns with api/tests/fixtures/amazon_export_sample.json (S5).
 -->
 <html lang="en-GB">
 	<body>
@@ -23,55 +27,77 @@
 									<div class="a-row">
 										<div class="a-column a-span3">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Order placed</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Order placed</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word">5 May 2026</span>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word">5 May 2026</span>
-											</div>
 										</div>
 										<div class="a-column a-span2">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Total</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Total</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word">£19.99</span>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word">£19.99</span>
-											</div>
 										</div>
 										<div class="a-column a-span7 a-span-last">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Dispatch to</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Dispatch to</span>
+												</div>
+												<div class="a-row a-size-base"><span>Jane Example</span></div>
 											</li>
-											<div class="a-row"><span class="a-size-base">Jane Example</span></div>
 										</div>
 									</div>
 								</div>
 								<div class="a-text-right a-fixed-right-grid-col a-col-right">
-									<div class="yohtmlc-order-id">
-										<span class="a-color-secondary a-text-caps">Order #</span>
-										<span class="a-color-secondary"
-											><bdi dir="ltr">111-2223334-4445556</bdi></span
-										>
+									<div class="a-row a-size-mini">
+										<li class="order-header__header-list-item">
+											<div class="yohtmlc-order-id">
+												<span class="a-color-secondary a-text-caps">Order #</span>
+												<span class="a-color-secondary" dir="ltr">111-2223334-4445556</span>
+											</div>
+										</li>
+									</div>
+									<div class="a-row">
+										<li class="order-header__header-list-item">
+											<a
+												class="a-link-normal"
+												href="/your-orders/order-details?orderID=111-2223334-4445556"
+												>View order details</a
+											>
+										</li>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-				<div class="delivery-box">
-					<span class="a-size-medium delivery-box__primary-text a-text-bold"
-						>Delivered 7 May</span
-					>
+				<div class="a-box delivery-box">
+					<div class="a-box-inner">
+						<div class="a-row">
+							<h3>
+								<span class="a-size-medium delivery-box__primary-text a-text-bold"
+									>Delivered 7 May</span
+								>
+							</h3>
+						</div>
+						<li>
+							<div class="a-fixed-left-grid item-box">
+								<div class="yohtmlc-product-title">
+									<a class="a-link-normal" href="/dp/B0EXAMPLE1?ref=ppx"
+										>USB-C to USB-C Cable 2m</a
+									>
+								</div>
+							</div>
+						</li>
+					</div>
 				</div>
-				<div class="a-fixed-left-grid item-box">
-					<a class="a-link-normal yohtmlc-product-title" href="/gp/product/B0EXAMPLE1"
-						>USB-C to USB-C Cable 2m</a
-					>
-					<span class="a-price"><span class="a-offscreen">£19.99</span></span>
-				</div>
-				<a class="a-link-normal" href="/gp/css/order-details?orderID=111-2223334-4445556"
-					>View order details</a
-				>
-				<span class="payment-info">Visa ending in 1234</span>
 			</div>
 
 			<div class="order-card js-order-card">
@@ -83,55 +109,65 @@
 									<div class="a-row">
 										<div class="a-column a-span3">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Order placed</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Order placed</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word">8 May 2026</span>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word">8 May 2026</span>
-											</div>
 										</div>
 										<div class="a-column a-span2">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Total</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Total</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word">£42.50</span>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word">£42.50</span>
-											</div>
 										</div>
 									</div>
 								</div>
 								<div class="a-text-right a-fixed-right-grid-col a-col-right">
-									<div class="yohtmlc-order-id">
-										<span class="a-color-secondary a-text-caps">Order #</span>
-										<span class="a-color-secondary"
-											><bdi dir="ltr">222-3334445-5556667</bdi></span
-										>
+									<div class="a-row a-size-mini">
+										<li class="order-header__header-list-item">
+											<div class="yohtmlc-order-id">
+												<span class="a-color-secondary a-text-caps">Order #</span>
+												<span class="a-color-secondary" dir="ltr">222-3334445-5556667</span>
+											</div>
+										</li>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-				<div class="delivery-box">
-					<span class="a-size-medium delivery-box__primary-text a-text-bold"
-						>Delivered 10 May</span
-					>
+				<div class="a-box delivery-box">
+					<div class="a-box-inner">
+						<div class="a-row">
+							<h3>
+								<span class="a-size-medium delivery-box__primary-text a-text-bold"
+									>Delivered 10 May</span
+								>
+							</h3>
+						</div>
+						<li>
+							<div class="a-fixed-left-grid item-box">
+								<div class="yohtmlc-product-title">
+									<a class="a-link-normal" href="/dp/B0EXAMPLE2?ref=ppx">Mechanical Keyboard</a>
+								</div>
+							</div>
+						</li>
+						<li>
+							<div class="a-fixed-left-grid item-box">
+								<div class="yohtmlc-product-title">
+									<a class="a-link-normal" href="/dp/B0EXAMPLE3?ref=ppx">Keycap Puller</a>
+								</div>
+							</div>
+						</li>
+					</div>
 				</div>
-				<div class="a-fixed-left-grid item-box">
-					<a class="a-link-normal yohtmlc-product-title" href="/gp/product/B0EXAMPLE2"
-						>Mechanical Keyboard</a
-					>
-					<span class="a-price"><span class="a-offscreen">£35.00</span></span>
-				</div>
-				<div class="a-fixed-left-grid item-box">
-					<a class="a-link-normal yohtmlc-product-title" href="/gp/product/B0EXAMPLE3"
-						>Keycap Puller</a
-					>
-					<span class="a-price"><span class="a-offscreen">£7.50</span></span>
-				</div>
-				<a class="a-link-normal" href="/gp/css/order-details?orderID=222-3334445-5556667"
-					>View order details</a
-				>
-				<span class="payment-info">Visa ending in 1234</span>
 			</div>
 
 			<div class="order-card js-order-card">
@@ -143,51 +179,60 @@
 									<div class="a-row">
 										<div class="a-column a-span3">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Order placed</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Order placed</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word"
+														>11 May 2026</span
+													>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word"
-													>11 May 2026</span
-												>
-											</div>
 										</div>
 										<div class="a-column a-span2">
 											<li class="order-header__header-list-item">
-												<span class="a-color-secondary a-text-caps">Total</span>
+												<div class="a-row a-size-mini">
+													<span class="a-color-secondary a-text-caps">Total</span>
+												</div>
+												<div class="a-row">
+													<span class="a-size-base a-color-secondary aok-break-word">£8.75</span>
+												</div>
 											</li>
-											<div class="a-row">
-												<span class="a-size-base a-color-secondary aok-break-word">£8.75</span>
-											</div>
 										</div>
 									</div>
 								</div>
 								<div class="a-text-right a-fixed-right-grid-col a-col-right">
-									<div class="yohtmlc-order-id">
-										<span class="a-color-secondary a-text-caps">Order #</span>
-										<span class="a-color-secondary"
-											><bdi dir="ltr">333-4445556-6667778</bdi></span
-										>
+									<div class="a-row a-size-mini">
+										<li class="order-header__header-list-item">
+											<div class="yohtmlc-order-id">
+												<span class="a-color-secondary a-text-caps">Order #</span>
+												<span class="a-color-secondary" dir="ltr">333-4445556-6667778</span>
+											</div>
+										</li>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-				<div class="delivery-box">
-					<span class="a-size-medium delivery-box__primary-text a-text-bold"
-						>Delivered 13 May</span
-					>
+				<div class="a-box delivery-box">
+					<div class="a-box-inner">
+						<div class="a-row">
+							<h3>
+								<span class="a-size-medium delivery-box__primary-text a-text-bold"
+									>Delivered 13 May</span
+								>
+							</h3>
+						</div>
+						<li>
+							<div class="a-fixed-left-grid item-box">
+								<div class="yohtmlc-product-title">
+									<a class="a-link-normal" href="/dp/B0EXAMPLE4?ref=ppx">AAA Batteries 12-pack</a>
+								</div>
+							</div>
+						</li>
+					</div>
 				</div>
-				<div class="a-fixed-left-grid item-box">
-					<a class="a-link-normal yohtmlc-product-title" href="/gp/product/B0EXAMPLE4"
-						>AAA Batteries 12-pack</a
-					>
-					<span class="a-price"><span class="a-offscreen">£8.75</span></span>
-				</div>
-				<a class="a-link-normal" href="/gp/css/order-details?orderID=333-4445556-6667778"
-					>View order details</a
-				>
-				<span class="payment-info">Amex ending in 9876</span>
 			</div>
 		</div>
 	</body>

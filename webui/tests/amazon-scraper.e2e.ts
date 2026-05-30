@@ -64,35 +64,38 @@ test('parses a .co.uk order-history page matching the backend export contract', 
 	const html = await loadFixture('amazon-orders-couk.html');
 	const result = await runParser(page, html, 'amazon.co.uk');
 
-	expect(result.scraperVersion).toBe('1.1.0');
+	expect(result.scraperVersion).toBe('1.2.0');
 	expect(result.domain).toBe('amazon.co.uk');
 	expect(result.orders).toHaveLength(3);
 
 	const [first, second, third] = result.orders;
 
 	// Order ids + normalised dates + totals as EXACT strings (never numbers).
+	// NOTE: the real .co.uk orders-LIST page does not expose card last-4 or
+	// per-item prices (those live on the order-detail/invoice pages), so the
+	// list scraper emits paymentLast4=null and item price=null. The order
+	// TOTAL is what matching needs, and it is captured exactly.
 	expect(first.orderId).toBe('111-2223334-4445556');
 	expect(first.orderDate).toBe('2026-05-05');
 	expect(first.total).toBe('19.99');
 	expect(typeof first.total).toBe('string');
 	expect(first.status).toBe('Delivered');
-	expect(first.paymentLast4).toBe('1234');
+	expect(first.paymentLast4).toBeNull();
 	expect(first.orderUrl).toContain('111-2223334-4445556');
 	expect(first.items).toHaveLength(1);
 	expect(first.items[0].title).toBe('USB-C to USB-C Cable 2m');
-	expect(first.items[0].price).toBe('19.99');
+	expect(first.items[0].price).toBeNull();
 	expect(first.shipments).toEqual([]);
 
 	expect(second.orderId).toBe('222-3334445-5556667');
 	expect(second.orderDate).toBe('2026-05-08');
 	expect(second.total).toBe('42.50');
+	expect(second.status).toBe('Delivered');
 	expect(second.items.map((i) => i.title)).toEqual(['Mechanical Keyboard', 'Keycap Puller']);
-	expect(second.items.map((i) => i.price)).toEqual(['35.00', '7.50']);
 
 	expect(third.orderId).toBe('333-4445556-6667778');
 	expect(third.orderDate).toBe('2026-05-11');
 	expect(third.total).toBe('8.75');
-	expect(third.paymentLast4).toBe('9876');
 });
 
 test('parses a .com order-history page (legacy cards, US dates, $ + thousands)', async ({
