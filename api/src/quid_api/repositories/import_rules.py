@@ -143,6 +143,7 @@ class ImportRuleRepository:
         match_date_to: str | None,
         match_day_of_month: int | None = None,
         set_display_name: str | None = None,
+        set_note: str | None = None,
     ) -> ImportRule:
         row = ImportRule(
             id=f"rule-{uuid4()}",
@@ -160,6 +161,7 @@ class ImportRuleRepository:
             match_date_to=match_date_to,
             match_day_of_month=match_day_of_month,
             set_display_name=set_display_name,
+            set_note=set_note,
             created_at=_now_iso(),
         )
         await self._validate(row)
@@ -217,6 +219,8 @@ class ImportRuleRepository:
         }
         if rule.set_display_name is not None:
             values["display_name"] = rule.set_display_name
+        if rule.set_note is not None:
+            values["note"] = rule.set_note
         await self.session.execute(
             update(Expense)
             .where(Expense.id.in_([expense.id for expense in matched]))
@@ -233,6 +237,7 @@ class ImportRuleRepository:
         expenses = list((await self.session.scalars(select(Expense))).all())
         category_updates: dict[str, list[str]] = {}
         display_name_updates: dict[str, list[str]] = {}
+        note_updates: dict[str, list[str]] = {}
         to_delete: list[Expense] = []
         matched_total = 0
 
@@ -255,6 +260,8 @@ class ImportRuleRepository:
                         display_name_updates.setdefault(rule.set_display_name, []).append(
                             expense.id
                         )
+                    if rule.set_note is not None and expense.note != rule.set_note:
+                        note_updates.setdefault(rule.set_note, []).append(expense.id)
                 break
 
         updated_ids: set[str] = set()
@@ -269,6 +276,12 @@ class ImportRuleRepository:
         for display_name, expense_ids in display_name_updates.items():
             await self.session.execute(
                 update(Expense).where(Expense.id.in_(expense_ids)).values(display_name=display_name)
+            )
+            updated_ids.update(expense_ids)
+
+        for note, expense_ids in note_updates.items():
+            await self.session.execute(
+                update(Expense).where(Expense.id.in_(expense_ids)).values(note=note)
             )
             updated_ids.update(expense_ids)
 

@@ -252,6 +252,7 @@ class ImportRuleOut(_Camel):
     match_date_to: str | None
     match_day_of_month: int | None = None
     set_display_name: str | None = None
+    set_note: str | None = None
     created_at: str
 
     @field_serializer("match_amount_value", "match_amount_value2")
@@ -274,6 +275,7 @@ class ImportRuleCreate(_Camel):
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
+    set_note: str | None = None
 
 
 class ImportRuleUpdate(_Camel):
@@ -291,6 +293,7 @@ class ImportRuleUpdate(_Camel):
     match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
+    set_note: str | None = None
 
 
 class ImportRuleApplyResponse(_Camel):

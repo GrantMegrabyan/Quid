@@ -432,6 +432,9 @@ class ExpenseRepository:
                 # category; non-AI imports likewise sit in the low-priority tier.
                 category_source = "ai" if used_ai else "import"
             item_display_name: str | None = rule.set_display_name if rule is not None else None
+            item_note = item.note or ""
+            if rule is not None and rule.set_note is not None:
+                item_note = rule.set_note
             prepared.append(
                 (
                     idx,
@@ -439,7 +442,7 @@ class ExpenseRepository:
                     clean_amount,
                     clean_date,
                     clean_name,
-                    item.note or "",
+                    item_note,
                     item_display_name,
                     clean_importance,
                     category_source,

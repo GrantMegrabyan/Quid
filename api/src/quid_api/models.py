@@ -133,6 +133,7 @@ class ImportRule(Base):
     match_day_of_month: Mapped[int | None] = mapped_column(nullable=True)
 
     set_display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    set_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
