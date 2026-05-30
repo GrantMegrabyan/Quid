@@ -36,6 +36,7 @@
 		matchDateTo: string;
 		matchDayOfMonth: string;
 		setDisplayName: string;
+		setNote: string;
 	};
 
 	type RuleResult = { kind: 'message' | 'error'; text: string };
@@ -54,7 +55,8 @@
 		matchDateFrom: '',
 		matchDateTo: '',
 		matchDayOfMonth: '',
-		setDisplayName: ''
+		setDisplayName: '',
+		setNote: ''
 	});
 
 	let form = $state<FormState>(emptyForm());
@@ -109,7 +111,8 @@
 			matchDateFrom: rule.matchDateFrom ?? '',
 			matchDateTo: rule.matchDateTo ?? '',
 			matchDayOfMonth: rule.matchDayOfMonth === null ? '' : String(rule.matchDayOfMonth),
-			setDisplayName: rule.setDisplayName ?? ''
+			setDisplayName: rule.setDisplayName ?? '',
+			setNote: rule.setNote ?? ''
 		};
 		error = '';
 		message = '';
@@ -172,7 +175,8 @@
 			matchDateFrom: form.matchDateFrom || null,
 			matchDateTo: form.matchDateTo || null,
 			matchDayOfMonth: dayOfMonth,
-			setDisplayName: form.setDisplayName.trim() || null
+			setDisplayName: form.setDisplayName.trim() || null,
+			setNote: form.setNote.trim() || null
 		};
 	}
 
@@ -392,6 +396,10 @@
 						<span>Set display name <span class="text-ctp-overlay0">(optional)</span></span>
 						<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
 					</label>
+					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+						<span>Set note <span class="text-ctp-overlay0">(optional)</span></span>
+						<input bind:value={form.setNote} data-testid="rule-set-note" type="text" maxlength="500" placeholder="Leave blank to keep imported note" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
+					</label>
 				</div>
 			{/if}
 		</fieldset>
@@ -465,6 +473,8 @@
 			{@const isEditing = editingId === rule.id}
 			{@const result = ruleResults[rule.id]}
 			<div
+				data-testid="rule-card"
+				data-rule-id={rule.id}
 				class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
 					? 'border-l-ctp-accent bg-ctp-accent/5'
 					: 'border-l-ctp-surface1 opacity-70'}"

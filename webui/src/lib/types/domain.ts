@@ -170,6 +170,7 @@ export interface ImportRule {
 	matchDateTo: string | null;
 	matchDayOfMonth: number | null;
 	setDisplayName: string | null;
+	setNote: string | null;
 	createdAt: string;
 }
 
