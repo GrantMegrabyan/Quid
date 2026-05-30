@@ -306,11 +306,11 @@ def _normalized_iso_date(raw: str) -> str | None:
 
     Returns the ``YYYY-MM-DD`` string, or ``None`` when the value can't be
     normalised to a real ISO date. The regex re-asserts the exact DB CHECK
-    pattern so a bad value is SKIPPED here rather than reaching the CHECK as an
-    unhandled ``IntegrityError`` (-> HTTP 500; ``main.py`` registers no handler
-    for it). ``date.fromisoformat`` additionally rejects pattern-valid-but-
-    impossible dates (e.g. ``2026-13-40``) that the GLOB alone would accept and
-    that would otherwise be stored yet silently never match.
+    pattern so a bad value is SKIPPED here rather than relying on the app-level
+    ``IntegrityError`` handler. ``date.fromisoformat`` additionally rejects
+    pattern-valid-but-impossible dates (e.g. ``2026-13-40``) that the GLOB
+    alone would accept and that would otherwise be stored yet silently never
+    match.
     """
     normalized = _normalize_date(raw)
     if not _ISO_DATE_RE.match(normalized):

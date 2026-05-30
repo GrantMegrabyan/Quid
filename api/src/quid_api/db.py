@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -67,7 +68,20 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 async def get_session() -> AsyncIterator[AsyncSession]:
     sm = get_sessionmaker()
     async with sm() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            # Roll back the in-flight transaction before the connection is
+            # returned to the pool (e.g. an IntegrityError escaping a route and
+            # handled in ``main.py``). ``AsyncSession.__aexit__`` only closes the
+            # session, so without this an aborted transaction could linger on a
+            # reused connection. Guarded so a rollback failure never masks the
+            # original error.
+            try:
+                await session.rollback()
+            except Exception:
+                logging.getLogger("quid_api").warning("get_session.rollback_failed", exc_info=True)
+            raise
 
 
 async def dispose_engine() -> None:

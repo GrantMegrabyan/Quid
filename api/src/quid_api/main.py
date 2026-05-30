@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_for
@@ -107,6 +108,32 @@ async def _validation_error_handler(_: Request, exc: Exception) -> JSONResponse:
     )
 
 
+def _integrity_error_message(exc: IntegrityError) -> str:
+    detail = str(exc.orig).lower()
+    if "unique constraint failed" in detail:
+        return "That record already exists."
+    if "foreign key constraint failed" in detail:
+        return "Referenced record does not exist."
+    if "not null constraint failed" in detail:
+        return "A required field is missing."
+    if "check constraint failed" in detail:
+        return "A value failed validation."
+    return "The request conflicts with existing data."
+
+
+async def _integrity_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, IntegrityError)
+    # The request-scoped AsyncSession is created by ``get_session`` via
+    # ``async with``; when the exception escapes the route, dependency cleanup
+    # closes the session and returns the connection. We do not have the active
+    # session here, so we only sanitize the response.
+    logging.getLogger("quid_api").warning("integrity_error handled path=%s", request.url.path)
+    return JSONResponse(
+        status_code=422,
+        content=_error_body(RepositoryErrorCode.VALIDATION, _integrity_error_message(exc)),
+    )
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     cfg = settings or get_settings()
     configure_logging(cfg.log_level, cfg.log_file)
@@ -155,6 +182,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_exception_handler(RepositoryError, _repository_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    app.add_exception_handler(IntegrityError, _integrity_error_handler)
 
     app.include_router(health.router)
     app.include_router(categories.router)

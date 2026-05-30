@@ -73,6 +73,10 @@ Security response headers (`X-Content-Type-Options`, `X-Frame-Options`,
 (toggle with `QUID_SECURITY_HEADERS_ENABLED`). HSTS is intentionally not set
 here — terminate TLS and set `Strict-Transport-Security` at your reverse proxy.
 
+Database integrity errors (unique / foreign-key / check / not-null violations)
+are sanitized into the normal API error shape instead of bubbling up as HTTP
+500s with raw SQL/driver text.
+
 ### Local (development) — unchanged
 
 ```sh
