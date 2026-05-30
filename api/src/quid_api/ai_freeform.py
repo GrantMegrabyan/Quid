@@ -16,6 +16,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -39,7 +40,11 @@ class ParsedFreeformItem:
 
 class _FreeformSuggestion(BaseModel):
     name: str
-    amount: float
+    # The model is instructed to return amount as a plain decimal STRING
+    # ("3.50"); parsing to Decimal happens server-side so we never route money
+    # through a float. A numeric value is still tolerated (coerced via str())
+    # in case the model ignores the instruction.
+    amount: str
     date: str
     note: str = ""
 
@@ -55,8 +60,10 @@ def _build_prompt(text: str, today: str) -> str:
         "Rules:\n"
         "- Output one entry per distinct transaction you can identify.\n"
         "- name: the merchant or short description (e.g. 'Tesco', 'Coffee').\n"
-        "- amount: the positive number paid, as a plain number (no currency "
-        "symbol). Ignore any sign; treat all as spending.\n"
+        "- amount: the positive amount paid, as a plain decimal STRING with at "
+        'most two fractional digits (e.g. "3.50", "42"). No currency symbol, '
+        "no thousands separators, no sign. Ignore any sign; treat all as "
+        "spending.\n"
         f"- date: resolve to an ISO date (YYYY-MM-DD). Today is {today}. "
         "Resolve relative dates like 'yesterday', 'last friday', 'the 3rd' "
         "against today. If no date is given, use today.\n"
@@ -100,8 +107,10 @@ def _request_body(model: str, text: str, today: str) -> dict[str, object]:
                                         "description": "Merchant or short description.",
                                     },
                                     "amount": {
-                                        "type": "number",
-                                        "description": "Positive amount paid.",
+                                        "type": "string",
+                                        "description": (
+                                            'Positive amount paid as a decimal string, e.g. "3.50".'
+                                        ),
                                     },
                                     "date": {
                                         "type": "string",
@@ -228,14 +237,32 @@ async def parse_freeform_transactions(
             await active_client.aclose()
 
     items = [
-        ParsedFreeformItem(
-            name=suggestion.name.strip(),
-            amount=format(abs(suggestion.amount), "f"),
-            date=suggestion.date.strip(),
-            note=suggestion.note.strip(),
-        )
+        item
         for suggestion in parsed.transactions
-        if suggestion.name.strip()
+        if suggestion.name.strip() and (item := _to_item(suggestion)) is not None
     ]
     logger.info("ai.freeform.done extracted=%d model=%s", len(items), model)
     return items
+
+
+def _to_item(suggestion: _FreeformSuggestion) -> ParsedFreeformItem | None:
+    """Build a parsed item, parsing the model's string amount via Decimal.
+
+    Amounts are parsed server-side with ``Decimal`` (never ``float``) so money
+    keeps its exact value. A row whose amount can't be parsed is dropped here
+    rather than poisoning the downstream preview with garbage; the remaining
+    good rows still import. The amount is emitted as a canonical absolute
+    decimal string for the preview pipeline (which validates 2dp itself).
+    """
+    raw = suggestion.amount.strip()
+    try:
+        amount = abs(Decimal(raw))
+    except (InvalidOperation, ValueError):
+        logger.warning("ai.freeform.bad_amount amount=%r name=%r", raw, suggestion.name)
+        return None
+    return ParsedFreeformItem(
+        name=suggestion.name.strip(),
+        amount=format(amount, "f"),
+        date=suggestion.date.strip(),
+        note=suggestion.note.strip(),
+    )

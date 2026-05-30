@@ -2,13 +2,20 @@
  * API contract assumptions:
  * - `id` values are strings (UUID-shaped in the mock, but any string is allowed).
  * - `date` is an ISO `YYYY-MM-DD` string.
- * - `amount` is positive; the form layer enforces that rule.
+ * - Monetary values (`amount`, Amazon `total`/`price`, rule `matchAmountValue*`)
+ *   are canonical DECIMAL STRINGS like "19.99" (always exactly 2 decimals) in
+ *   API responses, never JSON numbers. Request bodies may send either a string
+ *   or a number — the backend coerces both to Decimal — but the frontend sends
+ *   canonical 2dp strings. For arithmetic (charts, sorting, aggregation) parse
+ *   with `amountToNumber` from `$utils/money`. `amount` is positive; the form
+ *   layer enforces that rule.
  */
 
 export interface Expense {
 	id: string;
 	name: string;
-	amount: number;
+	/** Canonical decimal string ("19.99") in responses; sent as a 2dp string. */
+	amount: string;
 	date: string;
 	categoryId: string;
 	note: string;
@@ -73,7 +80,8 @@ export interface ImportPreviewRow {
  	sourceRow: number;
  	dedupeKeyHash: string;
  	name: string;
- 	amount: number;
+ 	/** Canonical decimal string ("19.99"). */
+ 	amount: string;
  	date: string;
  	note: string;
  	kind: ImportPreviewKind;
@@ -105,7 +113,8 @@ export interface ImportCsvConfirmCreateRow {
  	previewRowId: string;
  	dedupeKeyHash: string;
  	name: string;
- 	amount: number;
+ 	/** Canonical decimal string ("19.99"). */
+ 	amount: string;
  	date: string;
  	note: string;
  	categoryName: string;
@@ -164,8 +173,9 @@ export interface ImportRule {
 	matchNameOp: NameMatchOp | null;
 	matchNameValue: string | null;
 	matchAmountOp: AmountMatchOp | null;
-	matchAmountValue: number | null;
-	matchAmountValue2: number | null;
+	/** Canonical decimal string ("19.99") in responses; sent as a 2dp string. */
+	matchAmountValue: string | null;
+	matchAmountValue2: string | null;
 	matchDateFrom: string | null;
 	matchDateTo: string | null;
 	matchDayOfMonth: number | null;
@@ -243,20 +253,23 @@ export interface AppSettingsUpdate {
 export interface AmazonOrderItem {
 	title: string;
 	quantity: number;
-	price: number | null;
+	/** Canonical decimal string ("9.99"); null when not parseable. */
+	price: string | null;
 }
 
 export interface AmazonOrderShipment {
 	shipDate: string | null;
 	tracking: string | null;
-	total: number;
+	/** Canonical decimal string ("9.99"). */
+	total: string;
 	items: AmazonOrderItem[];
 }
 
 export interface AmazonOrder {
 	id: string;
 	orderDate: string;
-	total: number;
+	/** Canonical decimal string ("19.99"). */
+	total: string;
 	currency: string;
 	items: AmazonOrderItem[];
 	shipments: AmazonOrderShipment[];

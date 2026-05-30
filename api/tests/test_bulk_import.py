@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 
 async def test_bulk_create_minimal(app_client):
     res = await app_client.post(
@@ -21,7 +23,7 @@ async def test_bulk_create_minimal(app_client):
     assert body["created"] == 1
     assert body["categoriesCreated"][0]["id"] == "cat-eating-out"
     assert body["categoriesCreated"][0]["name"] == "Eating Out"
-    assert body["expenses"][0]["amount"] == 3.5
+    assert body["expenses"][0]["amount"] == "3.50"
 
 
 async def test_bulk_create_uses_existing_category_by_name(app_client):
@@ -111,7 +113,7 @@ async def test_bulk_create_abs_negative_amount(app_client):
         },
     )
     assert res.status_code == 201
-    assert res.json()["expenses"][0]["amount"] == 42.42
+    assert res.json()["expenses"][0]["amount"] == "42.42"
 
 
 async def test_bulk_create_rejects_empty_items(app_client):
@@ -178,4 +180,4 @@ async def test_bulk_create_full_csv_shape_three_files(app_client):
     new_cat_names = {c["name"].lower() for c in body["categoriesCreated"]}
     assert {"transport", "groceries", "eating out", "bills"}.issubset(new_cat_names)
     expenses = (await app_client.get("/api/v1/expenses")).json()
-    assert all(e["amount"] > 0 for e in expenses)
+    assert all(Decimal(e["amount"]) > 0 for e in expenses)

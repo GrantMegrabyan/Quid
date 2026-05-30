@@ -16,7 +16,7 @@
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$utils/dates';
-	import { formatAmount } from '$utils/money';
+	import { amountToNumber, formatAmount } from '$utils/money';
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
 	import { Wallet, Receipt, TrendingUp, TrendingDown } from '@lucide/svelte';
 	import type { Expense } from '$types';
@@ -42,7 +42,7 @@
 	const selectedMonthTotal = $derived.by(() => {
 		let total = 0;
 		for (const expense of monthExpenses) {
-			total += expense.amount;
+			total += amountToNumber(expense.amount);
 		}
 		return total;
 	});
@@ -62,7 +62,10 @@
 		if (monthExpenses.length === 0) return null;
 		const totals = new Map<string, number>();
 		for (const expense of monthExpenses) {
-			totals.set(expense.categoryId, (totals.get(expense.categoryId) ?? 0) + expense.amount);
+			totals.set(
+				expense.categoryId,
+				(totals.get(expense.categoryId) ?? 0) + amountToNumber(expense.amount)
+			);
 		}
 		let topId: string | null = null;
 		let topTotal = 0;
@@ -95,7 +98,7 @@
 		const prevKey = previousMonthOf($selectedMonth);
 		let total = 0;
 		for (const expense of $expenses) {
-			if (monthKey(expense.date) === prevKey) total += expense.amount;
+			if (monthKey(expense.date) === prevKey) total += amountToNumber(expense.amount);
 		}
 		return total;
 	});

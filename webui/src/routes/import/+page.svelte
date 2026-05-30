@@ -86,7 +86,7 @@
 			...row,
 			selectedCategoryName: row.suggestedCategory.name,
 			selectedImportance: row.suggestedImportance,
-			selectedAmountInput: row.amount.toFixed(2),
+			selectedAmountInput: row.amount,
 			amountError: false,
 			// Matched (existing) transactions are NOT updated by default: a prior
 			// import may have been intentionally edited, so we never silently
@@ -112,14 +112,14 @@
 	function onAmountInput(row: ReviewRow, value: string): void {
 		row.selectedAmountInput = value;
 		const parsed = parseAmountInput(value);
-		row.amountError = parsed === null || parsed <= 0;
+		row.amountError = parsed === null || Number(parsed) <= 0;
 	}
 
 	function hasAmountErrors(rows: ReviewRow[]): boolean {
 		let invalid = false;
 		for (const row of rows) {
 			const parsed = parseAmountInput(row.selectedAmountInput);
-			if (parsed === null || parsed <= 0) {
+			if (parsed === null || Number(parsed) <= 0) {
 				row.amountError = true;
 				invalid = true;
 			}
@@ -199,7 +199,7 @@
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					name: row.name,
-					amount: parseAmountInput(row.selectedAmountInput) as number,
+					amount: parseAmountInput(row.selectedAmountInput) as string,
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,
@@ -261,7 +261,7 @@
 		}
 
 		const parsedAmount = parseAmountInput(amountInput);
-		if (parsedAmount === null || parsedAmount <= 0) {
+		if (parsedAmount === null || Number(parsedAmount) <= 0) {
 			amountError = 'Enter an amount greater than 0.';
 		}
 
@@ -285,7 +285,7 @@
 		try {
 			await addExpense({
 				name: trimmedName,
-				amount: parsedAmount as number,
+				amount: parsedAmount as string,
 				date: trimmedDate,
 				categoryId: categoryInput,
 				note: trimmedNote,
@@ -346,7 +346,7 @@
 					previewRowId: row.previewRowId,
 					dedupeKeyHash: row.dedupeKeyHash,
 					name: row.name,
-					amount: parseAmountInput(row.selectedAmountInput) as number,
+					amount: parseAmountInput(row.selectedAmountInput) as string,
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,

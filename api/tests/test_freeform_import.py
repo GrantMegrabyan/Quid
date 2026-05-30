@@ -178,7 +178,7 @@ async def test_freeform_confirm_is_idempotent(app_client, monkeypatch):
     expenses = (await app_client.get("/api/v1/expenses")).json()
     coffees = [e for e in expenses if e["name"] == "Coffee"]
     assert len(coffees) == 2
-    assert sorted(e["amount"] for e in coffees) == [3.50, 9.99]
+    assert sorted(e["amount"] for e in coffees) == ["3.50", "9.99"]
 
 
 async def test_csv_import_log_reports_csv_source(app_client):

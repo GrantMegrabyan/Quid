@@ -79,7 +79,7 @@ async def test_categorize_rule_by_name_amount_and_date(app_client):
     rows = (await app_client.get("/api/v1/expenses")).json()
     rent_rows = [e for e in rows if e["categoryId"] == cat["id"]]
     assert len(rent_rows) == 1
-    assert rent_rows[0]["amount"] == 3445.0
+    assert rent_rows[0]["amount"] == "3445.00"
 
 
 async def test_rule_priority_first_match_wins(app_client):
@@ -748,7 +748,7 @@ async def test_preview_returns_matching_expenses_without_mutating(app_client):
     assert body["matched"] == 1
     assert len(body["expenses"]) == 1
     assert body["expenses"][0]["name"] == "Safeland Active Management Ltd"
-    assert body["expenses"][0]["amount"] == 3445.0
+    assert body["expenses"][0]["amount"] == "3445.00"
 
     # Dry-run must not delete or modify anything.
     rows = (await app_client.get("/api/v1/expenses")).json()

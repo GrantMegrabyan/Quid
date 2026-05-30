@@ -14,7 +14,7 @@ test.describe('import rules page', () => {
 					{
 						id: 'exp-coffee-1',
 						name: 'Blue Bottle Coffee',
-						amount: 6.5,
+						amount: '6.50',
 						date: '2026-04-01',
 						categoryId: 'uncategorized',
 						note: ''
@@ -22,7 +22,7 @@ test.describe('import rules page', () => {
 					{
 						id: 'exp-coffee-2',
 						name: 'Coffee Cart',
-						amount: 3.25,
+						amount: '3.25',
 						date: '2026-04-02',
 						categoryId: 'uncategorized',
 						note: ''
@@ -30,7 +30,7 @@ test.describe('import rules page', () => {
 					{
 						id: 'exp-other',
 						name: 'Uber',
-						amount: 12,
+						amount: '12.00',
 						date: '2026-04-03',
 						categoryId: 'uncategorized',
 						note: ''

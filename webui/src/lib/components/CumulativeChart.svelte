@@ -8,7 +8,7 @@
 	import { settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { currentMonthKey, daysInMonth, monthKey, todayIso } from '$utils/dates';
-	import { formatAmount } from '$utils/money';
+	import { amountToNumber, formatAmount } from '$utils/money';
 
 	if (browser) {
 		ensureChartJsRegistered();
@@ -45,7 +45,7 @@
 			if (monthKey(expense.date) === $selectedMonth) {
 				const day = Number(expense.date.slice(8, 10));
 				if (Number.isInteger(day) && day >= 1 && day <= days) {
-					totals[day - 1] += expense.amount;
+					totals[day - 1] += amountToNumber(expense.amount);
 				}
 			}
 		}

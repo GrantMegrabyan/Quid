@@ -7,6 +7,7 @@
 	import { expenses } from '$lib/stores/expenses';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { centered12MonthWindow, formatMonthLabel, monthKey } from '$utils/dates';
+	import { amountToNumber } from '$utils/money';
 
 	if (browser) {
 		ensureChartJsRegistered();
@@ -38,7 +39,7 @@
 		for (const expense of $expenses) {
 			const key = monthKey(expense.date);
 			if (buckets.has(key)) {
-				buckets.set(key, (buckets.get(key) ?? 0) + expense.amount);
+				buckets.set(key, (buckets.get(key) ?? 0) + amountToNumber(expense.amount));
 			}
 		}
 		return monthKeys.map((key) => buckets.get(key) ?? 0);

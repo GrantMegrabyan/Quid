@@ -44,7 +44,7 @@
 
 		if (expense) {
 			nameInput = expense.name;
-			amountInput = expense.amount.toFixed(2);
+			amountInput = expense.amount;
 			dateInput = expense.date;
 			categoryInput = expense.categoryId;
 			noteInput = expense.note;
@@ -113,7 +113,7 @@
 		}
 
 		const parsedAmount = parseAmountInput(amountInput);
-		if (parsedAmount === null || parsedAmount <= 0) {
+		if (parsedAmount === null || Number(parsedAmount) <= 0) {
 			amountError = 'Enter an amount greater than 0.';
 		}
 
@@ -140,7 +140,7 @@
 		try {
 			const payload = {
 				name: trimmedName,
-				amount: parsedAmount as number,
+				amount: parsedAmount as string,
 				date: trimmedDate,
 				categoryId: categoryInput,
 				note: trimmedNote,

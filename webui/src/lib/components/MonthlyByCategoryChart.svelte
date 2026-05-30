@@ -8,6 +8,7 @@
 	import { expenses } from '$lib/stores/expenses';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { centered12MonthWindow, formatMonthLabel, monthKey } from '$utils/dates';
+	import { amountToNumber } from '$utils/money';
 
 	let { selectedCategoryIds = [] as string[] }: { selectedCategoryIds?: string[] } = $props();
 
@@ -49,7 +50,7 @@
 				if (expense.categoryId !== category.id) continue;
 				const idx = monthIndex.get(monthKey(expense.date));
 				if (idx === undefined) continue;
-				totals[idx] += expense.amount;
+				totals[idx] += amountToNumber(expense.amount);
 			}
 			return {
 				label: category.name,

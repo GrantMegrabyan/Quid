@@ -16,6 +16,21 @@ from pydantic.alias_generators import to_camel
 
 from quid_api.datelib import validate_iso_date
 
+# Canonical money transport: every monetary value crosses the API boundary as a
+# decimal STRING with exactly two fractional digits ("19.99", "42.00"), never a
+# JSON number. JSON numbers are IEEE-754 floats; round-tripping money through
+# them risks silent precision drift (e.g. 19.990000000000002) that breaks the
+# exact-Decimal matching used for Amazon orders and dedup. The server stores
+# money as Numeric(12, 2) and quantises to 2dp, so a fixed 2-digit string is
+# the lossless canonical form. Requests may send money as a string OR number
+# (Pydantic coerces both into Decimal); responses always emit strings.
+_MONEY_QUANTUM = Decimal("0.01")
+
+
+def _money_str(value: Decimal) -> str:
+    """Render a Decimal as a canonical 2dp money string ("19.99")."""
+    return str(value.quantize(_MONEY_QUANTUM))
+
 
 def _validate_required_date(value: str) -> str:
     """Pydantic validator for a required ``YYYY-MM-DD`` calendar date."""
@@ -80,8 +95,8 @@ class ExpenseOut(_Camel):
     amazon_order_ids: list[str] = Field(default_factory=list)
 
     @field_serializer("amount")
-    def _ser_amount(self, value: Decimal) -> float:
-        return float(value)
+    def _ser_amount(self, value: Decimal) -> str:
+        return _money_str(value)
 
 
 class ExpenseCreate(_Camel):
@@ -191,8 +206,8 @@ class ImportPreviewRow(_Camel):
     existing_importance: Importance | None = None
 
     @field_serializer("amount")
-    def _ser_amount(self, value: Decimal) -> float:
-        return float(value)
+    def _ser_amount(self, value: Decimal) -> str:
+        return _money_str(value)
 
 
 class ImportCsvPreviewSummary(_Camel):
@@ -276,8 +291,8 @@ class ImportRuleOut(_Camel):
     created_at: str
 
     @field_serializer("match_amount_value", "match_amount_value2")
-    def _ser_amount(self, value: Decimal | None) -> float | None:
-        return None if value is None else float(value)
+    def _ser_amount(self, value: Decimal | None) -> str | None:
+        return None if value is None else _money_str(value)
 
 
 class ImportRuleCreate(_Camel):
@@ -411,8 +426,8 @@ class AmazonOrderItem(_Camel):
     price: Decimal | None = None
 
     @field_serializer("price")
-    def _ser_price(self, value: Decimal | None) -> float | None:
-        return None if value is None else float(value)
+    def _ser_price(self, value: Decimal | None) -> str | None:
+        return None if value is None else _money_str(value)
 
 
 class AmazonOrderShipment(_Camel):
@@ -422,8 +437,8 @@ class AmazonOrderShipment(_Camel):
     items: list[AmazonOrderItem] = Field(default_factory=list)
 
     @field_serializer("total")
-    def _ser_total(self, value: Decimal) -> float:
-        return float(value)
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
 
 
 class AmazonOrderOut(_Camel):
@@ -441,8 +456,8 @@ class AmazonOrderOut(_Camel):
     linked_expense_ids: list[str] = Field(default_factory=list)
 
     @field_serializer("total")
-    def _ser_total(self, value: Decimal) -> float:
-        return float(value)
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
 
 
 class AmazonImportSkippedOrder(_Camel):

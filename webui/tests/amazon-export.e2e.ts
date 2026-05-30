@@ -29,7 +29,7 @@ test('imports orders from a browser-export .json upload and auto-links a seeded 
 				{
 					id: 'exp-export',
 					name: 'AMZN Mktp',
-					amount: 27.45,
+					amount: '27.45',
 					date: orderDate,
 					categoryId: 'cat-groceries',
 					note: ''

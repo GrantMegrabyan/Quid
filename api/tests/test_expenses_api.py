@@ -31,8 +31,8 @@ async def test_create_and_get(app_client):
     )
     assert res.status_code == 201
     exp = res.json()
-    assert exp["amount"] == 4.50
-    assert isinstance(exp["amount"], float | int)
+    assert exp["amount"] == "4.50"
+    assert isinstance(exp["amount"], str)
 
     fetched = await app_client.get(f"/api/v1/expenses/{exp['id']}")
     assert fetched.status_code == 200
@@ -130,7 +130,7 @@ async def test_patch_partial(app_client):
     body = res.json()
     assert body["categoryId"] == cat2["id"]
     assert body["name"] == "A"
-    assert body["amount"] == 10.00
+    assert body["amount"] == "10.00"
 
 
 async def test_delete(app_client):

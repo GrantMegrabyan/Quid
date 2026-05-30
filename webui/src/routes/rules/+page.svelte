@@ -78,6 +78,15 @@
 		return $categories.find((c) => c.id === id)?.name ?? 'Unknown category';
 	}
 
+	/** Normalise a rule amount field to a canonical 2dp string the API accepts.
+	 *  Falls back to the trimmed raw value if it isn't a plain decimal (the
+	 *  backend coerces it). */
+	function amountString(raw: string): string {
+		const trimmed = raw.trim();
+		const parsed = Number(trimmed);
+		return Number.isFinite(parsed) ? parsed.toFixed(2) : trimmed;
+	}
+
 	function amountText(rule: ImportRule): string | null {
 		if (!rule.matchAmountOp || rule.matchAmountValue === null) return null;
 		const value = formatAmount(rule.matchAmountValue, $settings.currency);
@@ -202,9 +211,11 @@
 			matchNameOp: hasName ? (form.matchNameOp as NameMatchOp) : null,
 			matchNameValue: hasName ? form.matchNameValue.trim() : null,
 			matchAmountOp: hasAmount ? (form.matchAmountOp as AmountMatchOp) : null,
-			matchAmountValue: hasAmount ? Number(form.matchAmountValue) : null,
+			matchAmountValue: hasAmount ? amountString(form.matchAmountValue) : null,
 			matchAmountValue2:
-				hasAmount && form.matchAmountOp === 'between' ? Number(form.matchAmountValue2) : null,
+				hasAmount && form.matchAmountOp === 'between'
+					? amountString(form.matchAmountValue2)
+					: null,
 			matchDateFrom: form.matchDateFrom || null,
 			matchDateTo: form.matchDateTo || null,
 			matchDayOfMonth: dayOfMonth,
@@ -329,9 +340,11 @@
 			matchNameOp: hasName ? (form.matchNameOp as NameMatchOp) : null,
 			matchNameValue: hasName ? form.matchNameValue.trim() : null,
 			matchAmountOp: hasAmount ? (form.matchAmountOp as AmountMatchOp) : null,
-			matchAmountValue: hasAmount ? Number(form.matchAmountValue) : null,
+			matchAmountValue: hasAmount ? amountString(form.matchAmountValue) : null,
 			matchAmountValue2:
-				hasAmount && form.matchAmountOp === 'between' ? Number(form.matchAmountValue2) : null,
+				hasAmount && form.matchAmountOp === 'between'
+					? amountString(form.matchAmountValue2)
+					: null,
 			matchDateFrom: form.matchDateFrom || null,
 			matchDateTo: form.matchDateTo || null,
 			matchDayOfMonth: dayOfMonth

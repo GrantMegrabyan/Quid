@@ -12,7 +12,7 @@
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
-	import { formatAmount } from '$lib/utils/money';
+	import { amountToNumber, formatAmount } from '$lib/utils/money';
 	import type { Category, Expense, ExpenseImportance } from '$lib/types';
 
 	type EditCallback = (expense: Expense) => void;
@@ -113,7 +113,10 @@
 			}
 		}
 		for (const arr of map.values()) {
-			arr.sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
+			arr.sort(
+				(a, b) =>
+					b.date.localeCompare(a.date) || amountToNumber(b.amount) - amountToNumber(a.amount)
+			);
 		}
 		return map;
 	});
@@ -130,7 +133,7 @@
 					? importanceLabel(first.importance)
 					: (category?.name ?? 'Uncategorized');
 			let amount = 0;
-			for (const item of items) amount += item.amount;
+			for (const item of items) amount += amountToNumber(item.amount);
 			groups.push({ id, name, count: items.length, amount, category, importance: first.importance });
 		}
 		if (groupBy === 'importance') {

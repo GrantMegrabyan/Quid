@@ -23,7 +23,7 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 				{
 					id: 'exp-amz',
 					name: 'AMZN Mktp',
-					amount: 19.99,
+					amount: '19.99',
 					date: orderDate,
 					categoryId: 'cat-groceries',
 					note: ''

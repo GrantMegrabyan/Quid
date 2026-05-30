@@ -33,7 +33,7 @@ test.describe('dashboard', () => {
 					{
 						id: 'exp-current',
 						name: 'Current Coffee',
-						amount: 10,
+						amount: '10.00',
 						date: isoMonthOffset(0, 2),
 						categoryId: 'cat-groceries',
 						note: ''
@@ -41,7 +41,7 @@ test.describe('dashboard', () => {
 					{
 						id: 'exp-previous',
 						name: 'Previous Train',
-						amount: 20,
+						amount: '20.00',
 						date: isoMonthOffset(-1, 2),
 						categoryId: 'cat-public-transport',
 						note: ''

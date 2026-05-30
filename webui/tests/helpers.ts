@@ -19,7 +19,8 @@ export interface SeedCategory {
 export interface SeedExpense {
 	id: string;
 	name: string;
-	amount: number;
+	/** Canonical 2dp money string ("42.50"), matching the API contract. */
+	amount: string;
 	date: string;
 	categoryId: string;
 	note: string;
@@ -61,7 +62,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 			{
 				id: 'exp-seed-1',
 				name: 'Whole Foods',
-				amount: 42.5,
+				amount: '42.50',
 				date: isoDaysAgo(2),
 				categoryId: 'cat-groceries',
 				note: 'Weekly groceries'
@@ -69,7 +70,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 			{
 				id: 'exp-seed-2',
 				name: 'Uber',
-				amount: 12,
+				amount: '12.00',
 				date: isoDaysAgo(5),
 				categoryId: 'cat-public-transport',
 				note: ''

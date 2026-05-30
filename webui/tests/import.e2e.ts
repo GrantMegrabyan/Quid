@@ -78,7 +78,7 @@ test.describe('import page', () => {
 							sourceRow: 2,
 							dedupeKeyHash: 'abc123',
 							name: 'Coffee',
-							amount: 3.5,
+							amount: '3.50',
 							date: '2026-01-15',
 							note: '',
 							kind: 'create',
@@ -100,10 +100,11 @@ test.describe('import page', () => {
 		});
 
 		// Capture the confirm payload so we can assert the edited amount is sent.
-		let confirmedAmount: number | null = null;
+		// Money is now transported as a canonical 2dp string ("9.99").
+		let confirmedAmount: string | null = null;
 		await page.route('**/api/v1/expenses/import-freeform/confirm', async (route) => {
 			const body = route.request().postDataJSON() as {
-				creates: { amount: number }[];
+				creates: { amount: string }[];
 			};
 			confirmedAmount = body.creates[0]?.amount ?? null;
 			await route.fulfill({
@@ -136,7 +137,7 @@ test.describe('import page', () => {
 		await page.getByTestId('freeform-confirm').click();
 
 		await expect(page.getByTestId('import-banner')).toHaveAttribute('data-kind', 'success');
-		expect(confirmedAmount).toBe(9.99);
+		expect(confirmedAmount).toBe('9.99');
 	});
 
 	test('CSV import keeps matched transactions disabled until the user enables the override', async ({
@@ -157,7 +158,7 @@ test.describe('import page', () => {
 							sourceRow: 2,
 							dedupeKeyHash: 'newhash',
 							name: 'New Cafe',
-							amount: 5.25,
+							amount: '5.25',
 							date: '2026-01-10',
 							note: '',
 							kind: 'create',
@@ -174,7 +175,7 @@ test.describe('import page', () => {
 							sourceRow: 3,
 							dedupeKeyHash: 'matchhash',
 							name: 'Whole Foods',
-							amount: 42.5,
+							amount: '42.50',
 							date: '2026-01-09',
 							note: '',
 							kind: 'category_update',
@@ -264,7 +265,7 @@ test.describe('import page', () => {
 							sourceRow: 2,
 							dedupeKeyHash: 'matchhash',
 							name: 'Whole Foods',
-							amount: 42.5,
+							amount: '42.50',
 							date: '2026-01-09',
 							note: '',
 							kind: 'category_update',
@@ -356,7 +357,7 @@ test.describe('import page', () => {
 							sourceRow: 2,
 							dedupeKeyHash: 'abc123',
 							name: 'Coffee',
-							amount: 3.5,
+							amount: '3.50',
 							date: '2026-01-15',
 							note: '',
 							kind: 'create',

@@ -9,6 +9,7 @@
 	import { selectedMonth } from '$lib/stores/ui';
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
 	import { monthKey } from '$utils/dates';
+	import { amountToNumber } from '$utils/money';
 
 	if (browser) {
 		ensureChartJsRegistered();
@@ -50,7 +51,10 @@
 		const totals = new Map<string, number>();
 		for (const expense of $expenses) {
 			if (monthKey(expense.date) !== $selectedMonth) continue;
-			totals.set(expense.categoryId, (totals.get(expense.categoryId) ?? 0) + expense.amount);
+			totals.set(
+				expense.categoryId,
+				(totals.get(expense.categoryId) ?? 0) + amountToNumber(expense.amount)
+			);
 		}
 
 		const byId = new Map($categories.map((category) => [category.id, category]));
