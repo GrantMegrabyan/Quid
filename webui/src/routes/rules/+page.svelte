@@ -145,7 +145,8 @@
 		const hasName = form.matchNameOp !== '' && form.matchNameValue.trim() !== '';
 		const hasAmount = form.matchAmountOp !== '' && form.matchAmountValue !== '';
 		const hasDate = form.matchDateFrom !== '' || form.matchDateTo !== '';
-		const hasDay = form.matchDayOfMonth !== '';
+		const dayInput = (form.matchDayOfMonth ?? '').trim();
+		const hasDay = dayInput !== '';
 		if (!hasName && !hasAmount && !hasDate && !hasDay) {
 			throw new Error('Add at least one match condition.');
 		}
@@ -154,7 +155,7 @@
 		}
 		let dayOfMonth: number | null = null;
 		if (hasDay) {
-			const parsed = Number(form.matchDayOfMonth);
+			const parsed = Number(dayInput);
 			if (!Number.isInteger(parsed) || parsed < 1 || parsed > 31) {
 				throw new Error('Day of month must be a whole number between 1 and 31.');
 			}
@@ -351,11 +352,9 @@
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Day of month <span class="text-ctp-overlay0">(1–31)</span></span>
 					<input
-						bind:value={form.matchDayOfMonth}
-						type="number"
-						min="1"
-						max="31"
-						step="1"
+						value={form.matchDayOfMonth}
+						oninput={(e) => (form.matchDayOfMonth = e.currentTarget.value)}
+						type="text"
 						inputmode="numeric"
 						placeholder="e.g. 1 for monthly payment"
 						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"

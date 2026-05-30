@@ -37,4 +37,35 @@ test.describe('import rules page', () => {
 
 		await expect(card.getByTestId('rule-set-note')).toHaveValue('Coffee run');
 	});
+
+	test('can unset day of month after saving it', async ({ page }) => {
+		await page.goto('/rules');
+
+		await page.getByTestId('show-new-rule-form').click();
+
+		await page.getByLabel('Name', { exact: true }).fill('Monthly rent');
+		await page.getByLabel('Target category').selectOption({ label: 'Food & Drink' });
+		await page.getByLabel('Name value').fill('rent');
+		await page.getByLabel(/Day of month/).fill('1');
+
+		await page.getByRole('button', { name: 'Add rule' }).click();
+
+		const card = page.locator('[data-testid="rule-card"]').filter({ hasText: 'Monthly rent' });
+		await expect(card).toBeVisible();
+
+		// Re-open, clear the day of month, and save.
+		await card.getByRole('button', { name: 'Edit rule' }).click();
+		const dayInput = card.getByLabel(/Day of month/);
+		await expect(dayInput).toHaveValue('1');
+		await dayInput.fill('');
+
+		await card.getByRole('button', { name: 'Save rule' }).click();
+
+		// Save should succeed (no validation error) and the day should be gone.
+		await expect(page.getByText('Rule saved.')).toBeVisible();
+		await expect(card).not.toContainText('day of month');
+
+		await card.getByRole('button', { name: 'Edit rule' }).click();
+		await expect(card.getByLabel(/Day of month/)).toHaveValue('');
+	});
 });
