@@ -76,10 +76,16 @@ test.describe('import rules page', () => {
 		const results = page.getByTestId('rule-preview-results');
 		await expect(results).toBeVisible();
 		await expect(results.getByTestId('rule-preview-count')).toHaveText('2');
-		await expect(results.getByTestId('rule-preview-row')).toHaveCount(2);
-		await expect(results).toContainText('Blue Bottle Coffee');
-		await expect(results).toContainText('Coffee Cart');
+		const rows = results.getByTestId('rule-preview-row');
+		await expect(rows).toHaveCount(2);
+		// Newest transaction first (Coffee Cart 2026-04-02 before Blue Bottle 2026-04-01).
+		await expect(rows.nth(0)).toContainText('Coffee Cart');
+		await expect(rows.nth(1)).toContainText('Blue Bottle Coffee');
 		await expect(results).not.toContainText('Uber');
+
+		// The preview list can be hidden again.
+		await results.getByTestId('rule-preview-close').click();
+		await expect(page.getByTestId('rule-preview-results')).toHaveCount(0);
 
 		// Preview is a dry run: no rule was created.
 		await expect(page.locator('[data-testid="rule-card"]')).toHaveCount(0);

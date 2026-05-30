@@ -390,6 +390,11 @@
 		}
 	}
 
+	function clearCardPreview(ruleId: string): void {
+		const { [ruleId]: _removed, ...rest } = cardPreviews;
+		cardPreviews = rest;
+	}
+
 	onMount(() => {
 		void refreshCategories();
 		void refreshImportRules();
@@ -566,17 +571,29 @@
 
 		{#if previewResult}
 			<div data-testid="rule-preview-results" class="mt-3 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-3">
-				{@render previewMatches(previewResult)}
+				{@render previewMatches(previewResult, clearFormPreview)}
 			</div>
 		{/if}
 	</form>
 {/snippet}
 
-{#snippet previewMatches(preview: ImportRulePreviewResult)}
-	<p class="text-sm font-medium text-ctp-text">
-		<span data-testid="rule-preview-count">{preview.matched}</span>
-		{preview.matched === 1 ? 'transaction matches' : 'transactions match'} these conditions.
-	</p>
+{#snippet previewMatches(preview: ImportRulePreviewResult, onClose: () => void)}
+	<div class="flex items-start justify-between gap-3">
+		<p class="text-sm font-medium text-ctp-text">
+			<span data-testid="rule-preview-count">{preview.matched}</span>
+			{preview.matched === 1 ? 'transaction matches' : 'transactions match'} these conditions.
+		</p>
+		<button
+			type="button"
+			data-testid="rule-preview-close"
+			aria-label="Hide preview"
+			title="Hide preview"
+			onclick={onClose}
+			class="-mr-1 -mt-1 shrink-0 rounded-md p-1 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
+		>
+			<X size={16} aria-hidden="true" />
+		</button>
+	</div>
 	{#if preview.matched === 0}
 		<p class="mt-1 text-xs text-ctp-overlay1">No existing transactions match these conditions.</p>
 	{:else}
@@ -739,7 +756,7 @@
 
 				{#if cardPreviews[rule.id]}
 					<div data-testid="rule-preview-results" class="mt-3 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-3">
-						{@render previewMatches(cardPreviews[rule.id])}
+						{@render previewMatches(cardPreviews[rule.id], () => clearCardPreview(rule.id))}
 					</div>
 				{/if}
 

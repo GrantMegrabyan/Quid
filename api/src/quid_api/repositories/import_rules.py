@@ -254,7 +254,8 @@ class ImportRuleRepository:
         conditions even for a disabled draft.
         """
         _validate_match_conditions(rule)
-        expenses = list((await self.session.scalars(select(Expense))).all())
+        stmt = select(Expense).order_by(Expense.date.desc(), Expense.id.desc())
+        expenses = list((await self.session.scalars(stmt)).all())
         return [
             expense
             for expense in expenses

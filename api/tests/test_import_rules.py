@@ -768,6 +768,44 @@ async def test_preview_for_unsaved_draft_does_not_require_category(app_client):
     assert body["expenses"][0]["name"] == "Pret"
 
 
+async def test_preview_sorts_matches_by_date_desc(app_client):
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "Pret",
+                    "category": "other",
+                    "amount": -1,
+                    "date": "2026-04-01",
+                    "note": "",
+                },
+                {
+                    "name": "Pret",
+                    "category": "other",
+                    "amount": -2,
+                    "date": "2026-04-23",
+                    "note": "",
+                },
+                {
+                    "name": "Pret",
+                    "category": "other",
+                    "amount": -3,
+                    "date": "2026-04-10",
+                    "note": "",
+                },
+            ]
+        },
+    )
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={"matchNameOp": "equals", "matchNameValue": "pret"},
+    )
+    assert res.status_code == 200, res.text
+    dates = [e["date"] for e in res.json()["expenses"]]
+    assert dates == ["2026-04-23", "2026-04-10", "2026-04-01"]
+
+
 async def test_preview_no_matches(app_client):
     await _seed_preview_expenses(app_client)
     res = await app_client.post(
