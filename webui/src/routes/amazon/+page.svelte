@@ -425,7 +425,10 @@
 				>
 					Sync Amazon → quid
 				</a>
-				<span class="text-xs text-ctp-overlay1">Drag this to your bookmarks bar.</span>
+				<span class="text-xs text-ctp-overlay1">
+					Drag this to your bookmarks bar. Can't drag it? Create a bookmark manually
+					and paste this link's address as the URL.
+				</span>
 			</div>
 
 			<div class="flex flex-col gap-2">
