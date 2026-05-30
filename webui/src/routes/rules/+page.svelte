@@ -68,6 +68,8 @@
 	let applyingId: string | null = $state(null);
 	let applyingAll = $state(false);
 	let ruleResults = $state<Record<string, RuleResult>>({});
+	let highlightedId: string | null = $state(null);
+	let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function categoryName(id: string | null): string {
 		return $categories.find((c) => c.id === id)?.name ?? 'Unknown category';
@@ -118,6 +120,20 @@
 		message = '';
 	}
 
+	function flashRule(ruleId: string): void {
+		// Retrigger cleanly if the same card is flashed again before the last one finished.
+		if (highlightTimer) clearTimeout(highlightTimer);
+		highlightedId = null;
+		// Defer one frame so the smooth scroll is underway (and the animation restarts) before it shows.
+		requestAnimationFrame(() => {
+			highlightedId = ruleId;
+			highlightTimer = setTimeout(() => {
+				if (highlightedId === ruleId) highlightedId = null;
+				highlightTimer = null;
+			}, 1400);
+		});
+	}
+
 	async function scrollRuleIntoViewIfNeeded(ruleId: string): Promise<void> {
 		await tick();
 		const card = document.querySelector<HTMLElement>(`[data-rule-id="${ruleId}"]`);
@@ -125,6 +141,7 @@
 		const rect = card.getBoundingClientRect();
 		const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
 		if (!fullyVisible) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		flashRule(ruleId);
 	}
 
 	function cancelEdit(): void {
@@ -485,9 +502,9 @@
 			<div
 				data-testid="rule-card"
 				data-rule-id={rule.id}
-				class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
+				class="rule-card rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
 					? 'border-l-ctp-accent bg-ctp-accent/5'
-					: 'border-l-ctp-surface1 opacity-70'}"
+					: 'border-l-ctp-surface1 opacity-70'} {highlightedId === rule.id ? 'rule-card--flash' : ''}"
 			>
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div>
@@ -568,3 +585,40 @@
 		{/each}
 	</div>
 </section>
+
+<style>
+	/* Brief, theme-aware "you are here" pulse on a card after its editor closes.
+	   Drives box-shadow (a soft accent ring + glow) and a faint accent wash so it
+	   reads even when the card is already in view. box-shadow/background-color are
+	   animated rather than the border, so the existing enabled/disabled border-left
+	   and `transition-colors` are left untouched. */
+	@keyframes rule-card-flash {
+		0% {
+			box-shadow:
+				0 0 0 0 color-mix(in srgb, var(--ctp-accent) 55%, transparent),
+				0 0 18px 2px color-mix(in srgb, var(--ctp-accent) 40%, transparent);
+			background-color: color-mix(in srgb, var(--ctp-accent) 14%, var(--ctp-base));
+		}
+		60% {
+			box-shadow:
+				0 0 0 3px color-mix(in srgb, var(--ctp-accent) 35%, transparent),
+				0 0 16px 2px color-mix(in srgb, var(--ctp-accent) 22%, transparent);
+		}
+		100% {
+			box-shadow:
+				0 0 0 0 color-mix(in srgb, var(--ctp-accent) 0%, transparent),
+				0 0 0 0 color-mix(in srgb, var(--ctp-accent) 0%, transparent);
+			background-color: transparent;
+		}
+	}
+
+	.rule-card--flash {
+		animation: rule-card-flash 1.4s ease-out;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.rule-card--flash {
+			animation: none;
+		}
+	}
+</style>
