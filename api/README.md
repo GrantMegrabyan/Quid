@@ -244,6 +244,18 @@ plan (creates, category updates for existing rows, hidden duplicates, excluded
 rows), then `POST /api/v1/expenses/import-csv/confirm` with the reviewed rows to
 persist. Confirm records an import-log entry (see _Import history_).
 
+**Matched (existing) transactions are not updated by default.** A row that
+matches an existing expense by `(date, lower(trim(name)), amount)` but carries a
+different category/importance comes back as `kind = "category_update"`. The
+confirm payload carries one `categoryUpdates` entry per such row with an `accept`
+flag; the server only overwrites the existing expense's category/importance when
+`accept` is `true` (and only those two fields — amount/name/date/note define the
+match and are never touched). The web UI sends `accept = false` by default and
+flips it to `true` only when the user clicks **Enable to override** on the row,
+so a re-import never silently clobbers fields the user intentionally edited on a
+previous import. Rows that match with an identical category **and** importance
+are hidden as `duplicate_same_category` and never sent to confirm.
+
 ## AI free-form import
 
 Lets a user paste free-form text (e.g. `coffee 3.50 yesterday, Tesco 42 on the

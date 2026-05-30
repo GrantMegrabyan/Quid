@@ -139,6 +139,209 @@ test.describe('import page', () => {
 		expect(confirmedAmount).toBe(9.99);
 	});
 
+	test('CSV import keeps matched transactions disabled until the user enables the override', async ({
+		page
+	}) => {
+		// Mock the CSV preview so the test does not depend on parsing/AI. It
+		// returns one brand-new create row and one matched category_update row.
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-csv-1',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'newhash',
+							name: 'New Cafe',
+							amount: 5.25,
+							date: '2026-01-10',
+							note: '',
+							kind: 'create',
+							existingExpenseId: null,
+							existingCategoryId: null,
+							existingCategoryName: null,
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'important',
+							existingImportance: null
+						},
+						{
+							previewRowId: 'row-1',
+							filename: 'statement.csv',
+							sourceRow: 3,
+							dedupeKeyHash: 'matchhash',
+							name: 'Whole Foods',
+							amount: 42.5,
+							date: '2026-01-09',
+							note: '',
+							kind: 'category_update',
+							existingExpenseId: 'exp-seed-1',
+							existingCategoryId: 'cat-public-transport',
+							existingCategoryName: 'Public Transport',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'discretionary',
+							existingImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 1,
+						categoryUpdates: 1,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 2,
+							imported: 1,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		// Capture the confirm payload so we can assert the matched row's accept flag.
+		let categoryUpdates: { accept: boolean }[] | null = null;
+		await page.route('**/api/v1/expenses/import-csv/confirm', async (route) => {
+			const body = route.request().postDataJSON() as {
+				categoryUpdates: { accept: boolean }[];
+			};
+			categoryUpdates = body.categoryUpdates;
+			await route.fulfill({
+				status: 201,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					created: 1,
+					updated: 1,
+					skippedDuplicates: 0,
+					skippedStaleUpdates: 0,
+					keptExisting: 0,
+					categoriesCreated: [],
+					expenses: []
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-01-10,New Cafe,5.25\n2026-01-09,Whole Foods,42.50\n')
+		});
+
+		// Matched row starts disabled: the override toggle reads "Enable to override".
+		const toggle = page.getByTestId('toggle-override');
+		await expect(toggle).toBeVisible();
+		await expect(toggle).toHaveText('Enable to override');
+		await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+		// Saving now must send accept:false for the matched row (do not override).
+		await page.getByTestId('confirm-import').click();
+		await expect(page.getByTestId('import-banner')).toHaveAttribute('data-kind', 'success');
+		expect(categoryUpdates).not.toBeNull();
+		expect(categoryUpdates![0]?.accept).toBe(false);
+	});
+
+	test('CSV import sends accept:true once the user enables a matched override', async ({ page }) => {
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-csv-2',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'matchhash',
+							name: 'Whole Foods',
+							amount: 42.5,
+							date: '2026-01-09',
+							note: '',
+							kind: 'category_update',
+							existingExpenseId: 'exp-seed-1',
+							existingCategoryId: 'cat-public-transport',
+							existingCategoryName: 'Public Transport',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'discretionary',
+							existingImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 0,
+						categoryUpdates: 1,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 1,
+							imported: 0,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		let categoryUpdates: { accept: boolean }[] | null = null;
+		await page.route('**/api/v1/expenses/import-csv/confirm', async (route) => {
+			const body = route.request().postDataJSON() as {
+				categoryUpdates: { accept: boolean }[];
+			};
+			categoryUpdates = body.categoryUpdates;
+			await route.fulfill({
+				status: 201,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					created: 0,
+					updated: 1,
+					skippedDuplicates: 0,
+					skippedStaleUpdates: 0,
+					keptExisting: 0,
+					categoriesCreated: [],
+					expenses: []
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-01-09,Whole Foods,42.50\n')
+		});
+
+		// Category select is disabled until the override is enabled.
+		const categorySelect = page.locator('.import-row select').first();
+		await expect(categorySelect).toBeDisabled();
+
+		const toggle = page.getByTestId('toggle-override');
+		await toggle.click();
+		await expect(toggle).toHaveText('Disable override');
+		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+		await expect(categorySelect).toBeEnabled();
+
+		await page.getByTestId('confirm-import').click();
+		await expect(page.getByTestId('import-banner')).toHaveAttribute('data-kind', 'success');
+		expect(categoryUpdates).not.toBeNull();
+		expect(categoryUpdates![0]?.accept).toBe(true);
+	});
+
 	test('freeform AI import blocks confirm when the amount is invalid', async ({ page }) => {
 		await page.route('**/api/v1/expenses/import-freeform/preview', async (route) => {
 			await route.fulfill({

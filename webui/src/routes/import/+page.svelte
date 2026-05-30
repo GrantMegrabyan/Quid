@@ -88,7 +88,10 @@
 			selectedImportance: row.suggestedImportance,
 			selectedAmountInput: row.amount.toFixed(2),
 			amountError: false,
-			acceptUpdate: row.kind === 'category_update'
+			// Matched (existing) transactions are NOT updated by default: a prior
+			// import may have been intentionally edited, so we never silently
+			// override it. The user opts in per-row via the Enable button.
+			acceptUpdate: false
 		}));
 	}
 
@@ -399,9 +402,10 @@
 	onCancel: () => void,
 	onConfirm: () => void
 )}
+	{@const overrideCount = updateRows.filter((row) => row.acceptUpdate).length}
 	<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
 		<div><strong>{preview.summary.creates}</strong><br />new</div>
-		<div><strong>{preview.summary.categoryUpdates}</strong><br />category changes</div>
+		<div><strong>{preview.summary.categoryUpdates}</strong><br />existing (kept)</div>
 		<div><strong>{preview.summary.hiddenDuplicates}</strong><br />unchanged hidden</div>
 		<div><strong>{preview.summary.excluded}</strong><br />excluded</div>
 		<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
@@ -420,7 +424,12 @@
 				<div>Decision</div>
 			</div>
 			{#each rows as row (row.previewRowId)}
-				<div class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0">
+				{@const matchedDisabled = row.kind === 'category_update' && !row.acceptUpdate}
+				<div
+					class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0 {matchedDisabled
+						? 'opacity-55'
+						: ''}"
+				>
 					<div>
 						<div class="font-medium text-ctp-text">{row.name}</div>
 						<div class="text-xs text-ctp-overlay1">
@@ -453,7 +462,7 @@
 					<div>
 						<select
 							bind:value={row.selectedCategoryName}
-							disabled={row.kind === 'category_update' && !row.acceptUpdate}
+							disabled={matchedDisabled}
 							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
 						>
 							{#each categoryOptions(row) as category (category.id)}
@@ -464,7 +473,7 @@
 					<div>
 						<select
 							bind:value={row.selectedImportance}
-							disabled={row.kind === 'category_update' && !row.acceptUpdate}
+							disabled={matchedDisabled}
 							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
 						>
 							<option value="essential">Essential</option>
@@ -484,14 +493,24 @@
 								>New transaction</span
 							>
 						{:else if row.kind === 'category_update'}
-							<label class="flex items-start gap-2 text-sm text-ctp-subtext0">
-								<input
-									type="checkbox"
-									bind:checked={row.acceptUpdate}
-									class="mt-1 h-4 w-4 accent-ctp-accent"
-								/>
-								<span>Apply category / importance changes</span>
-							</label>
+							<div class="flex flex-col items-start gap-1">
+								<span
+									class="rounded-full px-2 py-1 text-xs font-medium {row.acceptUpdate
+										? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+										: 'bg-ctp-surface1 text-ctp-subtext0'}"
+								>
+									{row.acceptUpdate ? 'Will override existing' : 'Existing kept'}
+								</span>
+								<button
+									type="button"
+									data-testid="toggle-override"
+									aria-pressed={row.acceptUpdate}
+									onclick={() => (row.acceptUpdate = !row.acceptUpdate)}
+									class="text-xs font-medium text-ctp-accent underline decoration-dotted underline-offset-2 hover:no-underline"
+								>
+									{row.acceptUpdate ? 'Disable override' : 'Enable to override'}
+								</button>
+							</div>
 						{:else}
 							<span
 								class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
@@ -519,7 +538,9 @@
 				disabled={busy}
 				class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60"
 			>
-				{busy ? 'Saving…' : `Save ${createRows.length} new and review ${updateRows.length} updates`}
+				{busy
+					? 'Saving…'
+					: `Save ${createRows.length} new${overrideCount > 0 ? ` and override ${overrideCount} existing` : ''}`}
 			</button>
 		</div>
 	{/if}
@@ -599,8 +620,9 @@
 				class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-ctp-surface1 bg-ctp-base p-4"
 			>
 				<p class="max-w-xl text-sm text-ctp-overlay1">
-					Preview CSV transactions before saving. Existing transactions with unchanged categories
-					are hidden; category changes are shown for approval.
+					Preview CSV transactions before saving. Transactions that already exist are never
+					overwritten by default — they're shown disabled so your earlier edits are kept. Use
+					“Enable to override” on a row to apply the imported category / importance.
 				</p>
 				<div class="flex flex-wrap items-center gap-2">
 					<input

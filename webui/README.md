@@ -37,7 +37,13 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
 - **Import** (`/import`) — the single place to add transactions, organised into
   three tabs:
   - **CSV file** — the CSV import preview/confirm flow. AI categorisation is no
-    longer a per-import checkbox; it follows the **Settings** toggle.
+    longer a per-import checkbox; it follows the **Settings** toggle. Transactions
+    that match one already in the app are **not overwritten by default**: a prior
+    import may have been intentionally edited, so each matched row is shown
+    disabled ("Existing kept") and is skipped on save. Click **Enable to override**
+    on a row to apply the imported category/importance to it instead (amount, name,
+    date and note are never changed). Matched rows whose category and importance are
+    already identical are hidden entirely.
   - **Single transaction** — an inline form (merchant, amount, date, category,
     importance, note) for adding one transaction at a time.
   - **AI free-form** — paste plain-English lines (e.g. `coffee 3.50 yesterday`)
