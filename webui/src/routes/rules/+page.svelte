@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import {
 		addImportRule,
@@ -118,10 +118,21 @@
 		message = '';
 	}
 
+	async function scrollRuleIntoViewIfNeeded(ruleId: string): Promise<void> {
+		await tick();
+		const card = document.querySelector<HTMLElement>(`[data-rule-id="${ruleId}"]`);
+		if (!card) return;
+		const rect = card.getBoundingClientRect();
+		const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+		if (!fullyVisible) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}
+
 	function cancelEdit(): void {
+		const closingId = editingId;
 		editingId = null;
 		form = emptyForm();
 		error = '';
+		if (closingId) void scrollRuleIntoViewIfNeeded(closingId);
 	}
 
 	function openAddForm(): void {
