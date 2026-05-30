@@ -1,4 +1,11 @@
-import type { ImportRule, ImportRuleApplyResult, ImportRuleCreate, ImportRuleUpdate } from '$types';
+import type {
+	ImportRule,
+	ImportRuleApplyResult,
+	ImportRuleCreate,
+	ImportRulePreviewRequest,
+	ImportRulePreviewResult,
+	ImportRuleUpdate
+} from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
 import type { ImportRuleRepository } from './types.js';
 
@@ -39,6 +46,13 @@ export class HttpImportRuleRepository implements ImportRuleRepository {
 	async applyAll(): Promise<ImportRuleApplyResult> {
 		return this.client.request<ImportRuleApplyResult>('api/v1/import-rules/apply-all', {
 			method: 'POST'
+		});
+	}
+
+	async preview(input: ImportRulePreviewRequest): Promise<ImportRulePreviewResult> {
+		return this.client.request<ImportRulePreviewResult>('api/v1/import-rules/preview', {
+			method: 'POST',
+			body: input
 		});
 	}
 }

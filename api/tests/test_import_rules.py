@@ -699,3 +699,107 @@ async def test_rule_validation_errors(app_client):
         },
     )
     assert missing_category.status_code == 422
+
+
+async def _seed_preview_expenses(app_client) -> None:
+    await app_client.post(
+        "/api/v1/expenses/bulk",
+        json={
+            "items": [
+                {
+                    "name": "Safeland Active Management Ltd",
+                    "category": "other",
+                    "amount": -3445,
+                    "date": "2026-04-22",
+                    "note": "",
+                },
+                {
+                    "name": "Safeland Active Management Ltd",
+                    "category": "other",
+                    "amount": -20,
+                    "date": "2026-04-22",
+                    "note": "",
+                },
+                {
+                    "name": "Pret",
+                    "category": "other",
+                    "amount": -3.5,
+                    "date": "2026-04-23",
+                    "note": "",
+                },
+            ]
+        },
+    )
+
+
+async def test_preview_returns_matching_expenses_without_mutating(app_client):
+    await _seed_preview_expenses(app_client)
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={
+            "matchNameOp": "contains",
+            "matchNameValue": "safeland",
+            "matchAmountOp": "gte",
+            "matchAmountValue": 1000,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["matched"] == 1
+    assert len(body["expenses"]) == 1
+    assert body["expenses"][0]["name"] == "Safeland Active Management Ltd"
+    assert body["expenses"][0]["amount"] == 3445.0
+
+    # Dry-run must not delete or modify anything.
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 3
+
+
+async def test_preview_for_unsaved_draft_does_not_require_category(app_client):
+    await _seed_preview_expenses(app_client)
+    # No action/targetCategoryId supplied — preview only evaluates conditions.
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={"matchNameOp": "contains", "matchNameValue": "pret"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["matched"] == 1
+    assert body["expenses"][0]["name"] == "Pret"
+
+
+async def test_preview_no_matches(app_client):
+    await _seed_preview_expenses(app_client)
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={"matchNameOp": "equals", "matchNameValue": "nothing-here"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["matched"] == 0
+    assert body["expenses"] == []
+
+
+async def test_preview_ignores_enabled_flag_and_evaluates_conditions(app_client):
+    # A draft is never "enabled"; preview should still evaluate its conditions.
+    await _seed_preview_expenses(app_client)
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={"matchAmountOp": "lte", "matchAmountValue": 25},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["matched"] == 2  # the -20 and -3.50 rows
+
+
+async def test_preview_requires_at_least_one_condition(app_client):
+    res = await app_client.post("/api/v1/import-rules/preview", json={})
+    assert res.status_code == 422
+
+
+async def test_preview_rejects_between_without_second_value(app_client):
+    res = await app_client.post(
+        "/api/v1/import-rules/preview",
+        json={"matchAmountOp": "between", "matchAmountValue": 10},
+    )
+    assert res.status_code == 422

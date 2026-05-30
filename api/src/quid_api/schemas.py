@@ -302,6 +302,28 @@ class ImportRuleApplyResponse(_Camel):
     deleted: int
 
 
+class ImportRulePreviewRequest(_Camel):
+    """Match-condition fields for a (possibly unsaved) rule.
+
+    Action/target-category are omitted: a preview only reports which existing
+    transactions the conditions match, so a draft can be checked before saving.
+    """
+
+    match_name_op: NameMatchOp | None = None
+    match_name_value: str | None = None
+    match_amount_op: AmountMatchOp | None = None
+    match_amount_value: Decimal | None = None
+    match_amount_value2: Decimal | None = None
+    match_date_from: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_date_to: Annotated[str | None, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None
+    match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
+
+
+class ImportRulePreviewResponse(_Camel):
+    matched: int
+    expenses: list[ExpenseOut]
+
+
 class AiRuleOut(_Camel):
     id: str
     text: str

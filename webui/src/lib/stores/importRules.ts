@@ -1,6 +1,13 @@
 import { writable } from 'svelte/store';
 import { importRuleRepository } from '$lib/repos';
-import type { ImportRule, ImportRuleApplyResult, ImportRuleCreate, ImportRuleUpdate } from '$types';
+import type {
+	ImportRule,
+	ImportRuleApplyResult,
+	ImportRuleCreate,
+	ImportRulePreviewRequest,
+	ImportRulePreviewResult,
+	ImportRuleUpdate
+} from '$types';
 import { refreshExpenses } from './expenses.js';
 
 export const importRules = writable<ImportRule[]>([]);
@@ -38,4 +45,10 @@ export async function applyAllImportRules(): Promise<ImportRuleApplyResult> {
 		await refreshExpenses();
 	}
 	return result;
+}
+
+export async function previewImportRule(
+	input: ImportRulePreviewRequest
+): Promise<ImportRulePreviewResult> {
+	return importRuleRepository.preview(input);
 }

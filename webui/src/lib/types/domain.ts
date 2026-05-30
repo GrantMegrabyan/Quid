@@ -183,6 +183,24 @@ export interface ImportRuleApplyResult {
 	deleted: number;
 }
 
+/** Match-condition fields used to dry-run a (possibly unsaved) rule. */
+export type ImportRulePreviewRequest = Pick<
+	ImportRule,
+	| 'matchNameOp'
+	| 'matchNameValue'
+	| 'matchAmountOp'
+	| 'matchAmountValue'
+	| 'matchAmountValue2'
+	| 'matchDateFrom'
+	| 'matchDateTo'
+	| 'matchDayOfMonth'
+>;
+
+export interface ImportRulePreviewResult {
+	matched: number;
+	expenses: Expense[];
+}
+
 export interface AiRule {
 	id: string;
 	text: string;

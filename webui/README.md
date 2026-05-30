@@ -141,6 +141,11 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   design on this branch.)
 - **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
   (`/ai-rules`).
+  - The **Rules** page can **Preview matches** (dry-run): the add/edit form has a
+    Preview button that lists the existing transactions the current draft's
+    conditions would match (no save required), and each saved rule card has an
+    eye icon that previews that rule's matches. Both call
+    `POST /api/v1/import-rules/preview` and never modify data.
 
 ## Scripts
 

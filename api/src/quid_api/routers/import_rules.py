@@ -5,11 +5,15 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Depends, Response, status
 
 from quid_api.db import get_session
+from quid_api.models import ImportRule
 from quid_api.repositories.import_rules import ImportRuleRepository
 from quid_api.schemas import (
+    ExpenseOut,
     ImportRuleApplyResponse,
     ImportRuleCreate,
     ImportRuleOut,
+    ImportRulePreviewRequest,
+    ImportRulePreviewResponse,
     ImportRuleUpdate,
 )
 
@@ -60,6 +64,20 @@ async def apply_import_rule(rule_id: str, session: SessionDep) -> ImportRuleAppl
         matched=result.matched,
         updated=result.updated,
         deleted=result.deleted,
+    )
+
+
+@router.post("/preview", response_model=ImportRulePreviewResponse)
+async def preview_import_rule(
+    payload: ImportRulePreviewRequest, session: SessionDep
+) -> ImportRulePreviewResponse:
+    """Dry-run a (possibly unsaved) rule: return matching transactions, no writes."""
+    repo = ImportRuleRepository(session)
+    draft = ImportRule(action="categorize", enabled=True, **payload.model_dump())
+    expenses = await repo.preview_matches(draft)
+    return ImportRulePreviewResponse(
+        matched=len(expenses),
+        expenses=[ExpenseOut.model_validate(e) for e in expenses],
     )
 
 

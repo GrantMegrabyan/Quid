@@ -8,6 +8,7 @@
 		deleteImportRule,
 		editImportRule,
 		importRules,
+		previewImportRule,
 		refreshImportRules
 	} from '$lib/stores/importRules';
 	import { refreshSettings, settings } from '$lib/stores/settings';
@@ -16,10 +17,12 @@
 		AmountMatchOp,
 		ImportRule,
 		ImportRuleCreate,
+		ImportRulePreviewRequest,
+		ImportRulePreviewResult,
 		NameMatchOp,
 		RuleAction
 	} from '$types';
-	import { Pencil, Power, RefreshCw, Trash2, X } from '@lucide/svelte';
+	import { Eye, Pencil, Power, RefreshCw, Trash2, X } from '@lucide/svelte';
 
 	type FormState = {
 		name: string;
@@ -118,6 +121,7 @@
 		};
 		error = '';
 		message = '';
+		clearFormPreview();
 	}
 
 	function flashRule(ruleId: string): void {
@@ -285,6 +289,107 @@
 		ruleResults = { ...ruleResults };
 	}
 
+	// ---- preview (dry-run) ----
+	const PREVIEW_LIMIT = 50;
+
+	// Form preview: derive a preview request from the CURRENT draft form state.
+	let previewing = $state(false);
+	let previewError = $state<string | null>(null);
+	let previewResult = $state<ImportRulePreviewResult | null>(null);
+
+	function clearFormPreview(): void {
+		previewing = false;
+		previewError = null;
+		previewResult = null;
+	}
+
+	/** Build a preview request from the CURRENT draft form, reusing the same
+	 *  condition parsing as toPayload(). Throws on invalid/empty conditions. */
+	function toPreviewRequest(): ImportRulePreviewRequest {
+		const hasName = form.matchNameOp !== '' && form.matchNameValue.trim() !== '';
+		const hasAmount = form.matchAmountOp !== '' && form.matchAmountValue !== '';
+		const hasDate = form.matchDateFrom !== '' || form.matchDateTo !== '';
+		const dayInput = (form.matchDayOfMonth ?? '').trim();
+		const hasDay = dayInput !== '';
+		if (!hasName && !hasAmount && !hasDate && !hasDay) {
+			throw new Error('Add at least one match condition.');
+		}
+		if (form.matchAmountOp === 'between' && !form.matchAmountValue2) {
+			throw new Error('Between amount rules require a second amount.');
+		}
+		let dayOfMonth: number | null = null;
+		if (hasDay) {
+			const parsed = Number(dayInput);
+			if (!Number.isInteger(parsed) || parsed < 1 || parsed > 31) {
+				throw new Error('Day of month must be a whole number between 1 and 31.');
+			}
+			dayOfMonth = parsed;
+		}
+		return {
+			matchNameOp: hasName ? (form.matchNameOp as NameMatchOp) : null,
+			matchNameValue: hasName ? form.matchNameValue.trim() : null,
+			matchAmountOp: hasAmount ? (form.matchAmountOp as AmountMatchOp) : null,
+			matchAmountValue: hasAmount ? Number(form.matchAmountValue) : null,
+			matchAmountValue2:
+				hasAmount && form.matchAmountOp === 'between' ? Number(form.matchAmountValue2) : null,
+			matchDateFrom: form.matchDateFrom || null,
+			matchDateTo: form.matchDateTo || null,
+			matchDayOfMonth: dayOfMonth
+		};
+	}
+
+	async function handlePreviewForm(): Promise<void> {
+		if (previewing) return;
+		previewError = null;
+		let request: ImportRulePreviewRequest;
+		try {
+			request = toPreviewRequest();
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Could not preview rule.';
+			previewResult = null;
+			return;
+		}
+		error = '';
+		previewing = true;
+		try {
+			previewResult = await previewImportRule(request);
+		} catch (err) {
+			previewError = err instanceof Error ? err.message : 'Failed to preview rule.';
+			previewResult = null;
+		} finally {
+			previewing = false;
+		}
+	}
+
+	// Per-card preview: derive the request from a SAVED rule's match conditions.
+	let cardPreviewingId = $state<string | null>(null);
+	let cardPreviews = $state<Record<string, ImportRulePreviewResult>>({});
+
+	function rulePreviewRequest(rule: ImportRule): ImportRulePreviewRequest {
+		return {
+			matchNameOp: rule.matchNameOp ?? null,
+			matchNameValue: rule.matchNameValue ?? null,
+			matchAmountOp: rule.matchAmountOp ?? null,
+			matchAmountValue: rule.matchAmountValue ?? null,
+			matchAmountValue2: rule.matchAmountValue2 ?? null,
+			matchDateFrom: rule.matchDateFrom ?? null,
+			matchDateTo: rule.matchDateTo ?? null,
+			matchDayOfMonth: rule.matchDayOfMonth ?? null
+		};
+	}
+
+	async function handlePreviewCard(rule: ImportRule) {
+		cardPreviewingId = rule.id;
+		try {
+			const result = await previewImportRule(rulePreviewRequest(rule));
+			cardPreviews = { ...cardPreviews, [rule.id]: result };
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to preview rule.';
+		} finally {
+			cardPreviewingId = null;
+		}
+	}
+
 	onMount(() => {
 		void refreshCategories();
 		void refreshImportRules();
@@ -431,9 +536,19 @@
 			{/if}
 		</fieldset>
 
-		<div class="mt-4">
+		<div class="mt-4 flex flex-wrap items-center gap-2">
 			<button type="submit" disabled={saving} class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent hover:bg-ctp-accent-hover disabled:opacity-60">
 				{saving ? 'Saving…' : editingId ? 'Save rule' : 'Add rule'}
+			</button>
+			<button
+				type="button"
+				data-testid="rule-preview-btn"
+				disabled={previewing}
+				onclick={handlePreviewForm}
+				class="inline-flex items-center gap-2 rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:cursor-not-allowed disabled:opacity-60"
+			>
+				<Eye size={16} aria-hidden="true" />
+				{previewing ? 'Previewing…' : 'Preview matches'}
 			</button>
 		</div>
 
@@ -442,7 +557,42 @@
 				{error}
 			</p>
 		{/if}
+
+		{#if previewError}
+			<p class="mt-3 rounded-md border border-ctp-red/40 bg-ctp-red/10 px-3 py-2 text-sm text-ctp-red">
+				{previewError}
+			</p>
+		{/if}
+
+		{#if previewResult}
+			<div data-testid="rule-preview-results" class="mt-3 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-3">
+				{@render previewMatches(previewResult)}
+			</div>
+		{/if}
 	</form>
+{/snippet}
+
+{#snippet previewMatches(preview: ImportRulePreviewResult)}
+	<p class="text-sm font-medium text-ctp-text">
+		<span data-testid="rule-preview-count">{preview.matched}</span>
+		{preview.matched === 1 ? 'transaction matches' : 'transactions match'} these conditions.
+	</p>
+	{#if preview.matched === 0}
+		<p class="mt-1 text-xs text-ctp-overlay1">No existing transactions match these conditions.</p>
+	{:else}
+		{#if preview.matched > PREVIEW_LIMIT}
+			<p class="mt-1 text-xs text-ctp-overlay1">Showing first {PREVIEW_LIMIT} of {preview.matched}.</p>
+		{/if}
+		<ul class="mt-2 flex flex-col divide-y divide-ctp-surface1 overflow-hidden rounded-md border border-ctp-surface1 bg-ctp-base">
+			{#each preview.expenses.slice(0, PREVIEW_LIMIT) as expense (expense.id)}
+				<li data-testid="rule-preview-row" class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+					<span class="min-w-0 flex-1 truncate text-ctp-text">{expense.displayName || expense.name}</span>
+					<span class="shrink-0 text-xs text-ctp-overlay1">{expense.date}</span>
+					<span class="shrink-0 font-medium text-ctp-text">{formatAmount(expense.amount, $settings.currency)}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/snippet}
 
 <svelte:head><title>Import Rules</title></svelte:head>
@@ -545,6 +695,17 @@
 						</button>
 						<button
 							type="button"
+							data-testid="rule-card-preview-btn"
+							aria-label="Preview matches"
+							title="Preview matches"
+							disabled={cardPreviewingId === rule.id}
+							onclick={() => handlePreviewCard(rule)}
+							class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+						>
+							<Eye size={16} aria-hidden="true" />
+						</button>
+						<button
+							type="button"
 							aria-label="Re-apply rule"
 							title="Re-apply rule"
 							disabled={applyingId === rule.id}
@@ -573,6 +734,12 @@
 							: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
 					>
 						{result.text}
+					</div>
+				{/if}
+
+				{#if cardPreviews[rule.id]}
+					<div data-testid="rule-preview-results" class="mt-3 rounded-md border border-ctp-surface1 bg-ctp-mantle/40 p-3">
+						{@render previewMatches(cardPreviews[rule.id])}
 					</div>
 				{/if}
 

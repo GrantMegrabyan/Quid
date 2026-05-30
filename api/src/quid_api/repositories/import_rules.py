@@ -95,14 +95,66 @@ def _matches_day_of_month(rule: ImportRule, date: str) -> bool:
     return day == rule.match_day_of_month
 
 
-def matches_rule(rule: ImportRule, item: RuleMatchItem) -> bool:
+def _matches_conditions(rule: ImportRule, item: RuleMatchItem) -> bool:
     return (
-        rule.enabled
-        and _matches_name(rule, item.name)
+        _matches_name(rule, item.name)
         and _matches_amount(rule, item.amount)
         and _matches_date(rule, item.date)
         and _matches_day_of_month(rule, item.date)
     )
+
+
+def matches_rule(rule: ImportRule, item: RuleMatchItem) -> bool:
+    return rule.enabled and _matches_conditions(rule, item)
+
+
+def _validate_match_conditions(rule: ImportRule) -> None:
+    """Validate only a rule's match conditions (no action/category checks).
+
+    Shared by ``preview_matches`` so a draft rule can be evaluated without a
+    target category. Mirrors the condition checks in
+    ``ImportRuleRepository._validate``.
+    """
+    if (rule.match_name_op is None) != (rule.match_name_value is None):
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Name match operator and value must be set together.",
+        )
+    if rule.match_name_op not in {None, "contains", "equals", "starts_with", "ends_with"}:
+        raise RepositoryError(RepositoryErrorCode.VALIDATION, "Name match operator is invalid.")
+    if (rule.match_amount_op is None) != (rule.match_amount_value is None):
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Amount match operator and value must be set together.",
+        )
+    if rule.match_amount_op not in {None, "gte", "lte", "eq", "between"}:
+        raise RepositoryError(RepositoryErrorCode.VALIDATION, "Amount match operator is invalid.")
+    if rule.match_amount_op == "between" and rule.match_amount_value2 is None:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Between amount rules require a second value.",
+        )
+    if rule.match_amount_op != "between" and rule.match_amount_value2 is not None:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Second amount value is only valid for between rules.",
+        )
+    if rule.match_day_of_month is not None and not 1 <= rule.match_day_of_month <= 31:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Day of month must be between 1 and 31.",
+        )
+    if (
+        rule.match_name_op is None
+        and rule.match_amount_op is None
+        and rule.match_date_from is None
+        and rule.match_date_to is None
+        and rule.match_day_of_month is None
+    ):
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "At least one match condition is required.",
+        )
 
 
 class ImportRuleRepository:
@@ -191,6 +243,26 @@ class ImportRuleRepository:
             if matches_rule(rule, item):
                 return rule
         return None
+
+    async def preview_matches(self, rule: ImportRule) -> list[Expense]:
+        """Return existing expenses that match ``rule`` without mutating anything.
+
+        ``rule`` is a transient (un-persisted) ``ImportRule`` built from the
+        caller's definition, so this works for both saved rules and a draft the
+        user is still editing. Match conditions are validated, but the rule's
+        ``enabled`` flag is ignored — a preview should always evaluate the
+        conditions even for a disabled draft.
+        """
+        _validate_match_conditions(rule)
+        expenses = list((await self.session.scalars(select(Expense))).all())
+        return [
+            expense
+            for expense in expenses
+            if _matches_conditions(
+                rule,
+                RuleMatchItem(name=expense.name, amount=expense.amount, date=expense.date),
+            )
+        ]
 
     async def apply_to_existing(self, rule_id: str) -> ApplyResult:
         rule = await self.get(rule_id)
@@ -316,45 +388,4 @@ class ImportRuleRepository:
                     RepositoryErrorCode.VALIDATION,
                     f'Category "{row.target_category_id}" does not exist.',
                 )
-        if (row.match_name_op is None) != (row.match_name_value is None):
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Name match operator and value must be set together.",
-            )
-        if row.match_name_op not in {None, "contains", "equals", "starts_with", "ends_with"}:
-            raise RepositoryError(RepositoryErrorCode.VALIDATION, "Name match operator is invalid.")
-        if (row.match_amount_op is None) != (row.match_amount_value is None):
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Amount match operator and value must be set together.",
-            )
-        if row.match_amount_op not in {None, "gte", "lte", "eq", "between"}:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION, "Amount match operator is invalid."
-            )
-        if row.match_amount_op == "between" and row.match_amount_value2 is None:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Between amount rules require a second value.",
-            )
-        if row.match_amount_op != "between" and row.match_amount_value2 is not None:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Second amount value is only valid for between rules.",
-            )
-        if row.match_day_of_month is not None and not 1 <= row.match_day_of_month <= 31:
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "Day of month must be between 1 and 31.",
-            )
-        if (
-            row.match_name_op is None
-            and row.match_amount_op is None
-            and row.match_date_from is None
-            and row.match_date_to is None
-            and row.match_day_of_month is None
-        ):
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                "At least one match condition is required.",
-            )
+        _validate_match_conditions(row)

@@ -287,6 +287,34 @@ newest first. Each entry (`ImportLogOut`, camelCase) has: `id`, `importedAt`,
 UI shows this as the **Import history** table below the Import tabs, with a
 **Source** column and an expandable raw-input view for AI free-form runs.
 
+## Import rules
+
+Import rules (`/api/v1/import-rules`, web UI **Rules** page) match transactions
+by name / amount / date / day-of-month and either `exclude` them or
+`categorize` them (optionally also setting `display_name` / `note`). Endpoints:
+
+- `GET /api/v1/import-rules` — list rules (priority order).
+- `GET /api/v1/import-rules/{id}` — single rule.
+- `POST /api/v1/import-rules` — create (`ImportRuleCreate`).
+- `PATCH /api/v1/import-rules/{id}` — update (`ImportRuleUpdate`).
+- `DELETE /api/v1/import-rules/{id}` — delete.
+- `POST /api/v1/import-rules/{id}/apply` — re-apply one rule to existing
+  expenses. Returns `{ matched, updated, deleted }`.
+- `POST /api/v1/import-rules/apply-all` — re-apply all enabled rules
+  (first match wins per expense). Returns `{ matched, updated, deleted }`.
+- `POST /api/v1/import-rules/preview` — **dry-run** a rule's match conditions
+  against existing transactions. Read-only: it never writes. The body
+  (`ImportRulePreviewRequest`, camelCase) is the match-condition fields ONLY
+  (`matchNameOp/Value`, `matchAmountOp/Value/Value2`, `matchDateFrom/To`,
+  `matchDayOfMonth`) — no action or target category, so an unsaved draft can be
+  previewed before saving. The same condition validation as create/update
+  applies (at least one condition required, `between` needs a second value, day
+  1–31, etc.) and a violation returns 422. The `enabled` flag is irrelevant to a
+  preview. Returns `{ "matched": N, "expenses": [ExpenseOut, …] }` — the full
+  list of matching transactions. The web UI surfaces this as a **Preview
+  matches** button in the rule add/edit form (previews the live draft) and an
+  eye icon on each saved rule card (previews that rule's conditions).
+
 ## Amazon orders
 
 Amazon order exports are imported and linked to transactions so the UI can show

@@ -19,6 +19,8 @@ import type {
 	ImportRule,
 	ImportRuleApplyResult,
 	ImportRuleCreate,
+	ImportRulePreviewRequest,
+	ImportRulePreviewResult,
 	ImportRuleUpdate
 } from '$types';
 
@@ -63,6 +65,7 @@ export interface ImportRuleRepository {
 	delete(id: string): Promise<void>;
 	apply(id: string): Promise<ImportRuleApplyResult>;
 	applyAll(): Promise<ImportRuleApplyResult>;
+	preview(input: ImportRulePreviewRequest): Promise<ImportRulePreviewResult>;
 }
 
 export interface AiRuleRepository {
