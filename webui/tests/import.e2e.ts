@@ -397,4 +397,186 @@ test.describe('import page', () => {
 		await expect(page.getByTestId('import-banner')).toHaveAttribute('data-kind', 'error');
 		expect(confirmCalled).toBe(false);
 	});
+
+	test('CSV preview can exclude a brand-new row from the import', async ({ page }) => {
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-exclude-1',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'hash-a',
+							name: 'Keep Me',
+							amount: '5.25',
+							date: '2026-01-10',
+							note: '',
+							kind: 'create',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'important'
+						},
+						{
+							previewRowId: 'row-1',
+							filename: 'statement.csv',
+							sourceRow: 3,
+							dedupeKeyHash: 'hash-b',
+							name: 'Drop Me',
+							amount: '9.99',
+							date: '2026-01-11',
+							note: '',
+							kind: 'create',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 2,
+						categoryUpdates: 0,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 2,
+							imported: 2,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		let creates: { name: string }[] | null = null;
+		await page.route('**/api/v1/expenses/import-csv/confirm', async (route) => {
+			const body = route.request().postDataJSON() as { creates: { name: string }[] };
+			creates = body.creates;
+			await route.fulfill({
+				status: 201,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					created: 1,
+					updated: 0,
+					skippedDuplicates: 0,
+					skippedStaleUpdates: 0,
+					keptExisting: 0,
+					categoriesCreated: [],
+					expenses: []
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-01-10,Keep Me,5.25\n2026-01-11,Drop Me,9.99\n')
+		});
+
+		// Exclude the second (new) row.
+		const excludeButtons = page.getByTestId('toggle-exclude');
+		await expect(excludeButtons).toHaveCount(2);
+		await excludeButtons.nth(1).click();
+		await expect(excludeButtons.nth(1)).toHaveText('Include');
+		await expect(excludeButtons.nth(1)).toHaveAttribute('aria-pressed', 'true');
+
+		await page.getByTestId('confirm-import').click();
+		await expect(page.getByTestId('import-banner')).toHaveAttribute('data-kind', 'success');
+		expect(creates).not.toBeNull();
+		// Only the kept row is sent; the excluded new row is dropped.
+		expect(creates!.map((row) => row.name)).toEqual(['Keep Me']);
+	});
+
+	test('CSV preview can hide and show matched rows', async ({ page }) => {
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-toggle-1',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'hash-new',
+							name: 'New Row',
+							amount: '5.25',
+							date: '2026-01-10',
+							note: '',
+							kind: 'create',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'important'
+						},
+						{
+							previewRowId: 'row-1',
+							filename: 'statement.csv',
+							sourceRow: 3,
+							dedupeKeyHash: 'hash-match',
+							name: 'Matched Row',
+							amount: '42.50',
+							date: '2026-01-09',
+							note: '',
+							kind: 'category_update',
+							existingExpenseId: 'exp-seed-1',
+							existingCategoryId: 'cat-public-transport',
+							existingCategoryName: 'Public Transport',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'discretionary',
+							existingImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 1,
+						categoryUpdates: 1,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 2,
+							imported: 1,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-01-10,New Row,5.25\n2026-01-09,Matched Row,42.50\n')
+		});
+
+		// Both rows visible initially.
+		await expect(page.getByText('Matched Row')).toBeVisible();
+		await expect(page.getByText('New Row')).toBeVisible();
+
+		// Hide matched: only the new row remains.
+		const toggle = page.getByTestId('toggle-show-matched');
+		await expect(toggle).toHaveText('Hide 1 matched');
+		await toggle.click();
+		await expect(page.getByText('Matched Row')).toHaveCount(0);
+		await expect(page.getByText('New Row')).toBeVisible();
+		await expect(toggle).toHaveText('Show 1 matched');
+
+		// Show again.
+		await toggle.click();
+		await expect(page.getByText('Matched Row')).toBeVisible();
+	});
 });

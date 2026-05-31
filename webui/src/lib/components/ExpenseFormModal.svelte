@@ -45,7 +45,10 @@
 		if (expense) {
 			nameInput = expense.name;
 			amountInput = expense.amount;
-			dateInput = expense.date;
+			// The native <input type="date"> only holds a date; an expense date
+			// may carry a time (YYYY-MM-DDTHH:MM:SS). Show the date part. Saving
+			// an edit therefore normalises that expense back to date-only.
+			dateInput = expense.date.slice(0, 10);
 			categoryInput = expense.categoryId;
 			noteInput = expense.note;
 			displayNameInput = expense.displayName ?? '';

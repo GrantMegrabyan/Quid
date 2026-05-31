@@ -727,7 +727,7 @@
 								<div class="flex flex-wrap items-center justify-between gap-2 border-b border-ctp-surface0 px-3 py-2 text-sm last:border-b-0">
 									<div>
 										<p class="font-medium text-ctp-text">{expense.displayName ?? expense.name}</p>
-										<p class="text-xs text-ctp-overlay1">{expense.date} · {formatAmount(expense.amount, $settings.currency)}</p>
+										<p class="text-xs text-ctp-overlay1">{expense.date.slice(0, 10)} · {formatAmount(expense.amount, $settings.currency)}</p>
 									</div>
 									<button
 										type="button"

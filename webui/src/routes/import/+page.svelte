@@ -20,6 +20,9 @@
 		selectedAmountInput: string;
 		amountError: boolean;
 		acceptUpdate: boolean;
+		// User-set: drop this row from the import entirely. Applies to ANY
+		// reviewable row, including brand-new ('create') transactions.
+		userExcluded: boolean;
 	};
 
 	type ReviewState = {
@@ -41,13 +44,28 @@
 	let loading = $state(false);
 	let saving = $state(false);
 	let csvReview = $state<ReviewState | null>(null);
+	// Show/hide the matched ('category_update') rows in the preview table.
+	// They're kept-by-default so users often want them collapsed away.
+	let csvShowMatched = $state(true);
 
-	const csvCreateRows = $derived(csvReview ? csvReview.rows.filter((row) => row.kind === 'create') : []);
+	const csvCreateRows = $derived(
+		csvReview ? csvReview.rows.filter((row) => row.kind === 'create' && !row.userExcluded) : []
+	);
 	const csvUpdateRows = $derived(
-		csvReview ? csvReview.rows.filter((row) => row.kind === 'category_update') : []
+		csvReview
+			? csvReview.rows.filter((row) => row.kind === 'category_update' && !row.userExcluded)
+			: []
+	);
+	const csvMatchedCount = $derived(
+		csvReview ? csvReview.rows.filter((row) => row.kind === 'category_update').length : 0
 	);
 	const csvVisibleRows = $derived(
-		csvReview ? csvReview.rows.filter((row) => row.kind !== 'excluded') : []
+		csvReview
+			? csvReview.rows.filter(
+					(row) =>
+						row.kind !== 'excluded' && (csvShowMatched || row.kind !== 'category_update')
+				)
+			: []
 	);
 
 	// --- Single transaction tab state ---------------------------------------
@@ -69,15 +87,31 @@
 	let freeformParsing = $state(false);
 	let freeformSaving = $state(false);
 	let freeformReview = $state<ReviewState | null>(null);
+	let freeformShowMatched = $state(true);
 
 	const freeformCreateRows = $derived(
-		freeformReview ? freeformReview.rows.filter((row) => row.kind === 'create') : []
+		freeformReview
+			? freeformReview.rows.filter((row) => row.kind === 'create' && !row.userExcluded)
+			: []
 	);
 	const freeformUpdateRows = $derived(
-		freeformReview ? freeformReview.rows.filter((row) => row.kind === 'category_update') : []
+		freeformReview
+			? freeformReview.rows.filter((row) => row.kind === 'category_update' && !row.userExcluded)
+			: []
+	);
+	const freeformMatchedCount = $derived(
+		freeformReview
+			? freeformReview.rows.filter((row) => row.kind === 'category_update').length
+			: 0
 	);
 	const freeformVisibleRows = $derived(
-		freeformReview ? freeformReview.rows.filter((row) => row.kind !== 'excluded') : []
+		freeformReview
+			? freeformReview.rows.filter(
+					(row) =>
+						row.kind !== 'excluded' &&
+						(freeformShowMatched || row.kind !== 'category_update')
+				)
+			: []
 	);
 
 	// --- Helpers ------------------------------------------------------------
@@ -91,7 +125,8 @@
 			// Matched (existing) transactions are NOT updated by default: a prior
 			// import may have been intentionally edited, so we never silently
 			// override it. The user opts in per-row via the Enable button.
-			acceptUpdate: false
+			acceptUpdate: false,
+			userExcluded: false
 		}));
 	}
 
@@ -399,10 +434,14 @@
 	preview: ImportCsvPreviewResult,
 	busy: boolean,
 	confirmTestId: string,
+	matchedCount: number,
+	showMatched: boolean,
+	onToggleMatched: () => void,
 	onCancel: () => void,
 	onConfirm: () => void
 )}
 	{@const overrideCount = updateRows.filter((row) => row.acceptUpdate).length}
+	{@const excludedCount = rows.filter((row) => row.userExcluded).length}
 	<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
 		<div><strong>{preview.summary.creates}</strong><br />new</div>
 		<div><strong>{preview.summary.categoryUpdates}</strong><br />existing (kept)</div>
@@ -411,6 +450,22 @@
 		<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
 		<div><strong>{preview.summary.aiCategorized}</strong><br />AI categorised</div>
 	</div>
+
+	{#if matchedCount > 0}
+		<div class="flex items-center justify-end">
+			<button
+				type="button"
+				data-testid="toggle-show-matched"
+				aria-pressed={showMatched}
+				onclick={onToggleMatched}
+				class="text-xs font-medium text-ctp-accent underline decoration-dotted underline-offset-2 hover:no-underline"
+			>
+				{showMatched
+					? `Hide ${matchedCount} matched`
+					: `Show ${matchedCount} matched`}
+			</button>
+		</div>
+	{/if}
 
 	{#if rows.length > 0}
 		<div class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base">
@@ -424,11 +479,14 @@
 				<div>Decision</div>
 			</div>
 			{#each rows as row (row.previewRowId)}
-				{@const matchedDisabled = row.kind === 'category_update' && !row.acceptUpdate}
+				{@const matchedDisabled =
+					row.userExcluded || (row.kind === 'category_update' && !row.acceptUpdate)}
 				<div
-					class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0 {matchedDisabled
-						? 'opacity-55'
-						: ''}"
+					class="import-row border-b border-ctp-surface0 px-4 py-3 text-sm last:border-b-0 {row.userExcluded
+						? 'opacity-40'
+						: matchedDisabled
+							? 'opacity-55'
+							: ''}"
 				>
 					<div>
 						<div class="font-medium text-ctp-text">{row.name}</div>
@@ -448,9 +506,10 @@
 								inputmode="decimal"
 								data-testid="review-amount-input"
 								value={row.selectedAmountInput}
+								disabled={row.userExcluded}
 								oninput={(event) => onAmountInput(row, event.currentTarget.value)}
 								aria-invalid={row.amountError}
-								class="h-10 w-full rounded-md border bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:outline-none {row.amountError
+								class="h-10 w-full rounded-md border bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:outline-none disabled:opacity-50 {row.amountError
 									? 'border-red-500 focus:border-red-500'
 									: 'border-ctp-surface1 focus:border-ctp-accent'}"
 							/>
@@ -486,37 +545,44 @@
 							</p>
 						{/if}
 					</div>
-					<div>
-						{#if row.kind === 'create'}
+					<div class="flex flex-col items-start gap-1">
+						{#if row.userExcluded}
+							<span
+								class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
+								>Excluded</span
+							>
+						{:else if row.kind === 'create'}
 							<span
 								class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
 								>New transaction</span
 							>
 						{:else if row.kind === 'category_update'}
-							<div class="flex flex-col items-start gap-1">
-								<span
-									class="rounded-full px-2 py-1 text-xs font-medium {row.acceptUpdate
-										? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
-										: 'bg-ctp-surface1 text-ctp-subtext0'}"
-								>
-									{row.acceptUpdate ? 'Will override existing' : 'Existing kept'}
-								</span>
-								<button
-									type="button"
-									data-testid="toggle-override"
-									aria-pressed={row.acceptUpdate}
-									onclick={() => (row.acceptUpdate = !row.acceptUpdate)}
-									class="text-xs font-medium text-ctp-accent underline decoration-dotted underline-offset-2 hover:no-underline"
-								>
-									{row.acceptUpdate ? 'Disable override' : 'Enable to override'}
-								</button>
-							</div>
-						{:else}
 							<span
-								class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
-								>Excluded</span
+								class="rounded-full px-2 py-1 text-xs font-medium {row.acceptUpdate
+									? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+									: 'bg-ctp-surface1 text-ctp-subtext0'}"
 							>
+								{row.acceptUpdate ? 'Will override existing' : 'Existing kept'}
+							</span>
+							<button
+								type="button"
+								data-testid="toggle-override"
+								aria-pressed={row.acceptUpdate}
+								onclick={() => (row.acceptUpdate = !row.acceptUpdate)}
+								class="text-xs font-medium text-ctp-accent underline decoration-dotted underline-offset-2 hover:no-underline"
+							>
+								{row.acceptUpdate ? 'Disable override' : 'Enable to override'}
+							</button>
 						{/if}
+						<button
+							type="button"
+							data-testid="toggle-exclude"
+							aria-pressed={row.userExcluded}
+							onclick={() => (row.userExcluded = !row.userExcluded)}
+							class="text-xs font-medium text-ctp-overlay1 underline decoration-dotted underline-offset-2 hover:text-ctp-text hover:no-underline"
+						>
+							{row.userExcluded ? 'Include' : 'Exclude'}
+						</button>
 					</div>
 				</div>
 			{/each}
@@ -540,7 +606,7 @@
 			>
 				{busy
 					? 'Saving…'
-					: `Save ${createRows.length} new${overrideCount > 0 ? ` and override ${overrideCount} existing` : ''}`}
+					: `Save ${createRows.length} new${overrideCount > 0 ? ` and override ${overrideCount} existing` : ''}${excludedCount > 0 ? ` (${excludedCount} excluded)` : ''}`}
 			</button>
 		</div>
 	{/if}
@@ -622,7 +688,9 @@
 				<p class="max-w-xl text-sm text-ctp-overlay1">
 					Preview CSV transactions before saving. Transactions that already exist are never
 					overwritten by default — they're shown disabled so your earlier edits are kept. Use
-					“Enable to override” on a row to apply the imported category / importance.
+					“Enable to override” on a row to apply the imported category / importance, “Exclude”
+					to skip any row (including new ones), and “Hide matched” to collapse the existing
+					rows away.
 				</p>
 				<div class="flex flex-wrap items-center gap-2">
 					<input
@@ -654,6 +722,9 @@
 					csvReview.preview,
 					saving,
 					'confirm-import',
+					csvMatchedCount,
+					csvShowMatched,
+					() => (csvShowMatched = !csvShowMatched),
 					() => (csvReview = null),
 					confirmCsvImport
 				)}
@@ -823,6 +894,9 @@
 					freeformReview.preview,
 					freeformSaving,
 					'freeform-confirm',
+					freeformMatchedCount,
+					freeformShowMatched,
+					() => (freeformShowMatched = !freeformShowMatched),
 					() => (freeformReview = null),
 					confirmFreeformImport
 				)}

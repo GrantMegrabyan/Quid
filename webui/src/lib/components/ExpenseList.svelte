@@ -167,7 +167,9 @@
 	);
 
 	function formatDate(iso: string): string {
-		const [yearPart, monthPart, dayPart] = iso.split('-');
+		// `iso` may carry a time component (YYYY-MM-DDTHH:MM:SS); only the date
+		// part is shown, so slice to the first 10 chars before parsing.
+		const [yearPart, monthPart, dayPart] = iso.slice(0, 10).split('-');
 		const year = Number(yearPart);
 		const month = Number(monthPart);
 		const day = Number(dayPart);
