@@ -80,9 +80,15 @@ def _matches_amount(rule: ImportRule, amount: Decimal) -> bool:
 
 
 def _matches_date(rule: ImportRule, date: str) -> bool:
-    if rule.match_date_from is not None and date < rule.match_date_from:
+    # An expense ``date`` may carry a time component
+    # (``YYYY-MM-DDTHH:MM:SS``), while rule bounds are always date-only
+    # (``YYYY-MM-DD``). Compare on the day prefix so an inclusive upper bound
+    # still matches a timestamped transaction on the boundary day (otherwise
+    # ``"2024-01-15T13:45:30" > "2024-01-15"`` would wrongly exclude it).
+    day = date[:10]
+    if rule.match_date_from is not None and day < rule.match_date_from:
         return False
-    return not (rule.match_date_to is not None and date > rule.match_date_to)
+    return not (rule.match_date_to is not None and day > rule.match_date_to)
 
 
 def _matches_day_of_month(rule: ImportRule, date: str) -> bool:

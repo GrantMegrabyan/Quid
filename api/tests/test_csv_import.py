@@ -75,7 +75,9 @@ async def test_import_revolut_bank_statement_format(app_client):
     assert body["skippedInvalidRows"] == 1
     expenses = (await app_client.get("/api/v1/expenses")).json()
     dates = sorted(e["date"] for e in expenses)
-    assert dates == ["2026-04-01", "2026-04-02"]
+    # Uses Started Date (09:00:00 / 10:00:00), NOT Completed Date
+    # (09:00:01 / 10:00:01), and preserves the time component.
+    assert dates == ["2026-04-01T09:00:00", "2026-04-02T10:00:00"]
 
 
 async def test_import_is_idempotent_on_same_file(app_client):
@@ -143,6 +145,56 @@ async def test_import_inserts_two_identical_rows_from_same_file(app_client):
     again_body = again.json()
     assert again_body["imported"] == 0
     assert again_body["skippedDuplicates"] == 3
+
+
+async def test_import_same_day_different_time_are_distinct(app_client):
+    # Two transactions: same merchant, same amount, same calendar day, but
+    # different wall-clock times. The time component must keep them distinct
+    # (not collapsed as a duplicate).
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    same_day = (
+        "name,category,amount,date,note\n"
+        "Pret,eating_out,-3.50,2026-04-01 09:00:00,\n"
+        "Pret,eating_out,-3.50,2026-04-01 17:30:00,\n"
+    )
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("same-day.csv", same_day)],
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["imported"] == 2
+    assert body["skippedDuplicates"] == 0
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    dates = sorted(e["date"] for e in expenses)
+    assert dates == ["2026-04-01T09:00:00", "2026-04-01T17:30:00"]
+
+
+async def test_import_with_time_is_idempotent(app_client):
+    # Re-uploading a timestamped CSV is still a no-op: the canonical stored
+    # string equals the incoming value exactly.
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    timed = (
+        "name,category,amount,date,note\n"
+        "Pret,eating_out,-3.50,2026-04-01 09:00:00,\n"
+        "Tesco,groceries,-12.34,2026-04-02 10:15:42,\n"
+    )
+    first = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("timed.csv", timed)],
+    )
+    assert first.json()["imported"] == 2
+    second = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("timed.csv", timed)],
+    )
+    second_body = second.json()
+    assert second_body["imported"] == 0
+    assert second_body["skippedDuplicates"] == 2
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 2
 
 
 async def test_import_multiple_files_combined(app_client):

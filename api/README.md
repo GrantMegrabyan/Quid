@@ -239,15 +239,18 @@ Required logical fields: `name`, `amount`, `date`. Optional: `category`, `note`.
 | --- | --- |
 | name | `name`, `description`, `merchant`, `payee` |
 | amount | `amount`, `value` |
-| date | `date`, `completed date`, `started date`, `transaction date`, `posting date` |
+| date | `date`, `started date`, `completed date`, `transaction date`, `posting date` |
 | category | `category`, `type`, `tag` (defaults to `uncategorized`) |
 | note | `note`, `notes`, `memo`, `reference` |
 
-Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates accept `YYYY-MM-DD` and `YYYY-MM-DD HH:MM:SS` (the time portion is dropped). If a `state` / `status` column is present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
+Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates accept `YYYY-MM-DD` and `YYYY-MM-DD HH:MM:SS` (the time portion is **preserved** and stored as `YYYY-MM-DDTHH:MM:SS`). When both are present, **Started Date** is preferred over Completed Date (the alias order above). If a `state` / `status` column is present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
 
 ### Idempotency
 
 The endpoint deduplicates by the tuple `(date, lower(trim(name)), amount)`.
+The `date` is the full stored value (with its time, when present), so two
+same-day, same-merchant, same-amount transactions with different times are
+**distinct**, while re-importing the same timestamped CSV stays a no-op.
 Neither category nor note is part of the key. AI categorisation is non-deterministic
 across runs, import-rule sets change over time, and users re-categorise rows by hand;
 note is likewise incidental and user-mutable (manual edits, or a differing export from

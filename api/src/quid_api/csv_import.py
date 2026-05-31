@@ -16,8 +16,8 @@ _NAME_ALIASES = ("name", "description", "merchant", "payee")
 _AMOUNT_ALIASES = ("amount", "value")
 _DATE_ALIASES = (
     "date",
-    "completed date",
     "started date",
+    "completed date",
     "transaction date",
     "posting date",
 )
@@ -51,11 +51,45 @@ def _pick_column(header_map: dict[str, str], aliases: tuple[str, ...]) -> str | 
     return None
 
 
+def _normalize_time(raw: str) -> str:
+    """Canonicalise a ``HH:MM[:SS]`` time fragment to ``HH:MM:SS`` or ``""``.
+
+    Returns an empty string for anything that isn't a plain wall-clock time so
+    the caller falls back to a date-only value rather than emitting garbage.
+    """
+    head = raw.strip().split(".", 1)[0]  # drop fractional seconds / tz junk
+    head = head.split("+", 1)[0].split("Z", 1)[0].strip()
+    parts = head.split(":")
+    if len(parts) not in (2, 3) or not all(p.isdigit() for p in parts):
+        return ""
+    hh, mm = parts[0], parts[1]
+    ss = parts[2] if len(parts) == 3 else "00"
+    if len(hh) != 2 or len(mm) != 2 or len(ss) != 2:
+        return ""
+    if int(hh) > 23 or int(mm) > 59 or int(ss) > 59:
+        return ""
+    return f"{hh}:{mm}:{ss}"
+
+
 def _normalize_date(raw: str) -> str:
+    """Return an ISO ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS`` value.
+
+    The time component (after a ``T`` or space separator) is preserved and
+    canonicalised when present so that same-day, same-merchant, same-amount
+    transactions stay distinct during import dedupe. A bare date stays bare —
+    no midnight is fabricated.
+    """
     raw = raw.strip()
     if not raw:
         return raw
-    head = raw.split("T", 1)[0].split(" ", 1)[0]
+    if "T" in raw:
+        date_part, _, time_part = raw.partition("T")
+    elif " " in raw:
+        date_part, _, time_part = raw.partition(" ")
+    else:
+        date_part, time_part = raw, ""
+
+    head = date_part.strip()
     if "/" in head and "-" not in head:
         parts = head.split("/")
         if len(parts) == 3 and all(p.isdigit() for p in parts):
@@ -66,8 +100,10 @@ def _normalize_date(raw: str) -> str:
             )
             if len(y) == 2:
                 y = "20" + y
-            return f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-    return head
+            head = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+
+    time = _normalize_time(time_part) if time_part else ""
+    return f"{head}T{time}" if time else head
 
 
 def _coerce_amount_string(raw: str) -> str:

@@ -90,7 +90,9 @@ class Expense(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positive"),
         CheckConstraint(
-            "date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'",
+            "date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' "
+            "OR date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+            "T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]'",
             name="ck_expenses_date_iso",
         ),
         CheckConstraint(

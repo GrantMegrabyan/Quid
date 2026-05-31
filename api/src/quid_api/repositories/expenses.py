@@ -18,7 +18,7 @@ from quid_api.category_helpers import (
     slugify_category,
     titleize_slug,
 )
-from quid_api.datelib import validate_iso_date
+from quid_api.datelib import validate_iso_datetime
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
@@ -96,7 +96,7 @@ def _validate_amount(amount: Decimal) -> Decimal:
 
 def _validate_date(date: str) -> str:
     try:
-        return validate_iso_date(date)
+        return validate_iso_datetime(date)
     except ValueError as exc:
         raise RepositoryError(
             RepositoryErrorCode.VALIDATION,
@@ -354,6 +354,15 @@ class ExpenseRepository:
         """Idempotent bulk insert.
 
         Dedup key: ``(date, lower(trim(name)), amount)``.
+
+        ``date`` is the full stored value, which may carry a time component
+        (``YYYY-MM-DDTHH:MM:SS``) — so two same-day, same-merchant, same-amount
+        transactions with different times are distinct, while re-importing the
+        SAME timestamped CSV stays a no-op (the canonical string matches
+        exactly). Caveat: a transaction imported once date-only and then
+        re-imported from a richer export WITH a time has a different key and
+        will insert as a new row (the preview won't flag it). Re-import only new
+        periods, or wipe + re-import, when adopting timestamped exports.
 
         Neither category nor note is part of the key. AI categorisation is
         non-deterministic across runs, import-rule sets change over time, and

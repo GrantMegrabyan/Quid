@@ -12,6 +12,41 @@ def _upload(name: str, body: str) -> tuple[str, tuple[str, bytes, str]]:
     return ("files", (name, body.encode("utf-8"), "text/csv"))
 
 
+def _date_rule(date_from: str | None, date_to: str | None) -> ImportRule:
+    return ImportRule(
+        id="r",
+        name="date-only",
+        enabled=True,
+        priority=100,
+        action="exclude",
+        match_date_from=date_from,
+        match_date_to=date_to,
+        created_at="2026-04-01",
+    )
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to", "expense_date", "expected"),
+    [
+        # Inclusive upper bound must still match a timestamped txn on the
+        # boundary day (regression guard: "...T13:45:30" > "2024-01-15").
+        (None, "2026-04-15", "2026-04-15T13:45:30", True),
+        # Inclusive lower bound, timestamped txn on the from-day.
+        ("2026-04-15", None, "2026-04-15T00:00:01", True),
+        # A timestamped txn the day after the upper bound is excluded.
+        (None, "2026-04-15", "2026-04-16T00:00:00", False),
+        # A timestamped txn the day before the lower bound is excluded.
+        ("2026-04-15", None, "2026-04-14T23:59:59", False),
+        # Bare-date expense still works.
+        ("2026-04-01", "2026-04-30", "2026-04-15", True),
+    ],
+)
+def test_rule_date_bounds_match_timestamped_expense(date_from, date_to, expense_date, expected):
+    rule = _date_rule(date_from, date_to)
+    item = RuleMatchItem(name="anything", amount=Decimal("1.00"), date=expense_date)
+    assert matches_rule(rule, item) is expected
+
+
 async def test_default_transfer_rule_is_seeded(app_client):
     res = await app_client.get("/api/v1/import-rules")
     assert res.status_code == 200

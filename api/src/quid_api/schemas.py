@@ -14,7 +14,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-from quid_api.datelib import validate_iso_date
+from quid_api.datelib import validate_iso_date, validate_iso_datetime
 
 # Canonical money transport: every monetary value crosses the API boundary as a
 # decimal STRING with exactly two fractional digits ("19.99", "42.00"), never a
@@ -33,13 +33,32 @@ def _money_str(value: Decimal) -> str:
 
 
 def _validate_required_date(value: str) -> str:
-    """Pydantic validator for a required ``YYYY-MM-DD`` calendar date."""
+    """Pydantic validator for a required ``YYYY-MM-DD`` calendar date.
+
+    Strict date-only — used for import-rule date bounds, whose DB columns keep a
+    date-only CHECK constraint.
+    """
     return validate_iso_date(value)
 
 
 def _validate_optional_date(value: str | None) -> str | None:
     """Pydantic validator for an optional ``YYYY-MM-DD`` calendar date."""
     return None if value is None else validate_iso_date(value)
+
+
+def _validate_required_datetime(value: str) -> str:
+    """Pydantic validator for a required expense date.
+
+    Accepts a bare ``YYYY-MM-DD`` date or a full ``YYYY-MM-DDTHH:MM:SS``
+    timestamp. Expenses carry an optional time so same-day duplicates can be
+    disambiguated during import dedupe.
+    """
+    return validate_iso_datetime(value)
+
+
+def _validate_optional_datetime(value: str | None) -> str | None:
+    """Pydantic validator for an optional expense date (date or datetime)."""
+    return None if value is None else validate_iso_datetime(value)
 
 
 class _Camel(BaseModel):
@@ -107,7 +126,7 @@ class ExpenseCreate(_Camel):
     note: str = ""
     importance: Importance = "important"
 
-    _validate_date = field_validator("date")(_validate_required_date)
+    _validate_date = field_validator("date")(_validate_required_datetime)
 
     @field_validator("amount")
     @classmethod
@@ -126,7 +145,7 @@ class ExpenseUpdate(_Camel):
     display_name: str | None = None
     importance: Importance | None = None
 
-    _validate_date = field_validator("date")(_validate_optional_date)
+    _validate_date = field_validator("date")(_validate_optional_datetime)
 
     @field_validator("amount")
     @classmethod
@@ -144,7 +163,7 @@ class BulkExpenseItem(_Camel):
     note: str = ""
     importance: Importance = "important"
 
-    _validate_date = field_validator("date")(_validate_required_date)
+    _validate_date = field_validator("date")(_validate_required_datetime)
 
 
 class BulkExpenseRequest(_Camel):
@@ -237,7 +256,7 @@ class ImportCsvConfirmCreateRow(_Camel):
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
     importance: Importance = "important"
 
-    _validate_date = field_validator("date")(_validate_required_date)
+    _validate_date = field_validator("date")(_validate_required_datetime)
 
 
 class ImportCsvConfirmCategoryUpdateRow(_Camel):

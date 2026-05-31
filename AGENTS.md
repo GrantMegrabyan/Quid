@@ -103,6 +103,28 @@ When NOT to commit:
   - `uv run pytest`
 - Use Alembic migrations for schema changes under `api/alembic/versions/`.
 - Transactions are represented as `expenses` in the schema/code.
+- `expenses.date` is a TEXT column that stores EITHER a bare `YYYY-MM-DD` date
+  OR a full `YYYY-MM-DDTHH:MM:SS` local timestamp (no tz). The `ck_expenses_date_iso`
+  CHECK accepts both (migration `0019`); there is intentionally no midnight
+  backfill of legacy date-only rows. Lexical sort and the 10-char day prefix
+  treat both forms correctly. Expense date inputs are validated with
+  `datelib.validate_iso_datetime` (accepts date OR datetime); rule date bounds
+  (`match_date_from/to`) and Amazon `order_date` keep the strict date-only
+  `validate_iso_date` — DO NOT widen those, their DB CHECKs are date-only.
+- Import dedupe key is `(date, lower(trim(name)), amount)` where `date` is the
+  full stored value (with time when present). Same merchant/amount on the same
+  day but different times → distinct rows; re-importing the same timestamped CSV
+  → no-op. Caveat: a row imported once date-only then re-imported from a richer
+  export WITH a time gets a different key and inserts a duplicate (preview won't
+  flag it) — re-import only new periods, or wipe + re-import, when adopting
+  timestamped exports.
+- CSV date column preference: `_DATE_ALIASES` order is `date, started date,
+  completed date, …` so Revolut-style statements (which have both) use **Started
+  Date**, and `csv_import._normalize_date` PRESERVES the time component.
+- Import-rule date matching (`import_rules._matches_date`) compares on the
+  expense date's 10-char day prefix so an inclusive `match_date_to` still matches
+  a timestamped transaction on the boundary day. Keep the prefix slice if you
+  touch it.
 - Use `uv run quid-api clear-transactions` for the built-in transaction wipe, but only after explicit confirmation.
 - Import rules: a rule's `set_display_name` and `set_note` are only meaningful
   for `categorize` rules (an `exclude` rule deletes the matched expense), and the
