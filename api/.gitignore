@@ -13,3 +13,6 @@ htmlcov/
 *.db-wal
 *.db-shm
 .env
+# Real (possibly personal) golden set for the categorisation eval harness.
+# The committed example (golden_set.example.json) is the template.
+scripts/golden_set.json

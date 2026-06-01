@@ -191,6 +191,38 @@ uncategorised expense. It never overwrites an order's existing category or a
 non-uncategorised expense category, so it is safe to re-run. It calls
 OpenRouter, so it needs `QUID_OPENROUTER_API_KEY`.
 
+## Evaluating categorisation models
+
+`scripts/eval_categorization.py` is a dev tool (not part of the `quid-api` CLI)
+for comparing OpenRouter models on the AI categorisation task. It runs the
+**same** production pipeline (`categorize_transactions`, including the
+`_snap_to_existing` normalisation and the low-confidence-exclude gate) against a
+hand-labelled golden set, once per candidate model, and reports the metrics that
+actually matter for this app:
+
+- **new categories invented** — the headline category-proliferation risk;
+- **category match, raw vs after-snap** — a large gap means the model won't reuse
+  existing spelling on its own and is leaning on the snap;
+- **exclude TP/FP/FN** — a false-positive exclude silently deletes a real
+  transaction, the costliest mistake;
+- **importance agreement**, token usage, wall-clock, and estimated USD cost.
+
+Usage:
+
+```bash
+cp scripts/golden_set.example.json scripts/golden_set.json   # then edit with your own labelled data
+QUID_OPENROUTER_API_KEY=sk-... uv run python scripts/eval_categorization.py \
+  --model openai/gpt-5.4-mini \
+  --model google/gemini-2.5-flash \
+  --model deepseek/deepseek-v4-pro
+```
+
+With no `--model` it evaluates the configured `QUID_OPENROUTER_MODEL`.
+`scripts/golden_set.json` is git-ignored (it may hold real transactions); the
+committed `golden_set.example.json` is the template and documents the format.
+Per-model USD pricing for the cost column lives in `PRICES` in the script —
+update it as OpenRouter pricing changes (unknown models still report tokens).
+
 ## Adding transactions
 
 The web UI's **Import** page is the single place to add transactions. It offers

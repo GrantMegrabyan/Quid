@@ -1,0 +1,34 @@
+{
+  "_comment": "Golden set for evaluating AI categorisation models. Copy to golden_set.json, replace with ~50-100 of your own anonymised real transactions hand-labelled with the category you'd accept, then run scripts/eval_categorization.py. 'categories' must mirror the categories that exist in the app you are evaluating for (name + description). Each transaction's 'expected_category' MUST be one of those names. 'importance'/'exclude' are optional per row; include 'exclude': true (with a matching ai_rule) for the destructive-exclude cases that matter most.",
+  "categories": [
+    { "name": "Groceries", "description": "Supermarkets and food shopping. Not restaurants or takeaway." },
+    { "name": "Food & Drink", "description": "Restaurants, cafes, pubs, takeaway, food delivery." },
+    { "name": "Transport", "description": "Public transport, fuel, taxis, rideshare, parking." },
+    { "name": "Subscriptions", "description": "Recurring digital services (streaming, software, memberships)." },
+    { "name": "Shopping", "description": "General retail, clothes, household goods, electronics." },
+    { "name": "Utilities", "description": "Gas, electricity, water, broadband, mobile phone bills." },
+    { "name": "Health", "description": "Pharmacy, dental, medical, gym and fitness." },
+    { "name": "Transfers", "description": "Money moved between own accounts or to savings. Not real spending." }
+  ],
+  "ai_rules": [
+    "Transfers to a savings account should be excluded.",
+    "Coffee under 6.00 is essential, not discretionary."
+  ],
+  "transactions": [
+    { "name": "TESCO STORES 3411", "amount": "-42.18", "date": "2026-04-02", "note": "", "expected_category": "Groceries", "importance": "essential" },
+    { "name": "SAINSBURYS S/MKTS", "amount": "-15.60", "date": "2026-04-03", "note": "", "expected_category": "Groceries" },
+    { "name": "PRET A MANGER", "amount": "-4.95", "date": "2026-04-03", "note": "morning coffee", "expected_category": "Food & Drink", "importance": "essential" },
+    { "name": "DELIVEROO", "amount": "-23.40", "date": "2026-04-04", "note": "", "expected_category": "Food & Drink", "importance": "discretionary" },
+    { "name": "TFL TRAVEL CH", "amount": "-6.80", "date": "2026-04-05", "note": "", "expected_category": "Transport", "importance": "essential" },
+    { "name": "UBER *TRIP", "amount": "-18.20", "date": "2026-04-05", "note": "", "expected_category": "Transport" },
+    { "name": "NETFLIX.COM", "amount": "-10.99", "date": "2026-04-06", "note": "", "expected_category": "Subscriptions" },
+    { "name": "SPOTIFY", "amount": "-11.99", "date": "2026-04-06", "note": "", "expected_category": "Subscriptions" },
+    { "name": "AMZN MKTP UK", "amount": "-31.50", "date": "2026-04-07", "note": "", "expected_category": "Shopping" },
+    { "name": "BRITISH GAS", "amount": "-88.00", "date": "2026-04-08", "note": "", "expected_category": "Utilities", "importance": "essential" },
+    { "name": "BOOTS", "amount": "-9.30", "date": "2026-04-09", "note": "pharmacy", "expected_category": "Health" },
+    { "name": "TO SAVINGS ACCT", "amount": "-200.00", "date": "2026-04-10", "note": "monthly transfer to savings", "expected_category": "Transfers", "exclude": true },
+    { "name": "SQ *THE CORNER CAFE", "amount": "-3.80", "date": "2026-04-11", "note": "", "expected_category": "Food & Drink", "importance": "essential" },
+    { "name": "PAYPAL *STEAMGAMES", "amount": "-24.99", "date": "2026-04-12", "note": "", "expected_category": "Subscriptions", "importance": "discretionary" },
+    { "name": "SHELL FUEL", "amount": "-55.00", "date": "2026-04-13", "note": "", "expected_category": "Transport", "importance": "essential" }
+  ]
+}
