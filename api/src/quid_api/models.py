@@ -363,6 +363,12 @@ class AppSettings(Base):
         server_default=text("1"),
         default=True,
     )
+    categorize_model: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'google/gemini-2.5-flash'"),
+        default="google/gemini-2.5-flash",
+    )
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
     __table_args__ = (

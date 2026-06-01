@@ -190,6 +190,7 @@ async def _backfill_amazon_categories_runner() -> dict[str, int]:
     from quid_api.models import Category
     from quid_api.repositories.ai_rules import AiRuleRepository
     from quid_api.repositories.amazon_orders import AmazonOrderRepository
+    from quid_api.repositories.app_settings import AppSettingsRepository
 
     settings = get_settings()
     engine = build_engine(settings)
@@ -197,6 +198,7 @@ async def _backfill_amazon_categories_runner() -> dict[str, int]:
     try:
         async with sm() as session:
             repo = AmazonOrderRepository(session)
+            app_settings = await AppSettingsRepository(session).get()
             orders = await repo.list_all()
             missing = [order for order in orders if order.category_id is None]
             skipped = len(orders) - len(missing)
@@ -214,7 +216,7 @@ async def _backfill_amazon_categories_runner() -> dict[str, int]:
                 existing_categories=[(row.name, row.description) for row in category_rows],
                 ai_rules=ai_rules,
                 api_key=settings.openrouter_api_key,
-                model=settings.openrouter_model,
+                model=app_settings.categorize_model or settings.openrouter_model,
                 chunk_size=settings.openrouter_chunk_size,
             )
             named = await repo.set_generated_categories(derived)

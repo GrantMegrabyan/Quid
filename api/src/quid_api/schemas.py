@@ -610,6 +610,7 @@ class AppSettingsOut(_Camel):
     show_importance_badge: bool
     ai_categorize_enabled: bool
     ai_short_names_enabled: bool
+    categorize_model: str
     updated_at: str
 
 
@@ -618,6 +619,7 @@ class AppSettingsUpdate(_Camel):
     show_importance_badge: bool | None = None
     ai_categorize_enabled: bool | None = None
     ai_short_names_enabled: bool | None = None
+    categorize_model: Annotated[str | None, Field(min_length=1)] = None
 
 
 class ErrorBody(_Camel):

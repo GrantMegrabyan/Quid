@@ -269,7 +269,7 @@ async def _ingest_orders(
                     existing_categories=[(row.name, row.description) for row in category_rows],
                     ai_rules=ai_rules,
                     api_key=settings.openrouter_api_key,
-                    model=settings.openrouter_model,
+                    model=settings_row.categorize_model or settings.openrouter_model,
                     chunk_size=settings.openrouter_chunk_size,
                 )
                 await repo.set_generated_categories(derived)

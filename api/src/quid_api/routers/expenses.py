@@ -158,12 +158,14 @@ async def _categorize_if_requested(
     )
     existing_categories = [(row.name, row.description) for row in category_rows]
     ai_rules = [rule.text for rule in await AiRuleRepository(session).list_all(enabled_only=True)]
+    app_settings = await AppSettingsRepository(session).get()
+    effective_model = app_settings.categorize_model or settings.openrouter_model
     categorized = await categorize_transactions(
         items,
         existing_categories=existing_categories,
         ai_rules=ai_rules,
         api_key=settings.openrouter_api_key,
-        model=settings.openrouter_model,
+        model=effective_model,
         chunk_size=settings.openrouter_chunk_size,
     )
     logger.info(
@@ -171,7 +173,7 @@ async def _categorize_if_requested(
         import_id,
         categorized.categorized,
         len(categorized.excluded_indices),
-        settings.openrouter_model,
+        effective_model,
     )
     return categorized.items, categorized.categorized, categorized.excluded_indices
 
@@ -838,7 +840,7 @@ async def import_csv(
             existing_categories=existing_categories,
             ai_rules=ai_rules,
             api_key=settings.openrouter_api_key,
-            model=settings.openrouter_model,
+            model=app_settings.categorize_model or settings.openrouter_model,
             chunk_size=settings.openrouter_chunk_size,
         )
         all_items = categorized.items
@@ -849,7 +851,7 @@ async def import_csv(
             import_id,
             ai_categorized,
             len(ai_excluded_indices),
-            settings.openrouter_model,
+            app_settings.categorize_model or settings.openrouter_model,
         )
     else:
         ai_excluded_indices = frozenset()

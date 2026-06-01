@@ -7,6 +7,7 @@ async def test_get_returns_default_singleton(app_client):
     body = res.json()
     assert body["currency"] == "GBP"
     assert body["showImportanceBadge"] is True
+    assert body["categorizeModel"] == "google/gemini-2.5-flash"
     assert "updatedAt" in body
 
 
@@ -28,6 +29,17 @@ async def test_patch_updates_badge_toggle(app_client):
     assert flipped.json()["showImportanceBadge"] is True
 
 
+async def test_patch_updates_categorize_model(app_client):
+    res = await app_client.patch(
+        "/api/v1/settings", json={"categorizeModel": "google/gemini-2.0-flash"}
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["categorizeModel"] == "google/gemini-2.0-flash"
+
+    again = await app_client.get("/api/v1/settings")
+    assert again.json()["categorizeModel"] == "google/gemini-2.0-flash"
+
+
 async def test_patch_rejects_invalid_currency_length(app_client):
     short = await app_client.patch("/api/v1/settings", json={"currency": "GB"})
     assert short.status_code == 422
@@ -37,4 +49,9 @@ async def test_patch_rejects_invalid_currency_length(app_client):
 
 async def test_patch_rejects_non_alpha_currency(app_client):
     res = await app_client.patch("/api/v1/settings", json={"currency": "12$"})
+    assert res.status_code == 422
+
+
+async def test_patch_rejects_empty_categorize_model(app_client):
+    res = await app_client.patch("/api/v1/settings", json={"categorizeModel": ""})
     assert res.status_code == 422

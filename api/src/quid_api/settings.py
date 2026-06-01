@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = "./.data/quid.log"
     openrouter_api_key: str | None = None
-    openrouter_model: str = "openai/gpt-5.4-mini"
+    openrouter_model: str = "google/gemini-2.5-flash"
     openrouter_chunk_size: int = 25
     refund_window_days: int = 60
 

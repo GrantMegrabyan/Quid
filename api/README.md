@@ -31,15 +31,18 @@ Environment variables use the `QUID_` prefix and can also be placed in `api/.env
 | `QUID_SECURITY_HEADERS_ENABLED` | `true` | Attach safe static response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`) to every response. |
 | `QUID_LOG_LEVEL` | `INFO` | Application log level. |
 | `QUID_OPENROUTER_API_KEY` | unset | OpenRouter API key for the AI features (CSV import categorisation, Amazon order categorisation, and Amazon order short names). Required when an AI feature is enabled. |
-| `QUID_OPENROUTER_MODEL` | `openai/gpt-5.4-mini` | OpenRouter model used for both AI categorisation and Amazon short names. |
+| `QUID_OPENROUTER_MODEL` | `google/gemini-2.5-flash` | OpenRouter model used as the fallback for AI categorisation and Amazon short names. The effective categorisation model comes from persisted `categorizeModel` app settings. |
 | `QUID_OPENROUTER_CHUNK_SIZE` | `25` | Max items per OpenRouter call. Larger imports are split into sequential chunks; for categorisation each chunk's prompt carries forward the merchant→category decisions made by earlier chunks. Set lower if the model struggles on long batches; raise (or set to a very large number) to revert to single-shot behaviour. |
 | `QUID_AMAZON_COMBINED_MAX_WINDOW_ORDERS` | `60` | Safeguard for the Amazon "combined orders" auto-match pass (which sums 2–3 nearby orders to one bank charge). A single ≤2-day date window holding more than this many unmatched orders is treated as a pathological cluster and **skipped wholesale** (logged as `amazon.combined.window_capped`). Real Amazon billing clusters are tiny, so the default never affects ordinary imports; lower it to be more aggressive on huge histories. |
 | `QUID_AMAZON_COMBINED_MAX_COMBINATIONS` | `50000` | Global ceiling on the total number of candidate combinations the combined-orders pass generates in one run. Generation stops once reached (logged as `amazon.combined.combination_capped`). Prevents the pass from ever running unbounded; the default is far above what normal imports produce. |
 
 Whether the two AI features actually run is controlled by persisted **app
 settings** (not env vars): `aiCategorizeEnabled` and `aiShortNamesEnabled`
-(both default true). Edit them on the web UI **Settings** page or via
-`PATCH /api/v1/settings`. The env vars above only supply credentials/model.
+(both default true). The persisted `categorizeModel` setting (default
+`google/gemini-2.5-flash`) controls expense and Amazon-order categorisation;
+Amazon short names and AI free-form parsing still use `QUID_OPENROUTER_MODEL`.
+Edit them on the web UI **Settings** page or via `PATCH /api/v1/settings`. The
+env vars above only supply credentials and fallback model values.
 
 Example dev database:
 
@@ -262,7 +265,9 @@ curl -X POST http://localhost:8000/api/v1/expenses/import-csv \
 
 AI categorisation of parsed transactions runs automatically when the
 `aiCategorizeEnabled` app setting is true (the default; toggle it on the
-Settings page or via `PATCH /api/v1/settings`). There is **no** `ai_categorize`
+Settings page or via `PATCH /api/v1/settings`). The effective model comes from
+the persisted `categorizeModel` setting (default `google/gemini-2.5-flash`);
+`QUID_OPENROUTER_MODEL` is only the fallback. There is **no** `ai_categorize`
 form field — passing one returns HTTP 422. When AI categorisation is enabled the
 API requires `QUID_OPENROUTER_API_KEY`.
 
@@ -388,8 +393,8 @@ what an Amazon charge actually bought.
 
 - `POST /api/v1/amazon-orders/import-csv` — multipart `files`. Parses orders,
   upserts them (re-importing an order id replaces its details idempotently),
-  AI-categorises new orders (when `aiCategorizeEnabled`), and runs auto-matching
-  against unlinked expenses.
+  AI-categorises new orders (when `aiCategorizeEnabled`) using `categorizeModel`,
+  and runs auto-matching against unlinked expenses.
 - `POST /api/v1/amazon-orders/import-export` — JSON body, for orders scraped by
   the webui browser bookmarklet (see `webui/README.md`). Feeds the SAME
   ingest/upsert/AI/match pipeline as CSV (`source="export"` provenance, logged
@@ -479,6 +484,8 @@ category chosen from the same category set as expenses, using the order's item
 titles. It is generated once at import time (only when `aiCategorizeEnabled` is
 true) and stored; re-importing never overwrites a non-null category. Backfill
 missing categories with `uv run quid-api backfill-amazon-categories`.
+The AI categorisation model for expenses and Amazon orders comes from the
+persisted `categorizeModel` setting; short names still use `QUID_OPENROUTER_MODEL`.
 
 **Category inheritance & precision.** Each expense records a
 `categorySource` (read-only on `ExpenseOut`) marking where its category came
@@ -515,9 +522,10 @@ you can still link any expense by id.
 
 `GET /api/v1/settings` returns the app-settings singleton; `PATCH /api/v1/settings`
 updates it. Fields (camelCase): `currency`, `showImportanceBadge`,
-`aiCategorizeEnabled`, `aiShortNamesEnabled`. The two `ai*Enabled` flags gate the
-AI features described above and both default to true. These are edited from the
-web UI **Settings** page.
+`aiCategorizeEnabled`, `aiShortNamesEnabled`, `categorizeModel`. The two
+`ai*Enabled` flags gate the AI features described above and both default to true.
+`categorizeModel` defaults to `google/gemini-2.5-flash` and controls expense and
+Amazon-order categorisation; the web UI **Settings** page edits all of them.
 
 ## Verification
 

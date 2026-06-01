@@ -27,6 +27,16 @@ def _validate_currency(value: str) -> str:
     return cleaned
 
 
+def _validate_categorize_model(value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Categorisation model must not be empty.",
+        )
+    return cleaned
+
+
 class AppSettingsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -40,6 +50,7 @@ class AppSettingsRepository:
                 show_importance_badge=True,
                 ai_categorize_enabled=True,
                 ai_short_names_enabled=True,
+                categorize_model="google/gemini-2.5-flash",
                 updated_at=_now_iso(),
             )
             self.session.add(row)
@@ -53,6 +64,7 @@ class AppSettingsRepository:
         show_importance_badge: bool | None = None,
         ai_categorize_enabled: bool | None = None,
         ai_short_names_enabled: bool | None = None,
+        categorize_model: str | None = None,
     ) -> AppSettings:
         row = await self.get()
         changed = False
@@ -67,6 +79,9 @@ class AppSettingsRepository:
             changed = True
         if ai_short_names_enabled is not None:
             row.ai_short_names_enabled = ai_short_names_enabled
+            changed = True
+        if categorize_model is not None:
+            row.categorize_model = _validate_categorize_model(categorize_model)
             changed = True
         if changed:
             row.updated_at = _now_iso()

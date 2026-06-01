@@ -532,7 +532,7 @@ async def test_import_can_ai_categorize_transactions(app_client, monkeypatch):
         assert existing_categories
         assert ai_rules
         assert api_key is None
-        assert model == "openai/gpt-5.4-mini"
+        assert model == "google/gemini-2.5-flash"
         updated = [replace(item, category="coffee") for item in items]
         return CategorizedBulkItems(items=updated, categorized=len(updated))
 
