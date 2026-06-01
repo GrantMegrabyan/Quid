@@ -32,6 +32,17 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 		})
 	);
 
+	// Disable AI short names so the imported order deterministically shows the
+	// product-title fallback ("Wireless Mouse") rather than a non-deterministic
+	// AI-generated description (the e2e API may have a live OpenRouter key).
+	await page.goto('/settings');
+	const aiShortNames = page.getByTestId('settings-ai-short-names-toggle');
+	if (await aiShortNames.isChecked()) {
+		await aiShortNames.uncheck();
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+	}
+
 	const csv =
 		`Order ID,Order Date,Total Owed,Currency,Product Name,Quantity,Item Subtotal,Order Status,Last 4 Digits\n` +
 		`123-4567890-1234567,${orderDate},19.99,GBP,Wireless Mouse,1,19.99,Delivered,4242\n`;
@@ -50,7 +61,8 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 		.filter({ hasText: '123-4567890-1234567' });
 	await expect(row).toHaveCount(1);
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute('data-link-status', 'linked');
-	await expect(row).toContainText('Wireless mouse');
+	// AI short names are disabled above, so the row shows the product-title fallback.
+	await expect(row).toContainText('Wireless Mouse');
 
 	await row.getByTestId('amazon-short-name-edit').click();
 	await row.getByTestId('amazon-short-name-input').fill('Gaming mouse');

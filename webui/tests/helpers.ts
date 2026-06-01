@@ -31,13 +31,6 @@ export interface SeedState {
 	expenses: SeedExpense[];
 }
 
-function isoDaysAgo(days: number): string {
-	const now = new Date();
-	const then = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
-	const pad = (n: number) => String(n).padStart(2, '0');
-	return `${then.getFullYear()}-${pad(then.getMonth() + 1)}-${pad(then.getDate())}`;
-}
-
 export function isoMonthOffset(offset: number, day = 1): string {
 	const now = new Date();
 	const date = new Date(now.getFullYear(), now.getMonth() + offset, day);
@@ -63,7 +56,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 				id: 'exp-seed-1',
 				name: 'Whole Foods',
 				amount: '42.50',
-				date: isoDaysAgo(2),
+				date: isoMonthOffset(0, 3),
 				categoryId: 'cat-groceries',
 				note: 'Weekly groceries'
 			},
@@ -71,7 +64,7 @@ export function buildSeed(overrides: Partial<SeedState> = {}): SeedState {
 				id: 'exp-seed-2',
 				name: 'Uber',
 				amount: '12.00',
-				date: isoDaysAgo(5),
+				date: isoMonthOffset(0, 1),
 				categoryId: 'cat-public-transport',
 				note: ''
 			}
