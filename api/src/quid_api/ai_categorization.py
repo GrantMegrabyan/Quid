@@ -43,6 +43,12 @@ class _TransactionInput(BaseModel):
 VALID_IMPORTANCE: frozenset[str] = frozenset({"essential", "important", "discretionary"})
 DEFAULT_IMPORTANCE = "important"
 
+# Confidence below which we do NOT honour a model-requested exclude. Excluding a
+# transaction drops it from the import entirely, so a shaky exclude is the most
+# costly mistake the model can make; when confidence is low we keep the row
+# (still categorised) and log it for review rather than silently deleting it.
+_MIN_EXCLUDE_CONFIDENCE = 0.5
+
 
 class _CategorySuggestion(BaseModel):
     index: int = Field(description="The input transaction index.")
@@ -252,12 +258,48 @@ def _parse_response(payload: object) -> _CategoryResponse:
         ) from exc
 
 
+# Stopwords + surrounding punctuation that carry no categorical meaning, so
+# "Food & Drink", "Food and Drink" and "Food / Drink" all normalise to the same
+# key and snap together. Kept deliberately small.
+_SNAP_TOKEN_STOPWORDS: frozenset[str] = frozenset({"and", "the", "of", "&"})
+_SNAP_STRIP_CHARS = "&/,.()-"
+
+
+def _snap_key(value: str) -> str:
+    # Order-independent, punctuation/stopword-insensitive key. We sort tokens so
+    # "Drink & Food" and "Food and Drink" match, and drop filler so only
+    # meaningful tokens decide equality.
+    tokens = sorted(
+        token
+        for raw in value.lower().split()
+        if (token := raw.strip(_SNAP_STRIP_CHARS)) and token not in _SNAP_TOKEN_STOPWORDS
+    )
+    return " ".join(tokens)
+
+
 def _snap_to_existing(suggestion: str, existing_categories: list[tuple[str, str]]) -> str:
     cleaned = " ".join(suggestion.split()).lower()
     if not cleaned:
         return suggestion
+    # 1. Exact match after whitespace/case normalisation (cheapest, safest).
     for name, _ in existing_categories:
         if " ".join(name.split()).lower() == cleaned:
+            return name
+
+    # 2. Normalised-key match: collapses punctuation/connector/word-order
+    #    variants of the SAME category ("Food & Drink" vs "Food and Drink" vs
+    #    "Drink & Food"). We deliberately do NOT do token-subset/superset
+    #    "paraphrase" merging: token heuristics cannot tell filler ("Dining Out"
+    #    -> "Dining", desirable) from a meaningful qualifier ("Travel Insurance"
+    #    -> "Travel", a wrong merge). A wrong merge hides a transaction under the
+    #    wrong label, which is costlier than proliferation (a user can fix a
+    #    duplicate category by editing). So we only collapse provably-equivalent
+    #    labels here.
+    suggestion_key = _snap_key(cleaned)
+    if not suggestion_key:
+        return suggestion
+    for name, _ in existing_categories:
+        if _snap_key(name) == suggestion_key:
             return name
     return suggestion
 
@@ -341,6 +383,7 @@ async def categorize_transactions(
     updates: dict[int, str] = {}
     importance_updates: dict[int, str] = {}
     excluded: set[int] = set()
+    low_confidence_excludes = 0
     # Sequential, not parallel: each chunk's prompt includes decisions made in
     # earlier chunks so the model stays consistent on naming and repeat merchants.
     # Parallelising would defeat this carry-over, which is the point of chunking.
@@ -371,8 +414,19 @@ async def categorize_transactions(
                     continue
                 global_index = chunk_start + suggestion.index
                 if suggestion.exclude:
-                    excluded.add(global_index)
-                    chunk_excluded += 1
+                    if suggestion.confidence < _MIN_EXCLUDE_CONFIDENCE:
+                        low_confidence_excludes += 1
+                        logger.info(
+                            "ai.categorize.exclude_skipped_low_confidence row=%d "
+                            "name=%r confidence=%.2f threshold=%.2f",
+                            global_index,
+                            chunk[suggestion.index].name,
+                            suggestion.confidence,
+                            _MIN_EXCLUDE_CONFIDENCE,
+                        )
+                    else:
+                        excluded.add(global_index)
+                        chunk_excluded += 1
                 snapped = _snap_to_existing(category, existing_categories)
                 if snapped != category:
                     snapped_total += 1
@@ -408,12 +462,14 @@ async def categorize_transactions(
             await active_client.aclose()
 
     logger.info(
-        "ai.categorize.response items=%d chunks=%d categorised=%d snapped_to_existing=%d excluded=%d",
+        "ai.categorize.response items=%d chunks=%d categorised=%d snapped_to_existing=%d "
+        "excluded=%d excludes_skipped_low_confidence=%d",
         len(items),
         total_chunks,
         len(updates),
         snapped_total,
         len(excluded),
+        low_confidence_excludes,
     )
     return CategorizedBulkItems(
         items=[

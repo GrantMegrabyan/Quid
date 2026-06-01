@@ -229,6 +229,126 @@ async def test_existing_category_snapping_normalises_case_and_spacing():
     assert result.items[0].category == "Coffee Shops"
 
 
+@pytest.mark.parametrize(
+    "suggested",
+    ["Food and Drink", "Drink & Food", "Food / Drink", "food  &  drink"],
+)
+async def test_snapping_collapses_connector_and_order_variants(suggested: str):
+    # Punctuation/connector/word-order variants of the SAME category must snap to
+    # the canonical existing one instead of proliferating duplicates.
+    items = [_item("Cafe")]
+    existing = [("Food & Drink", "")]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_response(
+                categories=[
+                    {
+                        "index": 0,
+                        "category": suggested,
+                        "importance": "important",
+                        "exclude": False,
+                        "confidence": 0.9,
+                    }
+                ]
+            ),
+        )
+
+    async with _make_client(handler) as client:
+        result = await categorize_transactions(
+            items,
+            existing_categories=existing,
+            ai_rules=[],
+            api_key="key",
+            model="x",
+            client=client,
+        )
+
+    assert result.items[0].category == "Food & Drink"
+
+
+async def test_snapping_keeps_distinct_related_categories_separate():
+    # "Travel Insurance" must NOT snap to "Travel": adding a qualifier usually
+    # means a genuinely distinct, narrower category, and a wrong merge hides the
+    # transaction under the wrong label. We only collapse provably-equivalent
+    # labels, never token sub/supersets.
+    items = [_item("Insurer Co")]
+    existing = [("Travel", "")]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_response(
+                categories=[
+                    {
+                        "index": 0,
+                        "category": "Travel Insurance",
+                        "importance": "important",
+                        "exclude": False,
+                        "confidence": 0.9,
+                    }
+                ]
+            ),
+        )
+
+    async with _make_client(handler) as client:
+        result = await categorize_transactions(
+            items,
+            existing_categories=existing,
+            ai_rules=[],
+            api_key="key",
+            model="x",
+            client=client,
+        )
+
+    assert result.items[0].category == "Travel Insurance"
+
+
+async def test_low_confidence_exclude_is_not_honoured():
+    # A shaky exclude would silently delete the transaction, so a low-confidence
+    # exclude is dropped (row kept + categorised) while a confident one stands.
+    items = [_item("Maybe Transfer"), _item("Definite Transfer")]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_response(
+                categories=[
+                    {
+                        "index": 0,
+                        "category": "Transfers",
+                        "importance": "important",
+                        "exclude": True,
+                        "confidence": 0.2,
+                    },
+                    {
+                        "index": 1,
+                        "category": "Transfers",
+                        "importance": "important",
+                        "exclude": True,
+                        "confidence": 0.95,
+                    },
+                ]
+            ),
+        )
+
+    async with _make_client(handler) as client:
+        result = await categorize_transactions(
+            items,
+            existing_categories=[("Transfers", "")],
+            ai_rules=[],
+            api_key="key",
+            model="x",
+            client=client,
+        )
+
+    # Only the high-confidence exclude is honoured; the low-confidence one is
+    # kept (still categorised).
+    assert result.excluded_indices == frozenset({1})
+    assert result.items[0].category == "Transfers"
+
+
 async def test_http_error_status_raises_repository_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="server boom")

@@ -190,6 +190,22 @@ Verification checklist for any user-facing change:
   server-side — there is no longer an `ai_categorize` form param (passing it 422s).
 - Both AI features reuse the same OpenRouter provider/model
   (`QUID_OPENROUTER_*`); short names live in `api/src/quid_api/ai_short_names.py`.
+- `ai_categorization._snap_to_existing` normalises an AI category suggestion back
+  onto an existing category to fight category proliferation. It snaps ONLY on
+  provable equivalence: exact (whitespace/case) match, then a normalised key that
+  ignores connectors/punctuation and word order (`Food & Drink` == `Food and
+  Drink` == `Drink & Food`; stopwords `and/the/of/&`, strip chars `&/,.()-`). It
+  intentionally does NOT do token subset/superset "paraphrase" merging — token
+  heuristics can't distinguish desirable filler (`Dining Out`→`Dining`) from a
+  meaningful qualifier (`Travel Insurance`→`Travel`), and a wrong merge hides a
+  transaction under the wrong label (costlier than a duplicate category a user
+  can edit). If you make snapping fuzzier, keep that asymmetry.
+- The AI's `confidence` (0–1) per row is now USED, not just logged: an
+  `exclude=true` is only honoured when `confidence >= _MIN_EXCLUDE_CONFIDENCE`
+  (0.5). A low-confidence exclude is skipped (row kept + still categorised) and
+  logged `ai.categorize.exclude_skipped_low_confidence`, because excluding drops
+  the transaction from the import entirely — the most costly model mistake. The
+  per-run summary log carries `excludes_skipped_low_confidence=N`.
 
 ## Amazon orders context
 
