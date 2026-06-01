@@ -24,6 +24,18 @@ test.describe('import page', () => {
 		await expect(page.getByTestId('select-import-files')).toBeVisible();
 	});
 
+	test('remembers the active import tab after reload', async ({ page }) => {
+		await page.goto('/import');
+
+		await page.getByTestId('import-tab-freeform').click();
+		await expect(page.getByTestId('import-panel-freeform')).toBeVisible();
+
+		await page.reload();
+
+		await expect(page.getByTestId('import-panel-freeform')).toBeVisible();
+		await expect(page.getByTestId('select-import-files')).toHaveCount(0);
+	});
+
 	test('adds a single transaction via the form', async ({ page }) => {
 		await page.goto('/import');
 		await page.getByTestId('import-tab-single').click();

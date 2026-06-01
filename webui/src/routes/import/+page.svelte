@@ -4,6 +4,8 @@
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { addExpense, refreshExpenses } from '$lib/stores/expenses';
 	import { refreshSettings, settings } from '$lib/stores/settings';
+	import { persisted } from '$lib/stores/persisted';
+	import { get } from 'svelte/store';
 	import { formatAmount, parseAmountInput } from '$lib/utils/money';
 	import { todayIso } from '$lib/utils/dates';
 	import type {
@@ -32,7 +34,17 @@
 
 	type ImportTab = 'csv' | 'single' | 'freeform';
 
-	let tab = $state<ImportTab>('csv');
+	const IMPORT_TABS: ImportTab[] = ['csv', 'single', 'freeform'];
+	// Remember the active import tab across reloads.
+	const tabStore = persisted<ImportTab>(
+		'quid:import-tab:v1',
+		'csv',
+		(value): value is ImportTab => IMPORT_TABS.includes(value)
+	);
+	let tab = $state<ImportTab>(get(tabStore));
+	$effect(() => {
+		tabStore.set(tab);
+	});
 
 	// --- Shared state -------------------------------------------------------
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);

@@ -33,7 +33,10 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   month, and average per transaction), plus the transaction list and charts.
   Each transaction's subheading shows the date and, when present, its note (a
   linked Amazon order's short name is used as the note when the expense has
-  none).
+  none). The **selected month** (plus the chart toggles and Group-by choice) is
+  remembered across reloads/updates in `localStorage`, so the view doesn't snap
+  back to the current month after a refresh; it defaults to the current month on
+  first visit.
 - **Import** (`/import`) — the single place to add transactions, organised into
   three tabs:
   - **CSV file** — the CSV import preview/confirm flow. AI categorisation is no
@@ -58,9 +61,9 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
     amount makes it a genuinely new transaction). Backed by
     `POST /api/v1/expenses/import-freeform/{preview,confirm}`.
 
-  A shared **Import history** table below the tabs lists every import with a
-  **Source** column (CSV vs AI); AI rows can be expanded to show the original
-  pasted text.
+  The active tab is remembered across reloads in `localStorage`. A shared
+  **Import history** table below the tabs lists every import with a **Source**
+  column (CSV vs AI); AI rows can be expanded to show the original pasted text.
 - **Amazon orders** (`/amazon`) — import Amazon orders, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
   AI-generated **short name** and detected **category** inline (the category

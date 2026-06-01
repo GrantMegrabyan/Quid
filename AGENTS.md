@@ -138,6 +138,17 @@ When NOT to commit:
 
 ## Frontend notes
 
+- Persisted view state (the month being viewed, the active Import tab) uses the
+  reusable `persisted<T>(key, initial, validate?)` store in
+  `webui/src/lib/stores/persisted.ts` — a `localStorage`-mirrored `writable`
+  that is SSR-safe (`browser`-guarded) and falls back to `initial` on
+  missing/malformed/invalid stored values. Prefer it over ad-hoc `localStorage`
+  for new persisted UI state; use a namespaced, versioned key (`quid:<thing>:vN`)
+  so a future shape change degrades to the default instead of crashing. The
+  dashboard's chart-toggle/group-by prefs still use their older bespoke
+  `expense-tracker:*` keys (not yet migrated). NOTE: persisting a value the e2e
+  suite relies on resetting between tests can cause cross-test bleed — keep
+  persisted keys to genuinely user-facing view state.
 - Run frontend commands from `webui/`.
 - Common verification:
   - `npm run check`

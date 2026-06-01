@@ -68,6 +68,21 @@ test.describe('dashboard', () => {
 		await expect(page.getByText('Current Coffee')).toHaveCount(0);
 	});
 
+	test('remembers the selected month after reload', async ({ page }) => {
+		await page.goto('/');
+
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+
+		await page.getByTestId('month-prev').click();
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-1));
+
+		await page.reload();
+
+		// The month must NOT reset to the current month after a reload/update.
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-1));
+		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(-1));
+	});
+
 	test('optional charts can be enabled and stay enabled after reload', async ({ page }) => {
 		await page.goto('/');
 
