@@ -94,6 +94,11 @@ export interface ImportPreviewRow {
  	existingCategoryId: string | null;
  	existingCategoryName: string | null;
  	suggestedCategory: ImportPreviewCategory;
+ 	/**
+ 	 * True when `suggestedCategory` came from a matching `categorize` import
+ 	 * rule (not AI/heuristic). Lets the preview flag the category as rule-driven.
+ 	 */
+ 	categoryFromRule: boolean;
 	suggestedImportance: ExpenseImportance;
 	existingImportance: ExpenseImportance | null;
 }

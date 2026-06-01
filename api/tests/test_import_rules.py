@@ -940,6 +940,8 @@ async def test_import_csv_preview_reflects_rule_category_name_and_note(app_clien
     assert row["note"] == "Cleaner"
     assert row["suggestedCategory"]["name"] == "Home"
     assert row["suggestedCategory"]["id"] == home["id"]
+    # Category provenance is flagged so the preview can show a "Rule" badge.
+    assert row["categoryFromRule"] is True
 
 
 async def test_import_csv_preview_display_name_none_without_rule(app_client):
@@ -954,3 +956,5 @@ async def test_import_csv_preview_display_name_none_without_rule(app_client):
     assert row["displayName"] is None
     assert row["name"] == "Tesco"
     assert row["note"] == "weekly shop"
+    # No rule matched ⇒ category is NOT flagged as rule-driven.
+    assert row["categoryFromRule"] is False

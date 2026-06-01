@@ -93,6 +93,10 @@ class _PreparedImportItem:
     # (rule ``set_display_name``). ``None`` when no rule overrides it. Preview
     # surfaces it so the user sees the FINAL name, not the raw merchant string.
     display_name: str | None = None
+    # True when ``category_id``/``category_name`` came from a matching
+    # ``categorize`` rule (not AI/heuristic). Lets the preview flag the category
+    # as rule-driven, mirroring ``display_name``.
+    category_from_rule: bool = False
     excluded: bool = False
 
 
@@ -254,6 +258,7 @@ async def _prepare_preview_items(
         # otherwise "fix" by hand even though the rule will fix it on confirm.
         display_name: str | None = None
         note = item.note or ""
+        category_from_rule = False
         if rule is not None and rule.action == "categorize":
             assert rule.target_category_id is not None
             category = await session.get(Category, rule.target_category_id)
@@ -261,6 +266,7 @@ async def _prepare_preview_items(
             category_id: str | None = category.id
             category_name = category.name
             category_exists = True
+            category_from_rule = True
             display_name = rule.set_display_name
             if rule.set_note is not None:
                 note = rule.set_note
@@ -283,6 +289,7 @@ async def _prepare_preview_items(
                 category_exists=category_exists,
                 importance=clean_importance,
                 display_name=display_name,
+                category_from_rule=category_from_rule,
             )
         )
     return prepared
@@ -316,6 +323,7 @@ async def _build_preview_rows(
                     note=item.note,
                     kind="excluded",
                     suggested_category=suggested,
+                    category_from_rule=item.category_from_rule,
                     suggested_importance=cast("Importance", item.importance),
                 )
             )
@@ -381,6 +389,7 @@ async def _build_preview_rows(
                     existing_category_id=existing_category_id,
                     existing_category_name=existing_category_name,
                     suggested_category=suggested,
+                    category_from_rule=item.category_from_rule,
                     suggested_importance=cast("Importance", item.importance),
                     existing_importance=(
                         cast("Importance", existing_importance)

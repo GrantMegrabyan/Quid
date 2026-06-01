@@ -224,6 +224,10 @@ class ImportPreviewRow(_Camel):
     existing_expense_id: str | None = None
     existing_category_id: str | None = None
     suggested_category: ImportPreviewCategory
+    # True when ``suggested_category`` came from a matching ``categorize`` import
+    # rule (not AI/heuristic). Lets the preview flag the category as rule-driven,
+    # mirroring ``display_name``.
+    category_from_rule: bool = False
     existing_category_name: str | None = None
     suggested_importance: Importance = "important"
     existing_importance: Importance | None = None

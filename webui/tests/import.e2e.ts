@@ -616,6 +616,7 @@ test.describe('import page', () => {
 							note: 'Cleaner',
 							kind: 'create',
 							suggestedCategory: { id: 'cat-home', name: 'Home', exists: true },
+							categoryFromRule: true,
 							suggestedImportance: 'important'
 						}
 					],
@@ -653,5 +654,63 @@ test.describe('import page', () => {
 		await expect(page.getByText('Maria Andreeva', { exact: true })).toBeVisible();
 		await expect(page.getByText('renamed from MARIA ANDREEVA REF 99281')).toBeVisible();
 		await expect(page.getByText('Cleaner')).toBeVisible();
+		// The category cell flags that the category came from a rule.
+		await expect(page.getByText('from rule')).toBeVisible();
+	});
+
+	test('CSV preview does not flag the category as rule-driven without a rule', async ({ page }) => {
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-no-rule-cat',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'hash-norule',
+							name: 'Tesco',
+							amount: '12.50',
+							date: '2026-04-22',
+							note: '',
+							kind: 'create',
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							categoryFromRule: false,
+							suggestedImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 1,
+						categoryUpdates: 0,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 1,
+							imported: 1,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-04-22,Tesco,12.50\n')
+		});
+
+		await expect(page.getByText('Tesco', { exact: true })).toBeVisible();
+		await expect(page.getByText('from rule')).toHaveCount(0);
 	});
 });
