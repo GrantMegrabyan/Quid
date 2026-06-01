@@ -217,11 +217,15 @@ QUID_OPENROUTER_API_KEY=sk-... uv run python scripts/eval_categorization.py \
   --model deepseek/deepseek-v4-pro
 ```
 
-With no `--model` it evaluates the configured `QUID_OPENROUTER_MODEL`.
-`scripts/golden_set.json` is git-ignored (it may hold real transactions); the
-committed `golden_set.example.json` is the template and documents the format.
-Per-model USD pricing for the cost column lives in `PRICES` in the script —
-update it as OpenRouter pricing changes (unknown models still report tokens).
+With no `--model` it evaluates the configured `QUID_OPENROUTER_MODEL`. Add
+`--json results.json` to also dump machine-readable results including per-row
+detail (raw vs snapped label, exclude TP/FP, importance) — useful for building a
+report. `scripts/golden_set.json`, `scripts/eval_results.json` and
+`scripts/eval_report.html` are all git-ignored (they may hold real
+transactions); the committed `golden_set.example.json` is the template and
+documents the format. Per-model USD pricing for the cost column lives in
+`PRICES` in the script — update it as OpenRouter pricing changes (unknown models
+still report tokens).
 
 ## Adding transactions
 

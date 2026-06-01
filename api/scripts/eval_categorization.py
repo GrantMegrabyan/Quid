@@ -90,6 +90,19 @@ class Usage:
 
 
 @dataclass
+class RowResult:
+    name: str
+    expected: str
+    raw: str
+    snapped: str
+    category_ok: bool
+    expected_importance: str | None
+    predicted_importance: str
+    truth_exclude: bool
+    predicted_exclude: bool
+
+
+@dataclass
 class Metrics:
     model: str
     total: int
@@ -105,6 +118,7 @@ class Metrics:
     exclude_truth: int = 0
     parse_failures: int = 0
     usage: Usage = field(default_factory=Usage)
+    rows: list[RowResult] = field(default_factory=list)
 
 
 def load_golden_set(path: Path) -> GoldenSet:
@@ -175,9 +189,21 @@ class _MeteringTransport(httpx.AsyncBaseTransport):
                     self._raw_by_name[name] = str(suggestion["category"]).strip()
         except (json.JSONDecodeError, KeyError, IndexError, ValueError, TypeError):
             pass
+        # `body` is the already-DECOMPRESSED payload from aread(), so we must
+        # drop the encoding/length headers when reconstructing — otherwise the
+        # caller tries to gunzip/brotli plaintext and dies with a header check
+        # error. (A MockTransport doesn't compress, so this only bites on real
+        # OpenRouter responses.)
+        headers = httpx.Headers(
+            [
+                (k, v)
+                for k, v in response.headers.items()
+                if k.lower() not in {"content-encoding", "content-length", "transfer-encoding"}
+            ]
+        )
         return httpx.Response(
             status_code=response.status_code,
-            headers=response.headers,
+            headers=headers,
             content=body,
             request=request,
         )
@@ -250,6 +276,20 @@ async def evaluate_model(gold: GoldenSet, model: str, api_key: str, chunk_size: 
         elif tx.exclude and not predicted_exclude:
             metrics.exclude_fn += 1
 
+        metrics.rows.append(
+            RowResult(
+                name=tx.name,
+                expected=tx.expected_category,
+                raw=raw,
+                snapped=snapped,
+                category_ok=snapped == tx.expected_category,
+                expected_importance=tx.importance,
+                predicted_importance=out.importance,
+                truth_exclude=tx.exclude,
+                predicted_exclude=predicted_exclude,
+            )
+        )
+
     return metrics
 
 
@@ -304,13 +344,53 @@ def print_report(results: list[Metrics]) -> None:
         print(f"  est. cost (this run)     : {_cost(m.model, u)}\n")
 
 
-async def _main_async(gold: GoldenSet, models: list[str], api_key: str, chunk_size: int) -> int:
+def _metrics_to_dict(m: Metrics) -> dict[str, object]:
+    return {
+        "model": m.model,
+        "total": m.total,
+        "raw_match": m.raw_match,
+        "snapped_match": m.snapped_match,
+        "new_category": m.new_category,
+        "new_category_labels": sorted(m.new_category_labels),
+        "importance_correct": m.importance_correct,
+        "importance_scored": m.importance_scored,
+        "exclude_tp": m.exclude_tp,
+        "exclude_fp": m.exclude_fp,
+        "exclude_fn": m.exclude_fn,
+        "exclude_truth": m.exclude_truth,
+        "parse_failures": m.parse_failures,
+        "usage": {
+            "prompt_tokens": m.usage.prompt_tokens,
+            "completion_tokens": m.usage.completion_tokens,
+            "requests": m.usage.requests,
+            "seconds": round(m.usage.seconds, 3),
+        },
+        "cost_usd": _cost(m.model, m.usage),
+        "rows": [
+            {
+                "name": r.name,
+                "expected": r.expected,
+                "raw": r.raw,
+                "snapped": r.snapped,
+                "category_ok": r.category_ok,
+                "expected_importance": r.expected_importance,
+                "predicted_importance": r.predicted_importance,
+                "truth_exclude": r.truth_exclude,
+                "predicted_exclude": r.predicted_exclude,
+            }
+            for r in m.rows
+        ],
+    }
+
+
+async def _run_models(
+    gold: GoldenSet, models: list[str], api_key: str, chunk_size: int
+) -> list[Metrics]:
     results: list[Metrics] = []
     for model in models:
         print(f"\nRunning {model} ...")
         results.append(await evaluate_model(gold, model, api_key, chunk_size))
-    print_report(results)
-    return 0
+    return results
 
 
 def main() -> None:
@@ -331,6 +411,12 @@ def main() -> None:
         type=int,
         default=None,
         help="Override chunk size (default: QUID_OPENROUTER_CHUNK_SIZE).",
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_path",
+        default=None,
+        help="Also write machine-readable results (incl. per-row detail) to this JSON path.",
     )
     args = parser.parse_args()
 
@@ -358,7 +444,20 @@ def main() -> None:
     print(f"Models: {', '.join(models)}")
 
     chunk_size = args.chunk_size or settings.openrouter_chunk_size
-    raise SystemExit(asyncio.run(_main_async(gold, models, api_key, chunk_size)))
+    results = asyncio.run(_run_models(gold, models, api_key, chunk_size))
+    print_report(results)
+
+    if args.json_path:
+        payload = {
+            "golden_set": {
+                "categories": [name for name, _ in gold.categories],
+                "ai_rules": gold.ai_rules,
+                "transaction_count": len(gold.transactions),
+            },
+            "results": [_metrics_to_dict(m) for m in results],
+        }
+        Path(args.json_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"Wrote machine-readable results to {args.json_path}")
 
 
 if __name__ == "__main__":
