@@ -5,8 +5,12 @@ import type {
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
+	AmazonRecategorizeConfirmRow,
+	AmazonRecategorizeConfirmResult,
+	AmazonRecategorizePreviewResult,
 	Expense
 } from '$types';
+import { refreshCategories } from './categories.js';
 import { refreshExpenses } from './expenses.js';
 
 export const amazonOrders = writable<AmazonOrder[]>([]);
@@ -71,6 +75,20 @@ export async function updateAmazonOrderCategory(
 	await amazonOrderRepository.updateCategory(orderId, categoryId);
 	await refreshAmazonOrders();
 	await refreshExpenses();
+}
+
+export async function previewRecategorizeAmazon(): Promise<AmazonRecategorizePreviewResult> {
+	return amazonOrderRepository.recategorizePreview();
+}
+
+export async function confirmRecategorizeAmazon(
+	rows: AmazonRecategorizeConfirmRow[]
+): Promise<AmazonRecategorizeConfirmResult> {
+	const result = await amazonOrderRepository.recategorizeConfirm(rows);
+	await refreshAmazonOrders();
+	await refreshExpenses();
+	await refreshCategories();
+	return result;
 }
 
 export async function deleteAmazonOrder(orderId: string): Promise<void> {

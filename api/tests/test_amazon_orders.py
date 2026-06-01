@@ -1616,3 +1616,217 @@ async def test_import_export_is_idempotent(app_client):
     assert listed["333-4445556-6667778"]["categoryId"] == travel["id"]
     # The auto-matched order still has exactly one link (no duplicates).
     assert len(listed["111-2223334-4445556"]["linkedExpenseIds"]) == 1
+
+
+# --- AI re-categorise (preview + confirm) -----------------------------------
+
+
+async def _import_retail_with_category(app_client, monkeypatch, category: str) -> None:
+    """Import the retail CSV with mocked order-AI assigning `category` to all."""
+
+    async def fake(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category=category) for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", fake)
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": True})
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.status_code == 201, res.text
+
+
+async def test_recategorize_preview_splits_changed_and_unchanged(app_client, monkeypatch):
+    """Preview re-runs AI against current rules; rows whose suggestion equals the
+    order's current category are unchanged, the rest are changed. No writes."""
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+
+    # Now the AI (rules changed) suggests a different category for everything.
+    async def groceries(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="Groceries") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", groceries)
+    res = await app_client.post("/api/v1/amazon-orders/recategorize/preview")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["eligible"] == len(body["rows"]) > 0
+    assert body["changed"] == len(body["rows"])
+    assert body["unchanged"] == 0
+    for row in body["rows"]:
+        assert row["changed"] is True
+        assert row["suggestedCategoryName"] == "Groceries"
+        assert row["currentCategoryName"] == "Office Supplies"
+
+    # Preview must not have written anything.
+    listed = await app_client.get("/api/v1/amazon-orders")
+    assert all(r["categoryId"] == "cat-office-supplies" for r in listed.json())
+
+
+async def test_recategorize_preview_marks_same_suggestion_unchanged(app_client, monkeypatch):
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+    # Same suggestion as the current category -> unchanged.
+    res = await app_client.post("/api/v1/amazon-orders/recategorize/preview")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["changed"] == 0
+    assert body["unchanged"] == len(body["rows"]) > 0
+    for row in body["rows"]:
+        assert row["changed"] is False
+        assert row["suggestedCategoryExists"] is True
+
+
+async def test_recategorize_confirm_overwrites_and_propagates(app_client, monkeypatch):
+    """Confirming an accepted row overwrites the order category AND pushes it onto
+    a linked overridable (ai/import) expense."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=9.99, date="2026-05-03"
+    )
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+    # Order 333 (9.99) auto-matched the seeded uncategorised expense and
+    # propagated "Office Supplies" onto it.
+    order = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert order.json()["categoryId"] == "cat-office-supplies"
+    assert order.json()["linkedExpenseIds"] == [expense_id]
+
+    res = await app_client.post(
+        "/api/v1/amazon-orders/recategorize/confirm",
+        json={"rows": [{"orderId": "333-9999999-1111111", "categoryName": "Groceries"}]},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["updated"] == 1
+    assert body["categoriesCreated"] == 1  # cat-groceries is new
+    assert body["expensesUpdated"] == 1
+
+    refetched = await app_client.get("/api/v1/amazon-orders/333-9999999-1111111")
+    assert refetched.json()["categoryId"] == "cat-groceries"
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["id"] == expense_id)
+    assert exp["categoryId"] == "cat-groceries"
+    assert exp["categorySource"] == "amazon"
+
+
+async def test_recategorize_confirm_skips_unknown_order(app_client, monkeypatch):
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+    res = await app_client.post(
+        "/api/v1/amazon-orders/recategorize/confirm",
+        json={
+            "rows": [
+                {"orderId": "does-not-exist", "categoryName": "Groceries"},
+                {"orderId": "333-9999999-1111111", "categoryName": "Groceries"},
+            ]
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["updated"] == 1
+
+
+async def test_recategorize_preview_marks_new_category_not_existing(app_client, monkeypatch):
+    """A suggestion that doesn't map to an existing category is flagged
+    suggestedCategoryExists=False (confirm would create it) and the label is the
+    canonical titleized name confirm would create."""
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+
+    async def suggest(items, *, existing_categories, ai_rules, api_key, model, **kwargs: object):
+        return CategorizedBulkItems(
+            items=[replace(i, category="garden TOOLS") for i in items],
+            categorized=len(items),
+        )
+
+    monkeypatch.setattr("quid_api.ai_order_categorization.categorize_transactions", suggest)
+    res = await app_client.post("/api/v1/amazon-orders/recategorize/preview")
+    assert res.status_code == 200, res.text
+    rows = res.json()["rows"]
+    assert rows
+    assert all(row["changed"] for row in rows)
+    for row in rows:
+        assert row["suggestedCategoryExists"] is False
+        assert row["suggestedCategoryName"] == "Garden Tools"
+
+
+async def test_recategorize_confirm_recount_is_accurate_on_reapply(app_client, monkeypatch):
+    """Re-confirming a row whose order+expense already carry the target category
+    reports expensesUpdated=0 (no phantom writes counted)."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=9.99, date="2026-05-03"
+    )
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+
+    body = {"rows": [{"orderId": "333-9999999-1111111", "categoryName": "Groceries"}]}
+    first = await app_client.post("/api/v1/amazon-orders/recategorize/confirm", json=body)
+    assert first.json()["expensesUpdated"] == 1
+
+    # Re-applying the identical row changes nothing now.
+    second = await app_client.post("/api/v1/amazon-orders/recategorize/confirm", json=body)
+    assert second.status_code == 200, second.text
+    assert second.json()["updated"] == 1
+    assert second.json()["expensesUpdated"] == 0
+    assert second.json()["categoriesCreated"] == 0
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert next(e for e in expenses if e["id"] == expense_id)["categoryId"] == "cat-groceries"
+
+
+async def test_manual_category_edit_updates_amazon_sourced_expense(app_client, monkeypatch):
+    """A manual order category edit is DELIBERATE: it updates a linked expense
+    whose category previously came from this order's own `amazon` stamp, so the
+    order and the expense it categorised don't drift apart."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=9.99, date="2026-05-03"
+    )
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+    # Order 333 auto-matched and stamped the expense `amazon`/cat-office-supplies.
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["id"] == expense_id)
+    assert exp["categoryId"] == "cat-office-supplies"
+    assert exp["categorySource"] == "amazon"
+
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(
+        "/api/v1/amazon-orders/333-9999999-1111111/category",
+        json={"categoryId": travel["id"]},
+    )
+
+    after = (await app_client.get("/api/v1/expenses")).json()
+    exp_after = next(e for e in after if e["id"] == expense_id)
+    assert exp_after["categoryId"] == travel["id"]
+    assert exp_after["categorySource"] == "amazon"
+
+
+async def test_recategorize_confirm_does_not_override_manual_expense(app_client, monkeypatch):
+    """A hand-set (manual) expense category is protected even when the linked
+    order is re-categorised via confirm."""
+    expense = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 9.99,
+            "date": "2026-05-03",
+            "categoryId": "uncategorized",
+        },
+    )
+    expense_id = expense.json()["id"]
+    travel = (await app_client.post("/api/v1/categories", json={"name": "Travel"})).json()
+    await app_client.patch(f"/api/v1/expenses/{expense_id}", json={"categoryId": travel["id"]})
+
+    await _import_retail_with_category(app_client, monkeypatch, "Office Supplies")
+    await app_client.post(
+        "/api/v1/amazon-orders/333-9999999-1111111/link",
+        json={"expenseId": expense_id},
+    )
+
+    res = await app_client.post(
+        "/api/v1/amazon-orders/recategorize/confirm",
+        json={"rows": [{"orderId": "333-9999999-1111111", "categoryName": "Groceries"}]},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["expensesUpdated"] == 0
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    exp = next(e for e in expenses if e["id"] == expense_id)
+    assert exp["categoryId"] == travel["id"]

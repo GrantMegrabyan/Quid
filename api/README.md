@@ -469,6 +469,22 @@ what an Amazon charge actually bought.
   (same override rules as inheritance); `null` only clears the order's own
   category. The webui Amazon page shows each order's category as an editable
   chip.
+- `POST /api/v1/amazon-orders/recategorize/preview` — re-runs AI categorisation
+  over **all** eligible orders (those with item titles or a short name) against
+  the **current** enabled AI rules and category set, and returns a read-only
+  preview (no writes). Each row carries `currentCategoryId/Name`,
+  `suggestedCategoryName`, `suggestedCategoryExists` (false ⇒ confirming would
+  create a new `cat-*`), and `changed` (suggestion differs from the current
+  category). Use this after editing AI rules to re-evaluate already-categorised
+  orders. Requires `QUID_OPENROUTER_API_KEY`.
+- `POST /api/v1/amazon-orders/recategorize/confirm` — body
+  `{ "rows": [{ "orderId": "…", "categoryName": "…" }] }`. Applies the accepted
+  suggestions: resolves/creates each category, **overwrites** the order's
+  category (a deliberate user choice), and propagates it onto linked expenses.
+  Unlike the automatic passes, this deliberate path also overwrites a linked
+  expense whose category previously came from this order (`amazon` source);
+  `manual`/`rule` expense categories stay protected. Unknown order ids are
+  skipped. Returns `{ updated, categoriesCreated, expensesUpdated }`.
 - `DELETE /api/v1/amazon-orders/{id}`.
 
 Each order has a **short name**: a brief (≤60 char) AI description of what was

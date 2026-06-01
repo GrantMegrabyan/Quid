@@ -3,6 +3,9 @@ import type {
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
+	AmazonRecategorizeConfirmRow,
+	AmazonRecategorizeConfirmResult,
+	AmazonRecategorizePreviewResult,
 	Expense
 } from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
@@ -76,6 +79,22 @@ export class HttpAmazonOrderRepository implements AmazonOrderRepository {
 		return this.client.request<AmazonOrder>(
 			`api/v1/amazon-orders/${encodeURIComponent(orderId)}/category`,
 			{ method: 'PATCH', body: { categoryId } }
+		);
+	}
+
+	async recategorizePreview(): Promise<AmazonRecategorizePreviewResult> {
+		return this.client.request<AmazonRecategorizePreviewResult>(
+			'api/v1/amazon-orders/recategorize/preview',
+			{ method: 'POST' }
+		);
+	}
+
+	async recategorizeConfirm(
+		rows: AmazonRecategorizeConfirmRow[]
+	): Promise<AmazonRecategorizeConfirmResult> {
+		return this.client.request<AmazonRecategorizeConfirmResult>(
+			'api/v1/amazon-orders/recategorize/confirm',
+			{ method: 'POST', body: { rows } }
 		);
 	}
 

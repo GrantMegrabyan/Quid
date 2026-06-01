@@ -321,6 +321,41 @@ export interface AmazonMatchAllResult {
 	combinedMatched?: number;
 }
 
+/** One order's AI re-categorisation suggestion (read-only preview row). */
+export interface AmazonRecategorizePreviewRow {
+	orderId: string;
+	name: string;
+	/** Canonical decimal string ("19.99"). */
+	total: string;
+	orderDate: string;
+	currentCategoryId: string | null;
+	currentCategoryName: string | null;
+	suggestedCategoryName: string;
+	/** True when the suggested name maps to an existing category (else confirm
+	 *  would create a new one). */
+	suggestedCategoryExists: boolean;
+	/** True when the suggestion differs from the order's current category. */
+	changed: boolean;
+}
+
+export interface AmazonRecategorizePreviewResult {
+	rows: AmazonRecategorizePreviewRow[];
+	eligible: number;
+	changed: number;
+	unchanged: number;
+}
+
+export interface AmazonRecategorizeConfirmRow {
+	orderId: string;
+	categoryName: string;
+}
+
+export interface AmazonRecategorizeConfirmResult {
+	updated: number;
+	categoriesCreated: number;
+	expensesUpdated: number;
+}
+
 /**
  * Browser-export payload shape POSTed to `POST /api/v1/amazon-orders/import-export`.
  *

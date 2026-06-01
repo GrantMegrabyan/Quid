@@ -3,6 +3,9 @@ import type {
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
+	AmazonRecategorizeConfirmRow,
+	AmazonRecategorizeConfirmResult,
+	AmazonRecategorizePreviewResult,
 	AppSettings,
 	AppSettingsUpdate,
 	Category,
@@ -91,6 +94,10 @@ export interface AmazonOrderRepository {
 	unlink(orderId: string, expenseId: string): Promise<Expense>;
 	updateShortName(orderId: string, shortName: string): Promise<AmazonOrder>;
 	updateCategory(orderId: string, categoryId: string | null): Promise<AmazonOrder>;
+	recategorizePreview(): Promise<AmazonRecategorizePreviewResult>;
+	recategorizeConfirm(
+		rows: AmazonRecategorizeConfirmRow[]
+	): Promise<AmazonRecategorizeConfirmResult>;
 	delete(id: string): Promise<void>;
 }
 

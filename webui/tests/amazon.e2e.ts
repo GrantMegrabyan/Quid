@@ -133,3 +133,45 @@ test('shows and edits an Amazon order category', async ({ page }) => {
 		await expect(page.getByTestId('settings-message')).toBeVisible();
 	}
 });
+
+test('AI re-categorise button previews suggestions or fails gracefully', async ({ page }) => {
+	// The preview endpoint calls OpenRouter, whose key + output are not
+	// deterministic in CI. This test verifies the UI wiring end-to-end: the
+	// button triggers a request and the page resolves into a valid state —
+	// either the preview panel (key present) or a banner (no key / no eligible
+	// orders) — without an unhandled error breaking the page.
+	const orderDate = isoMonthOffset(0, 14);
+	await seedApiState(page, buildSeed());
+
+	const csv =
+		`Order ID,Order Date,Total Owed,Currency,Product Name,Quantity,Item Subtotal,Order Status,Last 4 Digits\n` +
+		`777-8889990-0001112,${orderDate},44.00,GBP,Desk Lamp,1,44.00,Delivered,4242\n`;
+
+	await page.goto('/amazon');
+	await page.getByTestId('amazon-csv-input').setInputFiles({
+		name: 'orders.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from(csv)
+	});
+	await expect(
+		page.getByTestId('amazon-order-row').filter({ hasText: '777-8889990-0001112' })
+	).toHaveCount(1);
+
+	await page.getByTestId('amazon-recategorize-button').click();
+
+	// Either the preview panel renders, or a banner explains why not. Both are
+	// valid terminal states; the page must not be left in the "Thinking…" spinner
+	// nor throw.
+	const panel = page.getByTestId('amazon-recategorize-panel');
+	const banner = page.getByTestId('amazon-banner');
+	await expect(panel.or(banner).first()).toBeVisible({ timeout: 30_000 });
+
+	// If the panel rendered, its core controls must be present and the toggle
+	// must reveal/hide rows without error.
+	if (await panel.isVisible()) {
+		await expect(page.getByTestId('amazon-recategorize-confirm')).toBeVisible();
+		await page.getByTestId('amazon-recategorize-show-unchanged').check();
+		await page.getByTestId('amazon-recategorize-cancel').click();
+		await expect(panel).toHaveCount(0);
+	}
+});

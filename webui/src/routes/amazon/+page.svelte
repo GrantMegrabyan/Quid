@@ -2,11 +2,13 @@
 	import { onMount } from 'svelte';
 	import {
 		amazonOrders,
+		confirmRecategorizeAmazon,
 		deleteAmazonOrder,
 		importAmazonCsv,
 		importAmazonExport,
 		linkAmazonOrder,
 		matchAllAmazonOrders,
+		previewRecategorizeAmazon,
 		refreshAmazonOrders,
 		suggestedAmazonMatches,
 		unlinkAmazonOrder,
@@ -24,10 +26,11 @@
 		AmazonImportSkippedOrder,
 		AmazonExportRequest,
 		AmazonOrder,
+		AmazonRecategorizePreviewRow,
 		Category,
 		Expense
 	} from '$types';
-	import { Check, Link2, Link2Off, Pencil, Search, Trash2, X } from '@lucide/svelte';
+	import { Check, Link2, Link2Off, Pencil, Search, Sparkles, Trash2, X } from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let exportFileInputEl: HTMLInputElement | null = $state(null);
@@ -44,6 +47,21 @@
 	let exportPasteText = $state('');
 	let skippedOrders = $state<AmazonImportSkippedOrder[]>([]);
 	const bookmarkletHref = buildBookmarkletHref();
+
+	// AI re-categorise preview/confirm.
+	type RecategorizeRow = AmazonRecategorizePreviewRow & { accept: boolean };
+	let recategorizing = $state(false);
+	let recategorizeRows = $state<RecategorizeRow[] | null>(null);
+	let recategorizeSummary = $state<{ changed: number; unchanged: number } | null>(null);
+	let showUnchanged = $state(false);
+	let confirmingRecategorize = $state(false);
+
+	const visibleRecategorizeRows = $derived.by(() =>
+		(recategorizeRows ?? []).filter((row) => showUnchanged || row.changed)
+	);
+	const acceptedRecategorizeCount = $derived.by(
+		() => (recategorizeRows ?? []).filter((row) => row.accept).length
+	);
 
 	const expenseById = $derived.by(() => {
 		const map = new Map<string, Expense>();
@@ -261,6 +279,85 @@
 		}
 	}
 
+	async function startRecategorize(): Promise<void> {
+		recategorizing = true;
+		banner = null;
+		recategorizeRows = null;
+		recategorizeSummary = null;
+		showUnchanged = false;
+		try {
+			const result = await previewRecategorizeAmazon();
+			recategorizeRows = result.rows.map((row) => ({ ...row, accept: row.changed }));
+			recategorizeSummary = { changed: result.changed, unchanged: result.unchanged };
+			if (result.eligible === 0) {
+				banner = {
+					kind: 'success',
+					message: 'No orders have enough detail to re-categorise.'
+				};
+				recategorizeRows = null;
+			} else if (result.changed === 0) {
+				banner = {
+					kind: 'success',
+					message: 'AI suggests no category changes — everything already matches.'
+				};
+			}
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Could not generate suggestions.'
+			};
+		} finally {
+			recategorizing = false;
+		}
+	}
+
+	function cancelRecategorize(): void {
+		recategorizeRows = null;
+		recategorizeSummary = null;
+	}
+
+	function toggleAllAccepted(next: boolean): void {
+		if (!recategorizeRows) return;
+		recategorizeRows = recategorizeRows.map((row) =>
+			showUnchanged || row.changed ? { ...row, accept: next } : row
+		);
+	}
+
+	async function confirmRecategorize(): Promise<void> {
+		if (!recategorizeRows) return;
+		const accepted = recategorizeRows.filter((row) => row.accept);
+		if (accepted.length === 0) {
+			banner = { kind: 'error', message: 'Select at least one order to re-categorise.' };
+			return;
+		}
+		confirmingRecategorize = true;
+		banner = null;
+		try {
+			const result = await confirmRecategorizeAmazon(
+				accepted.map((row) => ({ orderId: row.orderId, categoryName: row.suggestedCategoryName }))
+			);
+			recategorizeRows = null;
+			recategorizeSummary = null;
+			banner = {
+				kind: 'success',
+				message: `Re-categorised ${result.updated} order${result.updated === 1 ? '' : 's'}${
+					result.categoriesCreated > 0
+						? `, created ${result.categoriesCreated} categor${result.categoriesCreated === 1 ? 'y' : 'ies'}`
+						: ''
+				}, updated ${result.expensesUpdated} linked transaction${
+					result.expensesUpdated === 1 ? '' : 's'
+				}.`
+			};
+		} catch (cause) {
+			banner = {
+				kind: 'error',
+				message: cause instanceof Error ? cause.message : 'Re-categorise failed.'
+			};
+		} finally {
+			confirmingRecategorize = false;
+		}
+	}
+
 	async function loadSuggestions(orderId: string): Promise<void> {
 		actionOrderId = orderId;
 		banner = null;
@@ -385,6 +482,16 @@
 			>
 				Re-match all
 			</button>
+			<button
+				type="button"
+				data-testid="amazon-recategorize-button"
+				onclick={startRecategorize}
+				disabled={loading || recategorizing || $amazonOrders.length === 0}
+				class="inline-flex items-center gap-1.5 rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
+			>
+				<Sparkles size={15} aria-hidden="true" />
+				{recategorizing ? 'Thinking…' : 'Re-categorise (AI)'}
+			</button>
 		</div>
 	</header>
 
@@ -486,6 +593,143 @@
 					</li>
 				{/each}
 			</ul>
+		</div>
+	{/if}
+
+	{#if recategorizeRows}
+		<div
+			data-testid="amazon-recategorize-panel"
+			class="flex flex-col gap-4 rounded-lg border border-ctp-surface1 bg-ctp-base p-5"
+		>
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h2 class="flex items-center gap-2 text-sm font-semibold text-ctp-text">
+						<Sparkles size={15} aria-hidden="true" class="text-ctp-accent" />
+						Review AI re-categorisation
+					</h2>
+					<p class="mt-1 text-sm text-ctp-overlay1">
+						{recategorizeSummary?.changed ?? 0} order{(recategorizeSummary?.changed ?? 0) === 1
+							? ''
+							: 's'} would change category.
+						{#if (recategorizeSummary?.unchanged ?? 0) > 0}
+							{recategorizeSummary?.unchanged} already match and are hidden.
+						{/if}
+						Tick the rows to apply, then confirm.
+					</p>
+				</div>
+				<label
+					class="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-ctp-subtext0"
+				>
+					<input
+						type="checkbox"
+						data-testid="amazon-recategorize-show-unchanged"
+						bind:checked={showUnchanged}
+						class="h-3.5 w-3.5 rounded border-ctp-surface2 text-ctp-accent focus:ring-ctp-accent"
+					/>
+					Show unchanged ({recategorizeSummary?.unchanged ?? 0})
+				</label>
+			</div>
+
+			{#if visibleRecategorizeRows.length === 0}
+				<p
+					data-testid="amazon-recategorize-empty"
+					class="rounded-md border border-dashed border-ctp-surface2 px-4 py-6 text-center text-sm text-ctp-overlay1"
+				>
+					Nothing to show. {(recategorizeSummary?.unchanged ?? 0) > 0
+						? 'Toggle “Show unchanged” to see orders that already match.'
+						: ''}
+				</p>
+			{:else}
+				<div class="overflow-hidden rounded-md border border-ctp-surface1">
+					<table class="w-full text-left text-sm">
+						<thead class="bg-ctp-surface0/50 text-xs uppercase tracking-wide text-ctp-overlay1">
+							<tr>
+								<th class="w-10 px-3 py-2">
+									<input
+										type="checkbox"
+										data-testid="amazon-recategorize-select-all"
+										aria-label="Select all visible"
+										checked={visibleRecategorizeRows.every((row) => row.accept)}
+										onchange={(event) => toggleAllAccepted(event.currentTarget.checked)}
+										class="h-3.5 w-3.5 rounded border-ctp-surface2 text-ctp-accent focus:ring-ctp-accent"
+									/>
+								</th>
+								<th class="px-3 py-2 font-medium">Order</th>
+								<th class="px-3 py-2 text-right font-medium">Total</th>
+								<th class="px-3 py-2 font-medium">Current</th>
+								<th class="px-3 py-2 font-medium">Suggested</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each visibleRecategorizeRows as row (row.orderId)}
+								<tr
+									data-testid="amazon-recategorize-row"
+									data-changed={row.changed}
+									class="border-t border-ctp-surface0 {row.accept ? 'bg-ctp-accent/5' : ''}"
+								>
+									<td class="px-3 py-2 align-top">
+										<input
+											type="checkbox"
+											data-testid="amazon-recategorize-accept"
+											aria-label="Apply this suggestion"
+											bind:checked={row.accept}
+											class="mt-0.5 h-3.5 w-3.5 rounded border-ctp-surface2 text-ctp-accent focus:ring-ctp-accent"
+										/>
+									</td>
+									<td class="px-3 py-2 align-top">
+										<p class="font-medium text-ctp-text">{row.name}</p>
+										<p class="text-xs text-ctp-overlay1">
+											{row.orderDate} · <span class="font-mono">{row.orderId}</span>
+										</p>
+									</td>
+									<td class="px-3 py-2 text-right align-top font-mono text-ctp-subtext0">
+										{formatAmount(row.total, $settings.currency)}
+									</td>
+									<td class="px-3 py-2 align-top text-ctp-subtext0">
+										{row.currentCategoryName ?? '—'}
+									</td>
+									<td class="px-3 py-2 align-top">
+										<span class="inline-flex items-center gap-1.5 font-medium text-ctp-text">
+											{row.suggestedCategoryName}
+											{#if !row.suggestedCategoryExists}
+												<span
+													data-testid="amazon-recategorize-new-badge"
+													class="rounded-full bg-ctp-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ctp-accent"
+												>
+													New
+												</span>
+											{/if}
+										</span>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+
+			<div class="flex flex-wrap items-center justify-end gap-2">
+				<button
+					type="button"
+					data-testid="amazon-recategorize-cancel"
+					onclick={cancelRecategorize}
+					disabled={confirmingRecategorize}
+					class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					data-testid="amazon-recategorize-confirm"
+					onclick={confirmRecategorize}
+					disabled={confirmingRecategorize || acceptedRecategorizeCount === 0}
+					class="rounded-md bg-ctp-accent px-4 py-2 text-sm font-medium text-ctp-on-accent transition-colors hover:bg-ctp-accent-hover disabled:opacity-60"
+				>
+					{confirmingRecategorize
+						? 'Applying…'
+						: `Apply ${acceptedRecategorizeCount} change${acceptedRecategorizeCount === 1 ? '' : 's'}`}
+				</button>
+			</div>
 		</div>
 	{/if}
 

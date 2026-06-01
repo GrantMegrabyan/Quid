@@ -113,8 +113,20 @@ _COMBINED_MAX_SIZE = 3
 _OVERRIDABLE_CATEGORY_SOURCES = frozenset({"import", "ai"})
 
 
-def _expense_accepts_inherited_category(expense: Expense) -> bool:
-    return expense.category_source in _OVERRIDABLE_CATEGORY_SOURCES
+# When a user DELIBERATELY re-categorises an order (the AI re-categorise confirm
+# flow or a manual category edit), an expense this order previously categorised
+# (source 'amazon') should follow the order's new choice too — otherwise the
+# order moves but its own stale label sticks to the expense. 'manual'/'rule'
+# stay protected. The automatic bulk passes still exclude 'amazon' (see
+# _OVERRIDABLE_CATEGORY_SOURCES) so one order never clobbers another's link.
+_DELIBERATE_OVERRIDABLE_CATEGORY_SOURCES = _OVERRIDABLE_CATEGORY_SOURCES | frozenset({"amazon"})
+
+
+def _expense_accepts_inherited_category(expense: Expense, *, deliberate: bool = False) -> bool:
+    sources = (
+        _DELIBERATE_OVERRIDABLE_CATEGORY_SOURCES if deliberate else _OVERRIDABLE_CATEGORY_SOURCES
+    )
+    return expense.category_source in sources
 
 
 def serialize_items(items: list[dict[str, object]] | None) -> str:
@@ -298,9 +310,12 @@ class AmazonOrderRepository:
 
     async def set_order_category(self, order_id: str, category_id: str | None) -> AmazonOrder:
         """Set (or clear, with ``None``) an order's category explicitly, then
-        push it onto linked ``ai``/``import`` expenses. Validates the category
-        exists. Unlike AI generation this overwrites any existing order
-        category, because the user is choosing it deliberately."""
+        push it onto linked expenses. Validates the category exists. Unlike AI
+        generation this overwrites any existing order category, because the user
+        is choosing it deliberately — and for the same reason the propagation is
+        ``deliberate`` (it also overwrites a linked expense whose category came
+        from this order's previous ``amazon`` stamp, so the order and the expense
+        it categorised don't drift apart; ``manual``/``rule`` stay protected)."""
         order = await self.get(order_id)
         if category_id is not None:
             category = await self.session.get(Category, category_id)
@@ -311,9 +326,26 @@ class AmazonOrderRepository:
                 )
         order.category_id = category_id
         if category_id is not None:
-            await self._propagate_category_to_links(order)
+            await self._propagate_category_to_links(order, deliberate=True)
         await self.session.flush()
         return order
+
+    async def apply_category(self, order_id: str, category_id: str) -> int:
+        """Overwrite an order's category (deliberate user choice) and propagate
+        it onto linked overridable expenses, returning how many expenses actually
+        changed.
+
+        Used by the AI re-categorise confirm flow. Like ``set_order_category``
+        this overwrites any existing order category and uses the ``deliberate``
+        propagation; it reports the number of linked expenses updated so the
+        caller can summarise the run. The caller is responsible for having
+        validated/resolved ``category_id`` to a real category (it comes from
+        ``resolve_or_create_category``)."""
+        order = await self.get(order_id)
+        order.category_id = category_id
+        changed = await self._propagate_category_to_links(order, deliberate=True)
+        await self.session.flush()
+        return changed
 
     async def set_generated_categories(self, categories: dict[str, str]) -> int:
         """Store AI-derived category ids on orders that don't yet have one.
@@ -356,19 +388,30 @@ class AmazonOrderRepository:
         await self.session.flush()
         return changed
 
-    async def _propagate_category_to_links(self, order: AmazonOrder) -> int:
+    async def _propagate_category_to_links(
+        self, order: AmazonOrder, *, deliberate: bool = False
+    ) -> int:
         """Push the order's category onto each linked expense whose category
         came from a low-priority guess (``import`` default or expense ``ai``).
-        Hand-set (``manual``), import-rule (``rule``), and already-inherited
-        (``amazon``) categories are never overwritten. Returns the number of
-        expenses changed."""
+        Hand-set (``manual``) and import-rule (``rule``) categories are never
+        overwritten. An already-inherited (``amazon``) category is overwritten
+        ONLY when ``deliberate`` (a user explicitly re-categorised this order);
+        the automatic bulk passes leave ``amazon`` alone so orders don't clobber
+        each other. Returns the number of expenses changed."""
         if not order.category_id:
             return 0
         changed = 0
         expense_ids = await self.linked_expense_ids(order.id)
         for expense_id in expense_ids:
             expense = await self.session.get(Expense, expense_id)
-            if expense is None or not _expense_accepts_inherited_category(expense):
+            if expense is None or not _expense_accepts_inherited_category(
+                expense, deliberate=deliberate
+            ):
+                continue
+            # Count only genuine changes so the confirm summary's
+            # expensesUpdated is trustworthy even if a caller re-applies a
+            # category an expense already carries from this same order.
+            if expense.category_id == order.category_id and expense.category_source == "amazon":
                 continue
             expense.category_id = order.category_id
             expense.category_source = "amazon"

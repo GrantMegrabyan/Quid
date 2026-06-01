@@ -64,7 +64,13 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
 - **Amazon orders** (`/amazon`) — import Amazon orders, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
   AI-generated **short name** and detected **category** inline (the category
-  chip opens a dropdown; clearing it is allowed). Two import paths:
+  chip opens a dropdown; clearing it is allowed). The header's **Re-categorise
+  (AI)** button re-runs AI categorisation over all orders against the **current**
+  AI rules — useful after editing rules — and opens a preview table: rows whose
+  suggestion already matches the current category are hidden behind a **Show
+  unchanged** toggle, each changed row is pre-ticked, and **Apply** writes only
+  the accepted rows (creating any new categories and updating linked
+  transactions). Two import paths:
   - **Import CSV** — upload one or more Amazon order-export CSVs (the canonical,
     reliable path).
   - **Import from browser** — for when you don't want to hunt for a CSV. Opens a

@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Annotated, cast
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlalchemy import select
 
-from quid_api.ai_order_categorization import categorize_amazon_orders
+from quid_api.ai_order_categorization import (
+    categorize_amazon_orders,
+    suggest_amazon_order_categories,
+)
 from quid_api.ai_short_names import ShortNameInput, generate_short_names
 from quid_api.amazon_csv_import import (
     _ACCEPTED_STATUSES,
@@ -17,6 +20,7 @@ from quid_api.amazon_csv_import import (
     _parse_decimal,
     parse_amazon_csv,
 )
+from quid_api.category_helpers import slugify_category, titleize_slug
 from quid_api.datelib import normalize_iso_date
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
@@ -30,6 +34,7 @@ from quid_api.repositories.amazon_orders import (
     deserialize_shipments,
 )
 from quid_api.repositories.app_settings import AppSettingsRepository
+from quid_api.repositories.expenses import ExpenseRepository
 from quid_api.schemas import (
     AmazonCategoryRequest,
     AmazonExportOrder,
@@ -42,6 +47,10 @@ from quid_api.schemas import (
     AmazonOrderItem,
     AmazonOrderOut,
     AmazonOrderShipment,
+    AmazonRecategorizeConfirmRequest,
+    AmazonRecategorizeConfirmResponse,
+    AmazonRecategorizePreviewResponse,
+    AmazonRecategorizePreviewRow,
     AmazonShortNameRequest,
     CategorySource,
     ExpenseOut,
@@ -532,6 +541,131 @@ async def update_amazon_category(
     out = _order_to_out(order, linked)
     await session.commit()
     return out
+
+
+def _resolve_existing_category(name: str, categories: list[Category]) -> Category | None:
+    """Find the existing category a suggested NAME would resolve to, WITHOUT
+    creating one. Mirrors the id/name lookups in
+    ``ExpenseRepository.resolve_or_create_category`` so the preview's
+    ``suggested_category_exists`` flag matches what confirm would actually do.
+    Returns ``None`` when confirming would create a new ``cat-*`` category."""
+    normalized = name.strip().lower()
+    if normalized in ("", "other"):
+        return next((c for c in categories if c.id == "uncategorized"), None)
+    candidate_id = f"cat-{slugify_category(name)}"
+    canonical = titleize_slug(slugify_category(name)).lower()
+    for category in categories:
+        if category.id == candidate_id:
+            return category
+    for category in categories:
+        if category.name.strip().lower() == canonical:
+            return category
+    return None
+
+
+@router.post("/recategorize/preview", response_model=AmazonRecategorizePreviewResponse)
+async def preview_recategorize_amazon_orders(
+    session: SessionDep,
+) -> AmazonRecategorizePreviewResponse:
+    """AI-recategorise ALL eligible orders against the CURRENT AI rules and
+    category set, returning a read-only preview (no writes). Rows whose
+    suggestion equals the order's current category are marked ``changed=False``
+    so the UI can hide them. Requires ``QUID_OPENROUTER_API_KEY``."""
+    repo = AmazonOrderRepository(session)
+    settings_row = await AppSettingsRepository(session).get()
+    settings = get_settings()
+    orders = await repo.list_all()
+
+    category_rows = list((await session.scalars(select(Category).order_by(Category.name))).all())
+    category_by_id = {category.id: category for category in category_rows}
+    ai_rules = [rule.text for rule in await AiRuleRepository(session).list_all(enabled_only=True)]
+
+    suggestions = await suggest_amazon_order_categories(
+        orders,
+        existing_categories=[(c.name, c.description) for c in category_rows],
+        ai_rules=ai_rules,
+        api_key=settings.openrouter_api_key,
+        model=settings_row.categorize_model or settings.openrouter_model,
+        chunk_size=settings.openrouter_chunk_size,
+    )
+
+    rows: list[AmazonRecategorizePreviewRow] = []
+    changed_count = 0
+    for order in orders:
+        suggested_name = suggestions.get(order.id)
+        if not suggested_name:
+            continue
+        existing = _resolve_existing_category(suggested_name, category_rows)
+        current = category_by_id.get(order.category_id) if order.category_id else None
+        changed = existing is None or current is None or existing.id != current.id
+        if changed:
+            changed_count += 1
+        # For a not-yet-existing suggestion, show the canonical name confirm
+        # would actually create (titleized slug), not the raw AI casing, so the
+        # preview's label matches the created category.
+        if existing is not None:
+            suggested_label = existing.name
+        else:
+            suggested_label = titleize_slug(slugify_category(suggested_name)) or suggested_name
+        rows.append(
+            AmazonRecategorizePreviewRow(
+                order_id=order.id,
+                name=order.short_name or order.id,
+                total=order.total,
+                order_date=order.order_date,
+                current_category_id=current.id if current else None,
+                current_category_name=current.name if current else None,
+                suggested_category_name=suggested_label,
+                suggested_category_exists=existing is not None,
+                changed=changed,
+            )
+        )
+    return AmazonRecategorizePreviewResponse(
+        rows=rows,
+        eligible=len(rows),
+        changed=changed_count,
+        unchanged=len(rows) - changed_count,
+    )
+
+
+@router.post("/recategorize/confirm", response_model=AmazonRecategorizeConfirmResponse)
+async def confirm_recategorize_amazon_orders(
+    session: SessionDep, payload: AmazonRecategorizeConfirmRequest
+) -> AmazonRecategorizeConfirmResponse:
+    """Apply accepted AI re-categorisation rows: resolve each suggested name to
+    a category (creating a ``cat-*`` when needed), overwrite the order's
+    category, and propagate it onto linked overridable expenses. Unknown order
+    ids are skipped. Returns counts for the run summary."""
+    repo = AmazonOrderRepository(session)
+    expense_repo = ExpenseRepository(session)
+    created_index: dict[str, Category] = {}
+    pre_existing = {category.id for category in (await session.scalars(select(Category))).all()}
+
+    updated = 0
+    expenses_updated = 0
+    for row in payload.rows:
+        try:
+            order = await repo.get(row.order_id)
+        except RepositoryError:
+            continue
+        category = await expense_repo.resolve_or_create_category(row.category_name, created_index)
+        expenses_updated += await repo.apply_category(order.id, category.id)
+        updated += 1
+
+    post_existing = {category.id for category in (await session.scalars(select(Category))).all()}
+    categories_created = len(post_existing - pre_existing)
+    await session.commit()
+    logger.info(
+        "amazon.recategorize.confirm updated=%d categories_created=%d expenses_updated=%d",
+        updated,
+        categories_created,
+        expenses_updated,
+    )
+    return AmazonRecategorizeConfirmResponse(
+        updated=updated,
+        categories_created=categories_created,
+        expenses_updated=expenses_updated,
+    )
 
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)

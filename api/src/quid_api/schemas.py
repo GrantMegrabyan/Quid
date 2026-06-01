@@ -605,6 +605,52 @@ class AmazonCategoryRequest(_Camel):
     category_id: str | None = None
 
 
+class AmazonRecategorizePreviewRow(_Camel):
+    """One order's AI re-categorisation suggestion (read-only preview).
+
+    ``changed`` is True when the suggested category differs from the order's
+    current category (the UI hides unchanged rows behind a toggle).
+    ``suggested_category_exists`` is True when the suggested name maps to an
+    existing category (a False means confirming would create a new ``cat-*``).
+    """
+
+    order_id: str
+    name: str
+    total: Decimal
+    order_date: str
+    current_category_id: str | None = None
+    current_category_name: str | None = None
+    suggested_category_name: str
+    suggested_category_exists: bool
+    changed: bool
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class AmazonRecategorizePreviewResponse(_Camel):
+    rows: list[AmazonRecategorizePreviewRow] = Field(default_factory=list)
+    eligible: int
+    changed: int
+    unchanged: int
+
+
+class AmazonRecategorizeConfirmRow(_Camel):
+    order_id: Annotated[str, Field(min_length=1)]
+    category_name: Annotated[str, Field(min_length=1, max_length=120)]
+
+
+class AmazonRecategorizeConfirmRequest(_Camel):
+    rows: list[AmazonRecategorizeConfirmRow] = Field(default_factory=list)
+
+
+class AmazonRecategorizeConfirmResponse(_Camel):
+    updated: int
+    categories_created: int
+    expenses_updated: int
+
+
 class AppSettingsOut(_Camel):
     currency: str
     show_importance_badge: bool

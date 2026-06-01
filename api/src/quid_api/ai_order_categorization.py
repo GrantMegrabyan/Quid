@@ -93,3 +93,54 @@ async def categorize_amazon_orders(
         len(result),
     )
     return result
+
+
+async def suggest_amazon_order_categories(
+    orders: list[AmazonOrder],
+    *,
+    existing_categories: list[tuple[str, str]],
+    ai_rules: list[str],
+    api_key: str | None,
+    model: str,
+    chunk_size: int,
+) -> dict[str, str]:
+    """Return ``{order_id: suggested_category_name}`` WITHOUT persisting anything.
+
+    The read-only sibling of :func:`categorize_amazon_orders`: it runs the same
+    AI categorisation (so a re-categorise preview reflects the current AI rules
+    and category set) but yields the raw suggested category NAME instead of
+    resolving/creating a category id. The caller (the re-categorise preview
+    endpoint) decides what to show and only writes on confirm. Orders with no
+    usable item titles or short name are skipped (nothing to categorise on).
+    """
+    eligible: list[AmazonOrder] = []
+    items: list[BulkItem] = []
+    for order in orders:
+        titles = _order_titles(order)
+        if not titles and not order.short_name:
+            continue
+        eligible.append(order)
+        items.append(_order_to_item(order, titles))
+    if not items:
+        return {}
+
+    categorized = await categorize_transactions(
+        items,
+        existing_categories=existing_categories,
+        ai_rules=ai_rules,
+        api_key=api_key,
+        model=model,
+        chunk_size=chunk_size,
+    )
+
+    result: dict[str, str] = {}
+    for order, item in zip(eligible, categorized.items, strict=True):
+        name = (item.category or "").strip()
+        if name:
+            result[order.id] = name
+    logger.info(
+        "amazon.recategorize.preview orders=%d suggested=%d",
+        len(eligible),
+        len(result),
+    )
+    return result
