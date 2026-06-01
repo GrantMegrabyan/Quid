@@ -339,10 +339,11 @@ guess), the row carries `categoryFromRule = true` (else `false`); when the rule
 replaced a *different* AI/CSV guess, the row also carries
 `overriddenCategoryName` (the category that would have been used otherwise, else
 `null`). The web UI shows the rule's display name as the row's primary label
-(with the raw merchant as a "renamed from …" hint) and tags the category cell
-with a **Rule** badge when `categoryFromRule` is set, plus an "AI suggested: X"
-hint when `overriddenCategoryName` is present — so a user sees both what the AI
-identified and the rule's override, and does not hand-fix a transaction that the
+(with the raw merchant as a "renamed from …" hint) and, when a rule replaced a
+different AI/CSV guess (`categoryFromRule` set and `overriddenCategoryName`
+present), shows an "AI suggested: X" hint under the category cell — so a user
+sees both what the AI identified and the rule's override, and does not hand-fix
+a transaction that the
 rule will fix on confirm. Confirm re-runs the rules server-side, so the
 persisted result matches the preview regardless of what the client sends.
 

@@ -655,13 +655,14 @@ test.describe('import page', () => {
 		await expect(page.getByText('Maria Andreeva', { exact: true })).toBeVisible();
 		await expect(page.getByText('renamed from MARIA ANDREEVA REF 99281')).toBeVisible();
 		await expect(page.getByText('Cleaner')).toBeVisible();
-		// The category cell flags that the category came from a rule and shows
-		// what the AI had identified before the rule overrode it.
-		await expect(page.getByText('from rule')).toBeVisible();
+		// The category cell shows what the AI had identified before the rule
+		// overrode it.
 		await expect(page.getByText('AI suggested: Shopping')).toBeVisible();
 	});
 
-	test('CSV preview does not flag the category as rule-driven without a rule', async ({ page }) => {
+	test('CSV preview shows no AI-suggested hint when no rule overrode the category', async ({
+		page
+	}) => {
 		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
 			await route.fulfill({
 				status: 200,
@@ -715,7 +716,6 @@ test.describe('import page', () => {
 		});
 
 		await expect(page.getByText('Tesco', { exact: true })).toBeVisible();
-		await expect(page.getByText('from rule')).toHaveCount(0);
 		await expect(page.getByText(/AI suggested:/)).toHaveCount(0);
 	});
 });

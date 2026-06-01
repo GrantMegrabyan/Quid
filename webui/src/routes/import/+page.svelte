@@ -549,19 +549,10 @@
 								<option value={category.name}>{category.name}</option>
 							{/each}
 						</select>
-						{#if row.categoryFromRule}
+						{#if row.categoryFromRule && row.overriddenCategoryName}
 							<div class="mt-1 text-xs text-ctp-overlay1">
-								<span
-									class="rounded bg-ctp-surface1 px-1.5 py-0.5 font-medium text-ctp-subtext0"
-									>Rule</span
-								>
-								from rule
+								AI suggested: {row.overriddenCategoryName}
 							</div>
-							{#if row.overriddenCategoryName}
-								<div class="text-xs text-ctp-overlay1">
-									AI suggested: {row.overriddenCategoryName}
-								</div>
-							{/if}
 						{/if}
 					</div>
 					<div>
