@@ -768,6 +768,24 @@ async def test_auto_match_links_single_candidate(app_client):
     assert len(keyboard["linkedExpenseIds"]) == 1
 
 
+async def test_auto_match_links_expense_with_timestamp_date(app_client):
+    # Regression: expenses may store a full ``YYYY-MM-DDTHH:MM:SS`` timestamp
+    # (not just a bare date). Matching must parse the day prefix and still link
+    # rather than silently skipping every timestamped expense.
+    await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=42.50, date="2026-04-22T14:30:00"
+    )
+    res = await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("retail.csv", RETAIL_ORDER_CSV)],
+    )
+    assert res.json()["autoMatched"] == 1
+
+    listed = await app_client.get("/api/v1/amazon-orders")
+    keyboard = next(row for row in listed.json() if row["id"] == "111-1234567-1234567")
+    assert len(keyboard["linkedExpenseIds"]) == 1
+
+
 async def test_auto_match_ambiguous_when_multiple_candidates(app_client):
     await _seed_categories_and_expense(
         app_client, name="Amazon Mktp A", amount=42.50, date="2026-04-21"

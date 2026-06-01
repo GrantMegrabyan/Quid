@@ -42,7 +42,11 @@ def _is_amazon_merchant() -> ColumnElement[bool]:
 
 
 def _parse_date(value: str) -> date:
-    return date.fromisoformat(value)
+    # ``expenses.date`` may be a bare ``YYYY-MM-DD`` or a full
+    # ``YYYY-MM-DDTHH:MM:SS`` local timestamp (see AGENTS.md). Amazon order
+    # dates are always date-only. Match on the 10-char day prefix so a
+    # timestamped expense still parses (and matching stays day-granular).
+    return date.fromisoformat(value[:10])
 
 
 @dataclass(frozen=True)
