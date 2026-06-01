@@ -557,6 +557,11 @@
 								>
 								from rule
 							</div>
+							{#if row.overriddenCategoryName}
+								<div class="text-xs text-ctp-overlay1">
+									AI suggested: {row.overriddenCategoryName}
+								</div>
+							{/if}
 						{/if}
 					</div>
 					<div>

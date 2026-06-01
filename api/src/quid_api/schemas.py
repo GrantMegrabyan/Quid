@@ -228,6 +228,10 @@ class ImportPreviewRow(_Camel):
     # rule (not AI/heuristic). Lets the preview flag the category as rule-driven,
     # mirroring ``display_name``.
     category_from_rule: bool = False
+    # The AI/CSV-derived category a matching rule overrode, set ONLY when it
+    # differs from ``suggested_category``. Lets the preview show what the AI
+    # identified before the rule replaced it. ``None`` otherwise.
+    overridden_category_name: str | None = None
     existing_category_name: str | None = None
     suggested_importance: Importance = "important"
     existing_importance: Importance | None = None

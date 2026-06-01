@@ -97,6 +97,11 @@ class _PreparedImportItem:
     # ``categorize`` rule (not AI/heuristic). Lets the preview flag the category
     # as rule-driven, mirroring ``display_name``.
     category_from_rule: bool = False
+    # The category that would have been used had no rule matched (the AI/CSV
+    # guess), set ONLY when a rule overrode it with a DIFFERENT category. Lets
+    # the preview show "AI suggested: X" alongside the rule's choice. ``None``
+    # when no rule overrode the category or the rule picked the same one.
+    overridden_category_name: str | None = None
     excluded: bool = False
 
 
@@ -259,6 +264,7 @@ async def _prepare_preview_items(
         display_name: str | None = None
         note = item.note or ""
         category_from_rule = False
+        overridden_category_name: str | None = None
         if rule is not None and rule.action == "categorize":
             assert rule.target_category_id is not None
             category = await session.get(Category, rule.target_category_id)
@@ -270,6 +276,11 @@ async def _prepare_preview_items(
             display_name = rule.set_display_name
             if rule.set_note is not None:
                 note = rule.set_note
+            # Surface the AI/CSV guess the rule replaced, but only when it
+            # actually differs — no value in "AI suggested X → X".
+            ai_suggested = _suggested_category(item.category, categories)
+            if ai_suggested.name != category_name:
+                overridden_category_name = ai_suggested.name
         else:
             suggested = _suggested_category(item.category, categories)
             category_id = suggested.id
@@ -290,6 +301,7 @@ async def _prepare_preview_items(
                 importance=clean_importance,
                 display_name=display_name,
                 category_from_rule=category_from_rule,
+                overridden_category_name=overridden_category_name,
             )
         )
     return prepared
@@ -324,6 +336,7 @@ async def _build_preview_rows(
                     kind="excluded",
                     suggested_category=suggested,
                     category_from_rule=item.category_from_rule,
+                    overridden_category_name=item.overridden_category_name,
                     suggested_importance=cast("Importance", item.importance),
                 )
             )
@@ -390,6 +403,7 @@ async def _build_preview_rows(
                     existing_category_name=existing_category_name,
                     suggested_category=suggested,
                     category_from_rule=item.category_from_rule,
+                    overridden_category_name=item.overridden_category_name,
                     suggested_importance=cast("Importance", item.importance),
                     existing_importance=(
                         cast("Importance", existing_importance)

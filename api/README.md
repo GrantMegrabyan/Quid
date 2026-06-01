@@ -335,11 +335,15 @@ matching rule would `exclude` come back as `kind = "excluded"`. A matching
 row carries a `displayName` field (the rule's `set_display_name`, else `null`)
 and its `note` is the rule's `set_note` when the rule overrides it. When the
 category itself came from a matching `categorize` rule (rather than the AI/CSV
-guess), the row carries `categoryFromRule = true` (else `false`). The web UI
-shows the rule's display name as the row's primary label (with the raw merchant
-as a "renamed from …" hint) and tags the category cell with a **Rule** badge
-when `categoryFromRule` is set, so a user does not hand-fix a transaction that
-the rule will fix on confirm. Confirm re-runs the rules server-side, so the
+guess), the row carries `categoryFromRule = true` (else `false`); when the rule
+replaced a *different* AI/CSV guess, the row also carries
+`overriddenCategoryName` (the category that would have been used otherwise, else
+`null`). The web UI shows the rule's display name as the row's primary label
+(with the raw merchant as a "renamed from …" hint) and tags the category cell
+with a **Rule** badge when `categoryFromRule` is set, plus an "AI suggested: X"
+hint when `overriddenCategoryName` is present — so a user sees both what the AI
+identified and the rule's override, and does not hand-fix a transaction that the
+rule will fix on confirm. Confirm re-runs the rules server-side, so the
 persisted result matches the preview regardless of what the client sends.
 
 ## AI free-form import

@@ -99,6 +99,11 @@ export interface ImportPreviewRow {
  	 * rule (not AI/heuristic). Lets the preview flag the category as rule-driven.
  	 */
  	categoryFromRule: boolean;
+ 	/**
+ 	 * The AI/CSV-derived category a matching rule overrode, set only when it
+ 	 * differs from `suggestedCategory`. `null` otherwise.
+ 	 */
+ 	overriddenCategoryName: string | null;
 	suggestedImportance: ExpenseImportance;
 	existingImportance: ExpenseImportance | null;
 }

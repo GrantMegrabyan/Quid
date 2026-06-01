@@ -942,6 +942,37 @@ async def test_import_csv_preview_reflects_rule_category_name_and_note(app_clien
     assert row["suggestedCategory"]["id"] == home["id"]
     # Category provenance is flagged so the preview can show a "Rule" badge.
     assert row["categoryFromRule"] is True
+    # The AI/CSV guess the rule overrode is surfaced (CSV "other" ⇒ the seeded
+    # "Uncategorized" category), so the user sees what the rule replaced.
+    assert row["overriddenCategoryName"] == "Uncategorized"
+
+
+async def test_import_csv_preview_no_override_hint_when_rule_matches_ai(app_client):
+    """``overriddenCategoryName`` is null when the rule picks the SAME category
+    the AI/CSV already would have — no point showing "AI suggested: X → X"."""
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Maria to Home",
+            "action": "categorize",
+            "targetCategoryId": home["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "maria",
+        },
+    )
+
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    # CSV category already resolves to "Home", so the rule changes nothing.
+    csv = "name,category,amount,date\nMARIA ANDREEVA,Home,-500,2026-04-22\n"
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview", files=[_upload("maria.csv", csv)]
+    )
+    assert preview.status_code == 200, preview.text
+    row = preview.json()["rows"][0]
+    assert row["categoryFromRule"] is True
+    assert row["suggestedCategory"]["name"] == "Home"
+    assert row["overriddenCategoryName"] is None
 
 
 async def test_import_csv_preview_display_name_none_without_rule(app_client):
@@ -956,5 +987,6 @@ async def test_import_csv_preview_display_name_none_without_rule(app_client):
     assert row["displayName"] is None
     assert row["name"] == "Tesco"
     assert row["note"] == "weekly shop"
-    # No rule matched ⇒ category is NOT flagged as rule-driven.
+    # No rule matched ⇒ category is NOT flagged as rule-driven, no override hint.
     assert row["categoryFromRule"] is False
+    assert row["overriddenCategoryName"] is None
