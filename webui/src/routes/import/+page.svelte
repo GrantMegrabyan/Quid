@@ -1025,7 +1025,9 @@
 				1fr
 			);
 		gap: 0.75rem;
-		align-items: center;
+		/* Top-align so the amount/category/importance controls share one line
+		   even when a cell carries a hint (e.g. "AI suggested: …") below it. */
+		align-items: start;
 	}
 
 	.import-row-header {
