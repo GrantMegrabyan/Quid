@@ -37,13 +37,19 @@ CATEGORY_SEEDS: tuple[_CatSeed, ...] = (
         "cat-housing",
         "Housing",
         "house",
-        "Home-related expenses and utilities: rent, mortgage, electricity, water, gas, internet, maintenance, furniture, and household items.",
+        "Recurring costs of renting and running the home: rent, mortgage, electricity, water, gas, heating, internet/broadband, council tax or property tax, rental/building insurance, service charges, and HOA fees. Do not use for furniture, appliances, or household goods (use Home).",
+    ),
+    _CatSeed(
+        "cat-home",
+        "Home",
+        "sofa",
+        "One-off purchases for the home: furniture, lighting, decor, kitchenware, bedding, storage, tools, light maintenance/DIY supplies, cleaning products, and laundry items. Do not use for rent, utilities, or bills (use Housing), or for groceries and food.",
     ),
     _CatSeed(
         "cat-groceries",
         "Groceries",
         "shopping-cart",
-        "Food and household consumables bought for home use, including supermarkets, baby food, cleaning supplies, and toiletries bought with groceries. Do not use for restaurants, cafes, or delivery.",
+        "Food and household consumables bought for home use, including supermarkets, baby food, and toiletries bought with groceries. Do not use for restaurants, cafes, or delivery, or for standalone cleaning and laundry supplies (use Home).",
     ),
     _CatSeed(
         "cat-health",
@@ -85,7 +91,7 @@ CATEGORY_SEEDS: tuple[_CatSeed, ...] = (
         "cat-shopping",
         "Shopping",
         "shopping-bag",
-        "General personal and household shopping: clothes, shoes, cosmetics, toys, small household purchases, and non-essential purchases. Do not use for technology purchases.",
+        "General personal shopping: clothes, shoes, cosmetics, toys, and non-essential purchases. Do not use for technology purchases, or for furniture and household goods (use Home).",
     ),
     _CatSeed(
         "cat-technology-gadgets",
@@ -140,7 +146,7 @@ EXPENSE_SEEDS: tuple[_ExpSeed, ...] = (
     _ExpSeed("exp-012", "Chipotle", "89.95", "cat-eating-out", "Team lunch", 5, 10),
     _ExpSeed("exp-013", "Amazon Prime", "27.60", "cat-groceries", "Snacks", 0, 21),
     _ExpSeed("exp-014", "Thames Water", "110.40", "cat-housing", "Water bill", 2, 24),
-    _ExpSeed("exp-015", "IKEA", "210.85", "cat-housing", "Maintenance supplies", 3, 27),
+    _ExpSeed("exp-015", "IKEA", "210.85", "cat-home", "Furniture", 3, 27),
     _ExpSeed("exp-016", "Patreon", "12.00", UNCATEGORIZED_ID, "Monthly membership", 1, 14),
     _ExpSeed("exp-017", "Netflix", "17.99", "cat-subscriptions", "Streaming", 0, 18),
 )

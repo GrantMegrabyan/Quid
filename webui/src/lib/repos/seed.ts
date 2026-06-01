@@ -35,11 +35,18 @@ const CATEGORY_SEEDS: readonly CategorySeed[] = [
 			'Home-related expenses and utilities: rent, mortgage, electricity, water, gas, internet, maintenance, furniture, and household items.',
 	},
 	{
+		id: 'cat-home',
+		name: 'Home',
+		icon: 'sofa',
+		description:
+			'One-off purchases for the home: furniture, lighting, decor, kitchenware, bedding, storage, tools, light maintenance/DIY supplies, cleaning products, and laundry items. Do not use for rent, utilities, or bills (use Housing), or for groceries and food.',
+	},
+	{
 		id: 'cat-groceries',
 		name: 'Groceries',
 		icon: 'shopping-cart',
 		description:
-			'Food and household consumables bought for home use, including supermarkets, baby food, cleaning supplies, and toiletries bought with groceries. Do not use for restaurants, cafes, or delivery.',
+			'Food and household consumables bought for home use, including supermarkets, baby food, and toiletries bought with groceries. Do not use for restaurants, cafes, or delivery, or for standalone cleaning and laundry supplies (use Home).',
 	},
 	{
 		id: 'cat-health',
@@ -88,7 +95,7 @@ const CATEGORY_SEEDS: readonly CategorySeed[] = [
 		name: 'Shopping',
 		icon: 'shopping-bag',
 		description:
-			'General personal and household shopping: clothes, shoes, cosmetics, toys, small household purchases, and non-essential purchases. Do not use for technology purchases.',
+			'General personal shopping: clothes, shoes, cosmetics, toys, and non-essential purchases. Do not use for technology purchases, or for furniture and household goods (use Home).',
 	},
 	{
 		id: 'cat-technology-gadgets',
@@ -149,7 +156,7 @@ const EXPENSE_SEEDS: readonly ExpenseSeed[] = [
 	{ id: 'exp-012', name: 'Chipotle', amount: '89.95', categoryId: 'cat-eating-out', note: 'Team lunch', monthsAgo: 5, day: 10 },
 	{ id: 'exp-013', name: 'Amazon Prime', amount: '27.60', categoryId: 'cat-groceries', note: 'Snacks', monthsAgo: 0, day: 21 },
 	{ id: 'exp-014', name: 'Thames Water', amount: '110.40', categoryId: 'cat-housing', note: 'Water bill', monthsAgo: 2, day: 24 },
-	{ id: 'exp-015', name: 'IKEA', amount: '210.85', categoryId: 'cat-housing', note: 'Maintenance supplies', monthsAgo: 3, day: 27 },
+	{ id: 'exp-015', name: 'IKEA', amount: '210.85', categoryId: 'cat-home', note: 'Furniture', monthsAgo: 3, day: 27 },
 	{ id: 'exp-016', name: 'Patreon', amount: '12.00', categoryId: UNCATEGORIZED_ID, note: 'Monthly membership', monthsAgo: 1, day: 14 },
 	{ id: 'exp-017', name: 'Netflix', amount: '17.99', categoryId: 'cat-subscriptions', note: 'Streaming', monthsAgo: 0, day: 18 },
 ];
