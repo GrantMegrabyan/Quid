@@ -86,20 +86,25 @@
 
 		<label class="flex flex-col gap-1.5">
 			<span class="text-sm font-medium text-ctp-subtext0">AI categorisation model</span>
-			<select
+			<input
+				type="text"
 				bind:value={categorizeModel}
-				data-testid="settings-categorize-model-select"
+				list="categorisation-model-options"
+				placeholder="google/gemini-2.5-flash"
+				autocomplete="off"
+				spellcheck="false"
+				data-testid="settings-categorize-model-input"
 				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
-			>
+			/>
+			<datalist id="categorisation-model-options">
 				{#each CATEGORISATION_MODELS as model}
 					<option value={model.value}>{model.label}</option>
 				{/each}
-				{#if !CATEGORISATION_MODELS.some((model) => model.value === categorizeModel)}
-					<option value={categorizeModel}>{categorizeModel}</option>
-				{/if}
-			</select>
+			</datalist>
 			<span class="text-sm text-ctp-overlay1">
-				Which OpenRouter model categorises transactions during import.
+				Any OpenRouter model id used to categorise transactions during import (e.g.
+				<code class="rounded bg-ctp-surface0 px-1 py-0.5 text-xs">google/gemini-2.5-flash</code>).
+				Suggestions are offered, but you can enter any model.
 			</span>
 		</label>
 
