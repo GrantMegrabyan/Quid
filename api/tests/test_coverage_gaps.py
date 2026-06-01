@@ -92,6 +92,25 @@ async def test_testing_reset_without_samples(app_client):
     assert cats0["name"] == "Uncategorized"
 
 
+async def test_testing_reset_restores_app_settings_defaults(app_client):
+    # Flip an AI toggle off and change the model, mirroring what an e2e test does.
+    patched = await app_client.patch(
+        "/api/v1/settings",
+        json={"aiCategorizeEnabled": False, "categorizeModel": "anthropic/claude-haiku-4.5"},
+    )
+    assert patched.status_code == 200
+
+    res = await app_client.post("/api/v1/testing/reset")
+    assert res.status_code == 204
+
+    # The singleton must be reset to its column defaults so toggled state does not
+    # bleed into the next e2e test (which asserts AI toggles default on).
+    settings = (await app_client.get("/api/v1/settings")).json()
+    assert settings["aiCategorizeEnabled"] is True
+    assert settings["aiShortNamesEnabled"] is True
+    assert settings["categorizeModel"] == "google/gemini-2.5-flash"
+
+
 async def test_dispose_engine_resets_globals():
     settings = Settings(database_url="sqlite+aiosqlite:///:memory:")
     eng = build_engine(settings)

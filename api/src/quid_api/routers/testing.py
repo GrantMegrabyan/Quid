@@ -73,6 +73,10 @@ async def _wipe(session: AsyncSession) -> None:
         ),
         {"c": UNCATEGORIZED_COLOR, "uid": UNCATEGORIZED_ID},
     )
+    # Reset the app_settings singleton so a prior test that toggled an AI flag or
+    # changed the categorize model doesn't bleed into the next test. Deleting the
+    # row makes AppSettingsRepository.get() recreate it with the column defaults.
+    await session.execute(text("DELETE FROM app_settings"))
 
 
 @router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
