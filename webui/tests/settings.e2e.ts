@@ -9,10 +9,25 @@ test.describe('settings page', () => {
 	test('AI toggles render and default on', async ({ page }) => {
 		await page.goto('/settings');
 
+		await expect(page.getByTestId('settings-categorize-model-select')).toBeVisible();
 		await expect(page.getByTestId('settings-ai-categorize-toggle')).toBeVisible();
 		await expect(page.getByTestId('settings-ai-short-names-toggle')).toBeVisible();
+		await expect(page.getByTestId('settings-categorize-model-select')).toHaveValue('google/gemini-2.5-flash');
 		await expect(page.getByTestId('settings-ai-categorize-toggle')).toBeChecked();
 		await expect(page.getByTestId('settings-ai-short-names-toggle')).toBeChecked();
+	});
+
+	test('categorisation model persists across reload', async ({ page }) => {
+		await page.goto('/settings');
+
+		const select = page.getByTestId('settings-categorize-model-select');
+		await select.selectOption('openai/gpt-5.4-mini');
+
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+
+		await page.reload();
+		await expect(page.getByTestId('settings-categorize-model-select')).toHaveValue('openai/gpt-5.4-mini');
 	});
 
 	test('AI categorisation toggle persists across reload', async ({ page }) => {

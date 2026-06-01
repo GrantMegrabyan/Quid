@@ -3,8 +3,15 @@
 	import { refreshSettings, settings, updateSettings } from '$lib/stores/settings';
 
 	const SUPPORTED_CURRENCIES = ['GBP', 'USD', 'EUR', 'CAD', 'AUD', 'JPY'] as const;
+	const CATEGORISATION_MODELS = [
+		{ value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (recommended)' },
+		{ value: 'openai/gpt-5.4-mini', label: 'GPT-5.4 mini' },
+		{ value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+		{ value: 'openai/gpt-5.4-nano', label: 'GPT-5.4 nano' }
+	] as const;
 
 	let currency = $state('GBP');
+	let categorizeModel = $state('google/gemini-2.5-flash');
 	let showImportanceBadge = $state(true);
 	let aiCategorizeEnabled = $state(true);
 	let aiShortNamesEnabled = $state(true);
@@ -14,6 +21,7 @@
 
 	$effect(() => {
 		currency = $settings.currency;
+		categorizeModel = $settings.categorizeModel;
 		showImportanceBadge = $settings.showImportanceBadge;
 		aiCategorizeEnabled = $settings.aiCategorizeEnabled;
 		aiShortNamesEnabled = $settings.aiShortNamesEnabled;
@@ -28,7 +36,13 @@
 		message = '';
 		error = '';
 		try {
-			await updateSettings({ currency, showImportanceBadge, aiCategorizeEnabled, aiShortNamesEnabled });
+			await updateSettings({
+				currency,
+				categorizeModel,
+				showImportanceBadge,
+				aiCategorizeEnabled,
+				aiShortNamesEnabled
+			});
 			message = 'Settings saved.';
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Failed to save settings.';
@@ -68,6 +82,25 @@
 					<option value={code}>{code}</option>
 				{/each}
 			</select>
+		</label>
+
+		<label class="flex flex-col gap-1.5">
+			<span class="text-sm font-medium text-ctp-subtext0">AI categorisation model</span>
+			<select
+				bind:value={categorizeModel}
+				data-testid="settings-categorize-model-select"
+				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+			>
+				{#each CATEGORISATION_MODELS as model}
+					<option value={model.value}>{model.label}</option>
+				{/each}
+				{#if !CATEGORISATION_MODELS.some((model) => model.value === categorizeModel)}
+					<option value={categorizeModel}>{categorizeModel}</option>
+				{/if}
+			</select>
+			<span class="text-sm text-ctp-overlay1">
+				Which OpenRouter model categorises transactions during import.
+			</span>
 		</label>
 
 		<label class="flex items-start gap-3 rounded-lg border border-ctp-surface1 bg-ctp-surface0/40 p-4 transition-colors hover:border-ctp-surface2">

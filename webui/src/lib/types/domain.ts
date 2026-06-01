@@ -237,6 +237,7 @@ export interface ImportLog {
 
 export interface AppSettings {
 	currency: string;
+	categorizeModel: string;
 	showImportanceBadge: boolean;
 	aiCategorizeEnabled: boolean;
 	aiShortNamesEnabled: boolean;
@@ -245,6 +246,7 @@ export interface AppSettings {
 
 export interface AppSettingsUpdate {
 	currency?: string;
+	categorizeModel?: string;
 	showImportanceBadge?: boolean;
 	aiCategorizeEnabled?: boolean;
 	aiShortNamesEnabled?: boolean;
