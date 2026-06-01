@@ -89,6 +89,10 @@ class _PreparedImportItem:
     category_name: str
     category_exists: bool
     importance: str
+    # The display name a matching ``categorize`` rule will apply at import time
+    # (rule ``set_display_name``). ``None`` when no rule overrides it. Preview
+    # surfaces it so the user sees the FINAL name, not the raw merchant string.
+    display_name: str | None = None
     excluded: bool = False
 
 
@@ -244,6 +248,12 @@ async def _prepare_preview_items(
                 )
             )
             continue
+        # A matching ``categorize`` rule may also override the display name and
+        # note at import time (see ``bulk_import``). Mirror that here so preview
+        # shows the FINAL name/note, not the raw merchant string the user would
+        # otherwise "fix" by hand even though the rule will fix it on confirm.
+        display_name: str | None = None
+        note = item.note or ""
         if rule is not None and rule.action == "categorize":
             assert rule.target_category_id is not None
             category = await session.get(Category, rule.target_category_id)
@@ -251,6 +261,9 @@ async def _prepare_preview_items(
             category_id: str | None = category.id
             category_name = category.name
             category_exists = True
+            display_name = rule.set_display_name
+            if rule.set_note is not None:
+                note = rule.set_note
         else:
             suggested = _suggested_category(item.category, categories)
             category_id = suggested.id
@@ -264,11 +277,12 @@ async def _prepare_preview_items(
                 name=clean_name,
                 amount=clean_amount,
                 date=clean_date,
-                note=item.note or "",
+                note=note,
                 category_id=category_id,
                 category_name=category_name,
                 category_exists=category_exists,
                 importance=clean_importance,
+                display_name=display_name,
             )
         )
     return prepared
@@ -296,6 +310,7 @@ async def _build_preview_rows(
                     source_row=item.source_row,
                     dedupe_key_hash=key_hash,
                     name=item.name,
+                    display_name=item.display_name,
                     amount=item.amount,
                     date=item.date,
                     note=item.note,
@@ -357,6 +372,7 @@ async def _build_preview_rows(
                     source_row=item.source_row,
                     dedupe_key_hash=key_hash,
                     name=item.name,
+                    display_name=item.display_name,
                     amount=item.amount,
                     date=item.date,
                     note=item.note,

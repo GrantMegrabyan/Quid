@@ -213,6 +213,10 @@ class ImportPreviewRow(_Camel):
     source_row: int
     dedupe_key_hash: str
     name: str
+    # The name a matching ``categorize`` import rule will apply on confirm
+    # (rule ``set_display_name``). ``None`` when no rule overrides it. Lets the
+    # preview show the FINAL name instead of the raw merchant string.
+    display_name: str | None = None
     amount: Decimal
     date: str
     note: str

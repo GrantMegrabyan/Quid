@@ -904,3 +904,53 @@ async def test_import_csv_applies_set_display_name(app_client):
     assert len(rows) == 1
     assert rows[0]["displayName"] == "Maria Andreeva"
     assert rows[0]["categoryId"] == home["id"]
+
+
+async def test_import_csv_preview_reflects_rule_category_name_and_note(app_client):
+    """Preview must show the FINAL category / display name / note a matching
+    ``categorize`` rule will apply on confirm — not the raw merchant string —
+    otherwise a user "fixes" what the rule already fixes."""
+    home = (await app_client.post("/api/v1/categories", json={"name": "Home"})).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Maria display name",
+            "action": "categorize",
+            "targetCategoryId": home["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "maria",
+            "setDisplayName": "Maria Andreeva",
+            "setNote": "Cleaner",
+        },
+    )
+
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = (
+        "name,category,amount,date,note\nMARIA ANDREEVA REF 99281,other,-500,2026-04-22,from csv\n"
+    )
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview", files=[_upload("maria.csv", csv)]
+    )
+    assert preview.status_code == 200, preview.text
+    row = preview.json()["rows"][0]
+    # Raw merchant preserved (drives dedupe + confirm payload), display name and
+    # note reflect the rule, and the suggested category is the rule's target.
+    assert row["name"] == "MARIA ANDREEVA REF 99281"
+    assert row["displayName"] == "Maria Andreeva"
+    assert row["note"] == "Cleaner"
+    assert row["suggestedCategory"]["name"] == "Home"
+    assert row["suggestedCategory"]["id"] == home["id"]
+
+
+async def test_import_csv_preview_display_name_none_without_rule(app_client):
+    """No matching rule ⇒ ``displayName`` is null and the parsed note is kept."""
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = "name,category,amount,date,note\nTesco,Groceries,-12.50,2026-04-22,weekly shop\n"
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview", files=[_upload("tesco.csv", csv)]
+    )
+    assert preview.status_code == 200, preview.text
+    row = preview.json()["rows"][0]
+    assert row["displayName"] is None
+    assert row["name"] == "Tesco"
+    assert row["note"] == "weekly shop"

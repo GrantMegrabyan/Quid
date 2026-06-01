@@ -327,6 +327,18 @@ so a re-import never silently clobbers fields the user intentionally edited on a
 previous import. Rows that match with an identical category **and** importance
 are hidden as `duplicate_same_category` and never sent to confirm.
 
+**Preview reflects what import rules will do.** Each preview row's
+`suggestedCategory` already accounts for any matching `categorize` import rule
+(it shows the rule's target category, not the raw AI/CSV guess), and rows a
+matching rule would `exclude` come back as `kind = "excluded"`. A matching
+`categorize` rule that sets a display name / note also surfaces in preview: the
+row carries a `displayName` field (the rule's `set_display_name`, else `null`)
+and its `note` is the rule's `set_note` when the rule overrides it. The web UI
+shows the rule's display name as the row's primary label (with the raw merchant
+as a "renamed from …" hint), so a user does not hand-fix a transaction that the
+rule will fix on confirm. Confirm re-runs the rules server-side, so the persisted
+result matches the preview regardless of what the client sends.
+
 ## AI free-form import
 
 Lets a user paste free-form text (e.g. `coffee 3.50 yesterday, Tesco 42 on the

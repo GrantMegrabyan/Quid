@@ -501,7 +501,16 @@
 							: ''}"
 				>
 					<div>
-						<div class="font-medium text-ctp-text">{row.name}</div>
+						<div class="font-medium text-ctp-text">{row.displayName ?? row.name}</div>
+						{#if row.displayName}
+							<div class="text-xs text-ctp-overlay1">
+								<span
+									class="rounded bg-ctp-surface1 px-1.5 py-0.5 font-medium text-ctp-subtext0"
+									>Rule</span
+								>
+								renamed from {row.name}
+							</div>
+						{/if}
 						<div class="text-xs text-ctp-overlay1">
 							{row.date} · {row.filename}:{row.sourceRow}
 						</div>

@@ -80,6 +80,11 @@ export interface ImportPreviewRow {
  	sourceRow: number;
  	dedupeKeyHash: string;
  	name: string;
+ 	/**
+ 	 * Name a matching `categorize` import rule will apply on confirm
+ 	 * (rule `set_display_name`). `null` when no rule overrides it.
+ 	 */
+ 	displayName: string | null;
  	/** Canonical decimal string ("19.99"). */
  	amount: string;
  	date: string;

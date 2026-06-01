@@ -591,4 +591,67 @@ test.describe('import page', () => {
 		await toggle.click();
 		await expect(page.getByText('Matched Row')).toBeVisible();
 	});
+
+	test('CSV preview shows the rule-renamed display name instead of the raw merchant', async ({
+		page
+	}) => {
+		// A matching `categorize` rule supplies a display name; the preview must
+		// show the FINAL name so the user does not "fix" what the rule fixes.
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-rule-name-1',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'hash-rule',
+							name: 'MARIA ANDREEVA REF 99281',
+							displayName: 'Maria Andreeva',
+							amount: '500.00',
+							date: '2026-04-22',
+							note: 'Cleaner',
+							kind: 'create',
+							suggestedCategory: { id: 'cat-home', name: 'Home', exists: true },
+							suggestedImportance: 'important'
+						}
+					],
+					summary: {
+						creates: 1,
+						categoryUpdates: 0,
+						hiddenDuplicates: 0,
+						excluded: 0,
+						invalidRows: 0,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 1,
+							imported: 1,
+							skippedDuplicates: 0,
+							skippedExcluded: 0,
+							skippedInvalidRows: 0
+						}
+					]
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-04-22,MARIA ANDREEVA REF 99281,500\n')
+		});
+
+		// The rule's display name is the primary label, with the raw merchant
+		// shown as a "renamed from" hint and the rule's note surfaced.
+		await expect(page.getByText('Maria Andreeva', { exact: true })).toBeVisible();
+		await expect(page.getByText('renamed from MARIA ANDREEVA REF 99281')).toBeVisible();
+		await expect(page.getByText('Cleaner')).toBeVisible();
+	});
 });
