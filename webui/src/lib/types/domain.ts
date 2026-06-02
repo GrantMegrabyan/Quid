@@ -90,6 +90,12 @@ export interface ImportPreviewRow {
  	date: string;
  	note: string;
  	kind: ImportPreviewKind;
+ 	/**
+ 	 * Human-readable explanation for `kind === 'excluded'` rows (why the row
+ 	 * won't be imported by default): AI exclusion, a matching exclude rule, a
+ 	 * detected refund, or detected incoming money. `null` for other rows.
+ 	 */
+ 	reason: string | null;
  	existingExpenseId: string | null;
  	existingCategoryId: string | null;
  	existingCategoryName: string | null;
@@ -117,9 +123,23 @@ export interface ImportCsvPreviewSummary {
  	aiCategorized: number;
 }
 
+/**
+ * A row dropped during CSV parsing, with a human-readable reason. Free-form
+ * import produces no invalid rows (malformed AI output is dropped upstream).
+ */
+export interface ImportPreviewInvalidRow {
+ 	filename: string;
+ 	sourceRow: number;
+ 	reason: string;
+ 	name: string;
+ 	amount: string;
+ 	date: string;
+}
+
 export interface ImportCsvPreviewResult {
  	importId: string;
  	rows: ImportPreviewRow[];
+ 	invalid: ImportPreviewInvalidRow[];
  	summary: ImportCsvPreviewSummary;
  	files: ImportCsvFileReport[];
 }

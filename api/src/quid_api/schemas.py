@@ -222,6 +222,11 @@ class ImportPreviewRow(_Camel):
     date: str
     note: str
     kind: ImportPreviewKind
+    # Human-readable explanation for ``kind == "excluded"`` rows (why the row
+    # won't be imported by default): AI exclusion, a matching exclude rule, a
+    # detected refund, or detected incoming money. ``None`` for non-excluded
+    # rows.
+    reason: str | None = None
     existing_expense_id: str | None = None
     existing_category_id: str | None = None
     suggested_category: ImportPreviewCategory
@@ -253,9 +258,26 @@ class ImportCsvPreviewSummary(_Camel):
     skipped_income: int = 0
 
 
+class ImportPreviewInvalidRow(_Camel):
+    """A row dropped during parsing (CSV) with a human-readable reason.
+
+    Surfaced so the import preview can explain WHICH rows were invalid and WHY
+    instead of only showing an aggregate count. Free-form import produces no
+    invalid rows (malformed AI output is dropped upstream).
+    """
+
+    filename: str
+    source_row: int
+    reason: str
+    name: str
+    amount: str
+    date: str
+
+
 class ImportCsvPreviewResponse(_Camel):
     import_id: str
     rows: list[ImportPreviewRow]
+    invalid: list[ImportPreviewInvalidRow] = []
     summary: ImportCsvPreviewSummary
     files: list[ImportCsvFileReport]
 

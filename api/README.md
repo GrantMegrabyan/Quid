@@ -315,7 +315,11 @@ classifies every parsed row by the sign of its amount:
 Excluded income/refund rows are **not dropped silently**: they appear in the
 preview plan as `kind = "excluded"` so you can see what was filtered (the one
 risk of sign-based filtering is a genuine expense a bank exported as a positive
-amount). The bare amount sign is used deliberately because it is bank-agnostic —
+amount). Each excluded preview row carries a human-readable `reason`
+(`"Excluded by AI"`, `"Detected refund (matched to a charge)"`, `"Detected
+incoming money"`, or `"Excluded by rule “<name>”"`) so the UI can explain *why*
+a row was filtered rather than only showing a count. The bare amount sign is
+used deliberately because it is bank-agnostic —
 Monzo's `Money In`/`Money Out` columns and Revolut's signed `Amount` both reduce
 to it, with no per-bank special-casing.
 
@@ -355,6 +359,14 @@ The Import page never writes straight from a file. It first calls
 plan (creates, category updates for existing rows, hidden duplicates, excluded
 rows), then `POST /api/v1/expenses/import-csv/confirm` with the reviewed rows to
 persist. Confirm records an import-log entry (see _Import history_).
+
+**Invalid (unparseable) rows are reported per-row.** Rows the parser had to drop
+(a non-`COMPLETED` bank state, a missing name/amount/date, a non-numeric amount,
+or a zero amount) are returned in a top-level `invalid` array on the preview
+response — each entry has `filename`, `sourceRow` (1-based, header is row 1),
+`reason`, and the raw `name`/`amount`/`date` — alongside the `summary.invalidRows`
+count. Free-form import produces no invalid rows (malformed AI output is dropped
+upstream), so its `invalid` array is always empty.
 
 **Matched (existing) transactions are not updated by default.** A row that
 matches an existing expense by `(date, lower(trim(name)), amount)` but carries a

@@ -50,6 +50,11 @@
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
 	let importLogs: ImportLog[] = $state([]);
 	let expandedLogs = $state<Record<string, boolean>>({});
+	// Disclosure toggles for the preview summary bar's "excluded"/"invalid"
+	// detail panels. Collapsed by default; only one review (CSV or free-form) is
+	// ever on screen at a time, so a shared pair of flags is sufficient.
+	let showExcludedDetails = $state(false);
+	let showInvalidDetails = $state(false);
 
 	// --- CSV tab state ------------------------------------------------------
 	let fileInputEl: HTMLInputElement | null = $state(null);
@@ -214,6 +219,8 @@
 		try {
 			const result = await expenseRepository.previewImportCsv(picked);
 			csvReview = { preview: result, rows: toReviewRows(result) };
+			showExcludedDetails = false;
+			showInvalidDetails = false;
 			if (result.rows.length === 0) {
 				banner = {
 					kind: 'success',
@@ -362,6 +369,8 @@
 		try {
 			const result = await expenseRepository.previewImportFreeform(raw);
 			freeformReview = { preview: result, rows: toReviewRows(result) };
+			showExcludedDetails = false;
+			showInvalidDetails = false;
 			if (result.rows.length === 0) {
 				banner = {
 					kind: 'success',
@@ -454,14 +463,111 @@
 )}
 	{@const overrideCount = updateRows.filter((row) => row.acceptUpdate).length}
 	{@const excludedCount = rows.filter((row) => row.userExcluded).length}
+	{@const excludedDetailRows = preview.rows.filter((row) => row.kind === 'excluded')}
+	{@const invalidDetailRows = preview.invalid ?? []}
+	{@const hasExcludedDetails = excludedDetailRows.length > 0}
+	{@const hasInvalidDetails = invalidDetailRows.length > 0}
 	<div class="import-summary rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm">
 		<div><strong>{preview.summary.creates}</strong><br />new</div>
 		<div><strong>{preview.summary.categoryUpdates}</strong><br />existing (kept)</div>
 		<div><strong>{preview.summary.hiddenDuplicates}</strong><br />unchanged hidden</div>
-		<div><strong>{preview.summary.excluded}</strong><br />excluded</div>
-		<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
+		{#if hasExcludedDetails}
+			<button
+				type="button"
+				data-testid="toggle-excluded-details"
+				aria-pressed={showExcludedDetails}
+				aria-expanded={showExcludedDetails}
+				onclick={() => (showExcludedDetails = !showExcludedDetails)}
+				class="cursor-pointer rounded-md text-left transition-colors hover:bg-ctp-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ctp-accent"
+			>
+				<strong class="underline decoration-dotted underline-offset-2">
+					{preview.summary.excluded}
+				</strong><br />excluded
+			</button>
+		{:else}
+			<div><strong>{preview.summary.excluded}</strong><br />excluded</div>
+		{/if}
+		{#if hasInvalidDetails}
+			<button
+				type="button"
+				data-testid="toggle-invalid-details"
+				aria-pressed={showInvalidDetails}
+				aria-expanded={showInvalidDetails}
+				onclick={() => (showInvalidDetails = !showInvalidDetails)}
+				class="cursor-pointer rounded-md text-left transition-colors hover:bg-ctp-surface0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ctp-accent"
+			>
+				<strong class="underline decoration-dotted underline-offset-2">
+					{preview.summary.invalidRows}
+				</strong><br />invalid
+			</button>
+		{:else}
+			<div><strong>{preview.summary.invalidRows}</strong><br />invalid</div>
+		{/if}
 		<div><strong>{preview.summary.aiCategorized}</strong><br />AI categorised</div>
 	</div>
+
+	{#if hasExcludedDetails && showExcludedDetails}
+		<div
+			data-testid="excluded-details-panel"
+			class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm"
+		>
+			<p class="mb-3 text-xs text-ctp-overlay1">
+				These transactions won't be imported. They were excluded automatically (AI,
+				import rule, refund, or incoming money).
+			</p>
+			<ul class="flex flex-col gap-2">
+				{#each excludedDetailRows as row (row.previewRowId)}
+					<li
+						data-testid="excluded-detail-row"
+						class="flex flex-wrap items-start justify-between gap-2 rounded-md border border-ctp-surface0 px-3 py-2"
+					>
+						<div class="min-w-0">
+							<div class="font-medium text-ctp-text">{row.displayName ?? row.name}</div>
+							<div class="text-xs text-ctp-overlay1">
+								{formatAmount(row.amount, $settings.currency)} · {row.date} · {row.filename}:{row.sourceRow}
+							</div>
+						</div>
+						{#if row.reason}
+							<span
+								class="rounded-full bg-ctp-surface1 px-2 py-1 text-xs font-medium text-ctp-subtext0"
+								>{row.reason}</span
+							>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
+
+	{#if hasInvalidDetails && showInvalidDetails}
+		<div
+			data-testid="invalid-details-panel"
+			class="rounded-lg border border-ctp-surface1 bg-ctp-base p-4 text-sm"
+		>
+			<p class="mb-3 text-xs text-ctp-overlay1">
+				These rows couldn't be parsed and won't be imported.
+			</p>
+			<ul class="flex flex-col gap-2">
+				{#each invalidDetailRows as invalidRow, i (`${invalidRow.filename}:${invalidRow.sourceRow}:${i}`)}
+					<li
+						data-testid="invalid-detail-row"
+						class="flex flex-wrap items-start justify-between gap-2 rounded-md border border-ctp-surface0 px-3 py-2"
+					>
+						<div class="min-w-0">
+							<div class="font-medium text-ctp-text">{invalidRow.name || '—'}</div>
+							<div class="text-xs text-ctp-overlay1">
+								{invalidRow.amount || '—'} · {invalidRow.date || '—'} · {invalidRow.filename}:{invalidRow.sourceRow}
+							</div>
+						</div>
+						<span
+							class="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-200"
+							>{invalidRow.reason}</span
+						>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
 
 	{#if matchedCount > 0}
 		<div class="flex items-center justify-end">

@@ -49,7 +49,12 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
     already identical are hidden entirely. Each row also has an **Exclude** toggle
     that drops it from the import — this works for brand-new rows too, not just
     matched ones — and a **Hide/Show N matched** control collapses the existing
-    (kept) rows away so you can focus on what's new.
+    (kept) rows away so you can focus on what's new. The summary bar's
+    **excluded** and **invalid** counts are clickable when non-zero: each
+    expands a read-only panel listing the affected rows with a per-row reason
+    (e.g. _Excluded by AI_, _Detected refund_, or _Amount “abc” is not a
+    number_) so you can see exactly which transactions were filtered or dropped
+    and why, instead of only a count.
   - **Single transaction** — an inline form (merchant, amount, date, category,
     importance, note) for adding one transaction at a time.
   - **AI free-form** — paste plain-English lines (e.g. `coffee 3.50 yesterday`)

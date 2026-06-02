@@ -34,10 +34,31 @@ class CsvFile:
 
 
 @dataclass(frozen=True)
+class InvalidRow:
+    """A CSV row that could not be imported, with a human-readable reason.
+
+    ``source_row`` is 1-based and counts the header (so the first data row is
+    row 2), matching the ``source_row`` used for valid preview rows. The raw
+    cell values are captured best-effort so the UI can show the user WHICH row
+    was dropped and WHY, instead of only an aggregate count.
+    """
+
+    source_row: int
+    reason: str
+    name: str
+    amount: str
+    date: str
+
+
+@dataclass(frozen=True)
 class CsvParsed:
     items: list[BulkItem]
     filename: str
-    skipped_rows: int
+    invalid_rows: list[InvalidRow]
+
+    @property
+    def skipped_rows(self) -> int:
+        return len(self.invalid_rows)
 
 
 def _normalize_header(value: str) -> str:
@@ -156,32 +177,59 @@ def parse_csv(file: CsvFile) -> CsvParsed:
         )
 
     items: list[BulkItem] = []
-    skipped = 0
-    for raw in reader:
-        if state_col is not None:
-            state = (raw.get(state_col) or "").strip().upper()
-            if state and state != "COMPLETED":
-                skipped += 1
-                continue
-
+    invalid: list[InvalidRow] = []
+    # Enumerate from 2 so the reported row number includes the header row,
+    # matching the 1-based ``source_row`` used for valid preview rows.
+    for source_row, raw in enumerate(reader, start=2):
         name = (raw.get(name_col) or "").strip()
         amount_raw = _coerce_amount_string(raw.get(amount_col) or "")
         date_raw = _normalize_date(raw.get(date_col) or "")
         category = (raw.get(category_col) or "").strip() if category_col else ""
         note = (raw.get(note_col) or "").strip() if note_col else ""
 
-        if not name or not amount_raw or not date_raw:
-            skipped += 1
+        if state_col is not None:
+            state = (raw.get(state_col) or "").strip().upper()
+            if state and state != "COMPLETED":
+                invalid.append(
+                    InvalidRow(
+                        source_row,
+                        f"Status is “{state}”, not Completed",
+                        name,
+                        amount_raw,
+                        date_raw,
+                    )
+                )
+                continue
+
+        missing = [
+            label
+            for value, label in ((name, "name"), (amount_raw, "amount"), (date_raw, "date"))
+            if not value
+        ]
+        if missing:
+            invalid.append(
+                InvalidRow(
+                    source_row,
+                    f"Missing required value: {', '.join(missing)}",
+                    name,
+                    amount_raw,
+                    date_raw,
+                )
+            )
             continue
 
         try:
             amount = Decimal(amount_raw)
         except Exception:
-            skipped += 1
+            invalid.append(
+                InvalidRow(
+                    source_row, f"Amount “{amount_raw}” is not a number", name, amount_raw, date_raw
+                )
+            )
             continue
 
         if amount == 0:
-            skipped += 1
+            invalid.append(InvalidRow(source_row, "Amount is zero", name, amount_raw, date_raw))
             continue
 
         importance_raw = (raw.get(importance_col) or "").strip().lower() if importance_col else ""
@@ -198,4 +246,4 @@ def parse_csv(file: CsvFile) -> CsvParsed:
             )
         )
 
-    return CsvParsed(items=items, filename=file.filename, skipped_rows=skipped)
+    return CsvParsed(items=items, filename=file.filename, invalid_rows=invalid)

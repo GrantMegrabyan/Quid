@@ -718,4 +718,99 @@ test.describe('import page', () => {
 		await expect(page.getByText('Tesco', { exact: true })).toBeVisible();
 		await expect(page.getByText(/AI suggested:/)).toHaveCount(0);
 	});
+
+	test('CSV preview reveals excluded and invalid rows with their reasons', async ({ page }) => {
+		await page.route('**/api/v1/expenses/import-csv/preview', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					importId: 'imp-reasons-1',
+					rows: [
+						{
+							previewRowId: 'row-0',
+							filename: 'statement.csv',
+							sourceRow: 2,
+							dedupeKeyHash: 'hash-new',
+							name: 'New Cafe',
+							amount: '5.25',
+							date: '2026-01-10',
+							note: '',
+							kind: 'create',
+							reason: null,
+							suggestedCategory: { id: 'cat-groceries', name: 'Groceries', exists: true },
+							suggestedImportance: 'important'
+						},
+						{
+							previewRowId: 'row-1',
+							filename: 'statement.csv',
+							sourceRow: 4,
+							dedupeKeyHash: 'hash-refund',
+							name: 'Salary',
+							amount: '1500.00',
+							date: '2026-01-12',
+							note: '',
+							kind: 'excluded',
+							reason: 'Detected incoming money',
+							suggestedCategory: { id: 'cat-income', name: 'Income', exists: false },
+							suggestedImportance: 'important'
+						}
+					],
+					invalid: [
+						{
+							filename: 'statement.csv',
+							sourceRow: 3,
+							reason: 'Amount “abc” is not a number',
+							name: 'Broken Row',
+							amount: 'abc',
+							date: '2026-01-11'
+						}
+					],
+					summary: {
+						creates: 1,
+						categoryUpdates: 0,
+						hiddenDuplicates: 0,
+						excluded: 1,
+						invalidRows: 1,
+						aiCategorized: 0
+					},
+					files: [
+						{
+							filename: 'statement.csv',
+							rows: 3,
+							imported: 1,
+							skippedDuplicates: 0,
+							skippedExcluded: 1,
+							skippedInvalidRows: 1
+						}
+					]
+				})
+			});
+		});
+
+		await page.goto('/import');
+		await page.getByTestId('import-csv-input').setInputFiles({
+			name: 'statement.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('date,name,amount\n2026-01-10,New Cafe,5.25\n2026-01-11,Broken Row,abc\n2026-01-12,Salary,1500\n')
+		});
+
+		// Excluded reason is hidden until its summary cell is toggled.
+		await expect(page.getByText('Detected incoming money')).toHaveCount(0);
+		const excludedToggle = page.getByTestId('toggle-excluded-details');
+		await excludedToggle.click();
+		const excludedRows = page.getByTestId('excluded-detail-row');
+		await expect(excludedRows).toHaveCount(1);
+		await expect(excludedRows.first()).toContainText('Salary');
+		await expect(excludedRows.first()).toContainText('Detected incoming money');
+
+		// Invalid reason is likewise gated behind its own toggle.
+		await expect(page.getByText('Amount “abc” is not a number')).toHaveCount(0);
+		const invalidToggle = page.getByTestId('toggle-invalid-details');
+		await invalidToggle.click();
+		const invalidRows = page.getByTestId('invalid-detail-row');
+		await expect(invalidRows).toHaveCount(1);
+		await expect(invalidRows.first()).toContainText('Broken Row');
+		await expect(invalidRows.first()).toContainText('Amount “abc” is not a number');
+	});
 });

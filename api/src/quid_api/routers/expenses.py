@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from quid_api.ai_categorization import categorize_transactions
 from quid_api.ai_freeform import parse_freeform_transactions
-from quid_api.csv_import import CsvFile, parse_csv
+from quid_api.csv_import import CsvFile, InvalidRow, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
@@ -50,6 +50,7 @@ from quid_api.schemas import (
     ImportFreeformConfirmRequest,
     ImportFreeformPreviewRequest,
     ImportPreviewCategory,
+    ImportPreviewInvalidRow,
     ImportPreviewKind,
     ImportPreviewRow,
 )
@@ -72,8 +73,12 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 class _ParsedUpload:
     filename: str
     items: list[BulkItem]
-    skipped_rows: int
+    invalid_rows: list[InvalidRow]
     start: int
+
+    @property
+    def skipped_rows(self) -> int:
+        return len(self.invalid_rows)
 
 
 @dataclass(frozen=True)
@@ -103,6 +108,9 @@ class _PreparedImportItem:
     # when no rule overrode the category or the rule picked the same one.
     overridden_category_name: str | None = None
     excluded: bool = False
+    # Human-readable reason shown in the preview when ``excluded`` is True
+    # (e.g. "Excluded by AI", "Detected refund"). ``None`` otherwise.
+    exclude_reason: str | None = None
 
 
 def _dedupe_key_hash(date: str, name: str, amount: Decimal) -> str:
@@ -142,7 +150,7 @@ async def _read_csv_uploads(files: list[UploadFile], import_id: str) -> list[_Pa
             _ParsedUpload(
                 filename=parsed.filename,
                 items=parsed.items,
-                skipped_rows=parsed.skipped_rows,
+                invalid_rows=parsed.invalid_rows,
                 start=next_index,
             )
         )
@@ -196,6 +204,8 @@ async def _prepare_preview_items(
     parsed_uploads: list[_ParsedUpload],
     items: list[BulkItem],
     ai_excluded_indices: frozenset[int],
+    refund_indices: frozenset[int] = frozenset(),
+    income_indices: frozenset[int] = frozenset(),
 ) -> list[_PreparedImportItem]:
     categories = list((await session.scalars(select(Category))).all())
     rule_repo = ImportRuleRepository(session)
@@ -216,7 +226,17 @@ async def _prepare_preview_items(
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION, f"row {idx}: {exc.message}"
             ) from exc
+        # Reason precedence mirrors how the caller builds ``excluded_indices``:
+        # AI exclusion first, then refunds, then income (the sets are disjoint).
+        # Rule-based exclusion is detected below.
+        exclude_reason: str | None = None
         if idx in ai_excluded_indices:
+            exclude_reason = "Excluded by AI"
+        elif idx in refund_indices:
+            exclude_reason = "Detected refund (matched to a charge)"
+        elif idx in income_indices:
+            exclude_reason = "Detected incoming money"
+        if exclude_reason is not None:
             suggested = _suggested_category(item.category, categories)
             prepared.append(
                 _PreparedImportItem(
@@ -232,6 +252,7 @@ async def _prepare_preview_items(
                     category_exists=suggested.exists,
                     importance=clean_importance,
                     excluded=True,
+                    exclude_reason=exclude_reason,
                 )
             )
             continue
@@ -254,6 +275,7 @@ async def _prepare_preview_items(
                     category_exists=suggested.exists,
                     importance=clean_importance,
                     excluded=True,
+                    exclude_reason=f"Excluded by rule “{rule.name}”",
                 )
             )
             continue
@@ -334,6 +356,7 @@ async def _build_preview_rows(
                     date=item.date,
                     note=item.note,
                     kind="excluded",
+                    reason=item.exclude_reason,
                     suggested_category=suggested,
                     category_from_rule=item.category_from_rule,
                     overridden_category_name=item.overridden_category_name,
@@ -523,15 +546,33 @@ async def preview_import_csv(
         len(refund_indices),
         len(income_indices),
     )
-    excluded_indices = ai_excluded_indices | refund_indices | income_indices
-    prepared = await _prepare_preview_items(session, parsed_uploads, all_items, excluded_indices)
+    prepared = await _prepare_preview_items(
+        session,
+        parsed_uploads,
+        all_items,
+        ai_excluded_indices,
+        refund_indices,
+        income_indices,
+    )
     rows = await _build_preview_rows(session, prepared)
+    invalid_rows = [
+        ImportPreviewInvalidRow(
+            filename=upload.filename,
+            source_row=invalid.source_row,
+            reason=invalid.reason,
+            name=invalid.name,
+            amount=invalid.amount,
+            date=invalid.date,
+        )
+        for upload in parsed_uploads
+        for invalid in upload.invalid_rows
+    ]
     summary = ImportCsvPreviewSummary(
         creates=sum(1 for row in rows if row.kind == "create"),
         category_updates=sum(1 for row in rows if row.kind == "category_update"),
         hidden_duplicates=sum(1 for row in rows if row.kind == "duplicate_same_category"),
         excluded=sum(1 for row in rows if row.kind == "excluded"),
-        invalid_rows=sum(upload.skipped_rows for upload in parsed_uploads),
+        invalid_rows=len(invalid_rows),
         ai_categorized=ai_categorized,
         skipped_refunds=len(refund_indices),
         skipped_income=len(income_indices),
@@ -568,6 +609,7 @@ async def preview_import_csv(
     return ImportCsvPreviewResponse(
         import_id=import_id,
         rows=visible_rows,
+        invalid=invalid_rows,
         summary=summary,
         files=reports,
     )
@@ -764,7 +806,7 @@ async def preview_import_freeform(
         _ParsedUpload(
             filename=FREEFORM_FILENAME,
             items=all_items,
-            skipped_rows=0,
+            invalid_rows=[],
             start=0,
         )
     ]
