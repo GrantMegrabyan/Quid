@@ -10,7 +10,6 @@ test.describe('dashboard', () => {
 		await page.goto('/');
 
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		await expect(page.getByTestId('monthly-chart')).toHaveCount(0);
 		await expect(page.getByTestId('category-chart')).toHaveCount(0);
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£54.50');
@@ -68,44 +67,55 @@ test.describe('dashboard', () => {
 		await expect(page.getByText('Current Coffee')).toHaveCount(0);
 	});
 
-	test('12-month charts show data for months after the selected month (window upper bound)', async ({
-		page
-	}) => {
-		// Regression guard: the dashboard fetches a CENTERED 12-month window which
-		// extends past the selected month. Seed spend in the CURRENT month, then
-		// view a month 3 back. The current month is still inside the window, so its
-		// data must be fetched and the "by category over time" chart (which reads
-		// the scoped expense store) must render bars rather than its empty state.
+	test('dashboard requests only the selected month, not other months', async ({ page }) => {
+		// The dashboard is a strictly single-month view: it must fetch ONLY the
+		// selected month's rows (via date_from/date_to), never other months. We
+		// assert the request the page issues is scoped to the current month.
 		await seedApiState(
 			page,
 			buildSeed({
 				expenses: [
 					{
-						id: 'exp-now',
-						name: 'Current Spend',
-						amount: '55.00',
-						date: isoMonthOffset(0, 5),
+						id: 'exp-current',
+						name: 'Current Coffee',
+						amount: '10.00',
+						date: isoMonthOffset(0, 2),
 						categoryId: 'cat-groceries',
+						note: ''
+					},
+					{
+						id: 'exp-previous',
+						name: 'Previous Train',
+						amount: '20.00',
+						date: isoMonthOffset(-1, 2),
+						categoryId: 'cat-public-transport',
 						note: ''
 					}
 				]
 			})
 		);
 
+		const listRequests: URL[] = [];
+		page.on('request', (req) => {
+			const url = new URL(req.url());
+			if (url.pathname.endsWith('/api/v1/expenses')) listRequests.push(url);
+		});
+
 		await page.goto('/');
-		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByText('Current Coffee')).toBeVisible();
 
-		for (let i = 0; i < 3; i++) {
-			await page.getByTestId('month-prev').click();
+		// Every expense-list request must carry a single-month date range, and the
+		// previous month's row must never appear on the current-month dashboard.
+		expect(listRequests.length).toBeGreaterThan(0);
+		for (const url of listRequests) {
+			expect(url.searchParams.get('date_from')).toMatch(/^\d{4}-\d{2}-01$/);
+			expect(url.searchParams.get('date_to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+			// from and to must be within the same month.
+			const from = url.searchParams.get('date_from')!.slice(0, 7);
+			const to = url.searchParams.get('date_to')!.slice(0, 7);
+			expect(from).toBe(to);
 		}
-		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-3));
-
-		await page.getByTestId('toggle-category-monthly-chart').check();
-		const chart = page.getByTestId('category-monthly-chart');
-		await expect(chart).toBeVisible();
-		// If the window upper bound were wrong, the current-month expense would be
-		// outside the fetched range and the chart would show its no-data message.
-		await expect(chart).not.toContainText('No expenses recorded');
+		await expect(page.getByText('Previous Train')).toHaveCount(0);
 	});
 
 	test('remembers the selected month after reload', async ({ page }) => {
@@ -126,20 +136,15 @@ test.describe('dashboard', () => {
 	test('optional charts can be enabled and stay enabled after reload', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page.getByTestId('monthly-chart')).toHaveCount(0);
 		await expect(page.getByTestId('category-chart')).toHaveCount(0);
 
-		await page.getByTestId('toggle-monthly-chart').check();
 		await page.getByTestId('toggle-category-chart').check();
 
-		await expect(page.getByTestId('monthly-chart')).toBeVisible();
 		await expect(page.getByTestId('category-chart')).toBeVisible();
 
 		await page.reload();
 
-		await expect(page.getByTestId('monthly-chart')).toBeVisible();
 		await expect(page.getByTestId('category-chart')).toBeVisible();
-		await expect(page.getByTestId('toggle-monthly-chart')).toBeChecked();
 		await expect(page.getByTestId('toggle-category-chart')).toBeChecked();
 	});
 
@@ -205,9 +210,7 @@ test.describe('mobile layout', () => {
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		await page.getByTestId('toggle-monthly-chart').check();
 		await page.getByTestId('toggle-category-chart').check();
-		await expect(page.getByTestId('monthly-chart')).toBeVisible();
 		await expect(page.getByTestId('category-chart')).toBeVisible();
 		await page.waitForFunction(
 			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth

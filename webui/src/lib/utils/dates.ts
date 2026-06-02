@@ -54,49 +54,16 @@ export function dateKeyForMonthDay(key: string, day: number): string {
 	return `${key}-${pad(day)}`;
 }
 
-export function centered12MonthWindow(selectedKey: string, todayKey = currentMonthKey()): string[] {
-	let start = addMonths(selectedKey, -6);
-	let end = addMonths(start, 11);
-
-	if (end > todayKey) {
-		end = todayKey;
-		start = addMonths(end, -11);
-	}
-
-	return Array.from({ length: 12 }, (_, index) => addMonths(start, index));
-}
-
-export function last12MonthKeys(reference: Date = new Date()): string[] {
-	const base = toLocalDate(reference);
-	const year = base.getFullYear();
-	const month = base.getMonth();
-
-	return Array.from({ length: 12 }, (_, index) => {
-		const offset = index - 11;
-		return monthKeyFromDate(new Date(year, month + offset, 1));
-	});
-}
-
 /**
- * The inclusive `YYYY-MM-DD` date range that bounds the centered 12-month
- * window for a selected month. This is the SINGLE range the dashboard needs to
- * fetch: it covers the selected month, the previous month (for the month-change
- * stat), and both 12-month charts in one request. `from` is the first day of
- * the earliest window month; `to` is the last day of the latest window month
- * (note the window extends up to 5 months PAST the selected month, capped at
- * today — so `to` is NOT simply the end of the selected month).
+ * The inclusive `YYYY-MM-DD` date range for a single month key (`YYYY-MM`).
+ * This is the range the dashboard fetches: the dashboard is strictly a
+ * single-month view, so all of its analytics are derived client-side from just
+ * this one month's rows. `from` is the first of the month, `to` is the last day.
  */
-export function windowDateRange(
-	selectedKey: string,
-	todayKey = currentMonthKey()
-): { from: string; to: string } {
-	const months = centered12MonthWindow(selectedKey, todayKey);
-	const first = months[0];
-	const last = months[months.length - 1];
-	const lastDay = daysInMonth(last);
+export function monthDateRange(monthKey: string): { from: string; to: string } {
 	return {
-		from: `${first}-01`,
-		to: `${last}-${pad(lastDay)}`
+		from: `${monthKey}-01`,
+		to: `${monthKey}-${pad(daysInMonth(monthKey))}`
 	};
 }
 

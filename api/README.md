@@ -262,8 +262,10 @@ instead of the whole table:
 `date_to` is inclusive of the whole day: rows stored as `YYYY-MM-DDTHH:MM:SS`
 on the boundary day are still returned (the filter uses a half-open range with
 an exclusive bound at the start of the *following* day). A malformed date
-(`2026-13-40`) is a `422`. The web dashboard fetches a single centered
-12-month window around the selected month with these params.
+(`2026-13-40`) is a `422`. The web dashboard is a single-month view and fetches
+only the selected month's rows with these params (`date_from`=first of month,
+`date_to`=last of month), deriving all of its monthly analytics client-side from
+just that month — it never loads other months.
 
 ```sh
 # Just June 2026 (date-only and timestamped rows on the 30th are included):

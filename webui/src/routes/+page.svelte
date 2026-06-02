@@ -4,10 +4,7 @@
 	import ExpenseFormModal from '$components/ExpenseFormModal.svelte';
 	import MonthSelector from '$components/MonthSelector.svelte';
 	import CumulativeChart from '$components/CumulativeChart.svelte';
-	import MonthlyBarChart from '$components/MonthlyBarChart.svelte';
 	import CategoryDoughnutChart from '$components/CategoryDoughnutChart.svelte';
-	import MonthlyByCategoryChart from '$components/MonthlyByCategoryChart.svelte';
-	import CategoryMultiSelect from '$components/CategoryMultiSelect.svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
@@ -18,16 +15,12 @@
 	import { formatMonthLabel, monthKey } from '$utils/dates';
 	import { amountToNumber, formatAmount } from '$utils/money';
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
-	import { Wallet, Receipt, TrendingUp, TrendingDown } from '@lucide/svelte';
+	import { Wallet, Receipt, TrendingUp } from '@lucide/svelte';
 	import type { Expense } from '$types';
 
 	let modalOpen = $state(false);
 	let editingExpense: Expense | undefined = $state(undefined);
-	let showMonthlyChart = $state(false);
 	let showCategoryChart = $state(false);
-	let showCategoryMonthlyChart = $state(false);
-	let selectedCategoryIds = $state<string[]>([]);
-	let categoryMonthlyInitialised = $state(false);
 	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
 	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
 
@@ -85,35 +78,6 @@
 		};
 	});
 
-	type StatChange = { value: string; direction: 'up' | 'down' } | null;
-
-	function previousMonthOf(key: string): string {
-		const [year, month] = key.split('-').map(Number);
-		const date = new Date(year, month - 1, 1);
-		date.setMonth(date.getMonth() - 1);
-		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-	}
-
-	const previousMonthTotal = $derived.by(() => {
-		const prevKey = previousMonthOf($selectedMonth);
-		let total = 0;
-		for (const expense of $expenses) {
-			if (monthKey(expense.date) === prevKey) total += amountToNumber(expense.amount);
-		}
-		return total;
-	});
-
-	const monthChange = $derived.by<StatChange>(() => {
-		if (previousMonthTotal <= 0) return null;
-		const pct = ((selectedMonthTotal - previousMonthTotal) / previousMonthTotal) * 100;
-		if (!Number.isFinite(pct) || pct === 0) return null;
-		return {
-			value: `${Math.abs(pct).toFixed(1)}%`,
-			direction: pct > 0 ? 'up' : 'down'
-		};
-	});
-
-
 	function openEdit(expense: Expense): void {
 		editingExpense = expense;
 		modalOpen = true;
@@ -147,36 +111,17 @@
 		const saved = localStorage.getItem(CHART_PREFS_KEY);
 		if (saved) {
 			const prefs = JSON.parse(saved) as {
-				monthly?: boolean;
 				category?: boolean;
-				categoryMonthly?: boolean;
-				categoryMonthlySelected?: string[];
 			};
-			showMonthlyChart = Boolean(prefs.monthly);
 			showCategoryChart = Boolean(prefs.category);
-			showCategoryMonthlyChart = Boolean(prefs.categoryMonthly);
-			if (Array.isArray(prefs.categoryMonthlySelected)) {
-				selectedCategoryIds = prefs.categoryMonthlySelected;
-				categoryMonthlyInitialised = true;
-			}
 		}
-	});
-
-	$effect(() => {
-		if (categoryMonthlyInitialised) return;
-		if ($categories.length === 0) return;
-		selectedCategoryIds = $categories.map((category) => category.id);
-		categoryMonthlyInitialised = true;
 	});
 
 	$effect(() => {
 		localStorage.setItem(
 			CHART_PREFS_KEY,
 			JSON.stringify({
-				monthly: showMonthlyChart,
-				category: showCategoryChart,
-				categoryMonthly: showCategoryMonthlyChart,
-				categoryMonthlySelected: selectedCategoryIds
+				category: showCategoryChart
 			})
 		);
 	});
@@ -201,23 +146,8 @@
 					<Wallet class="h-[18px] w-[18px]" />
 				</span>
 				<div class="min-w-0 flex-1">
-					<div class="flex min-h-5 items-center justify-between gap-2">
+					<div class="flex min-h-5 items-center gap-2">
 						<p class="text-xs font-medium text-ctp-subtext0">This month</p>
-						{#if monthChange}
-							<span
-								class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold {monthChange.direction ===
-								'up'
-									? 'bg-ctp-red/15 text-ctp-red'
-									: 'bg-ctp-accent/15 text-ctp-accent'}"
-							>
-								{#if monthChange.direction === 'up'}
-									<TrendingUp class="h-3 w-3" />
-								{:else}
-									<TrendingDown class="h-3 w-3" />
-								{/if}
-								{monthChange.value}
-							</span>
-						{/if}
 					</div>
 					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
 						<TweenedAmount
@@ -309,29 +239,11 @@
 			<label class="inline-flex items-center gap-2 rounded-full border border-ctp-surface1 bg-ctp-base px-3 py-1.5 text-ctp-subtext0">
 				<input
 					type="checkbox"
-					data-testid="toggle-monthly-chart"
-					bind:checked={showMonthlyChart}
-					class="h-4 w-4 accent-ctp-accent"
-				/>
-				Monthly totals
-			</label>
-			<label class="inline-flex items-center gap-2 rounded-full border border-ctp-surface1 bg-ctp-base px-3 py-1.5 text-ctp-subtext0">
-				<input
-					type="checkbox"
 					data-testid="toggle-category-chart"
 					bind:checked={showCategoryChart}
 					class="h-4 w-4 accent-ctp-accent"
 				/>
 				By category
-			</label>
-			<label class="inline-flex items-center gap-2 rounded-full border border-ctp-surface1 bg-ctp-base px-3 py-1.5 text-ctp-subtext0">
-				<input
-					type="checkbox"
-					data-testid="toggle-category-monthly-chart"
-					bind:checked={showCategoryMonthlyChart}
-					class="h-4 w-4 accent-ctp-accent"
-				/>
-				By category over time
 			</label>
 		</div>
 	</div>
@@ -342,44 +254,12 @@
 		<CumulativeChart />
 	</div>
 
-	{#if showMonthlyChart || showCategoryChart}
-	<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-		{#if showMonthlyChart}
-		<div
-			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
-		>
-			<h2 class="mb-4 text-base font-semibold text-ctp-text">
-				Monthly total (12-month window)
-			</h2>
-			<MonthlyBarChart />
-		</div>
-		{/if}
-
-		{#if showCategoryChart}
-		<div
-			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
-		>
-			<h2 class="mb-4 text-base font-semibold text-ctp-text">
-				By category
-			</h2>
-			<CategoryDoughnutChart />
-		</div>
-		{/if}
-	</div>
-	{/if}
-
-	{#if showCategoryMonthlyChart}
+	{#if showCategoryChart}
 	<div
-		data-testid="category-monthly-chart-card"
 		class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
 	>
-		<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-			<h2 class="text-base font-semibold text-ctp-text">
-				Monthly expenses by category
-			</h2>
-			<CategoryMultiSelect bind:selectedIds={selectedCategoryIds} />
-		</div>
-		<MonthlyByCategoryChart {selectedCategoryIds} />
+		<h2 class="mb-4 text-base font-semibold text-ctp-text">By category</h2>
+		<CategoryDoughnutChart />
 	</div>
 	{/if}
 
