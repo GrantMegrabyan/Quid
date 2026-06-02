@@ -280,6 +280,7 @@ Required logical fields: `name`, `amount`, `date`. Optional: `category`, `note`.
 | --- | --- |
 | name | `name`, `description`, `merchant`, `payee` |
 | amount | `amount`, `value` |
+| fee | `fee`, `fees` (optional; added to the spend magnitude) |
 | date | `date`, `started date`, `completed date`, `transaction date`, `posting date` |
 | category | `category`, `type`, `tag` (defaults to `uncategorized`) |
 | note | `note`, `notes`, `memo`, `reference` |
@@ -292,6 +293,12 @@ and `YYYY-MM-DD HH:MM:SS` (the time portion is **preserved** and stored as
 `YYYY-MM-DDTHH:MM:SS`). When both are present, **Started Date** is preferred over
 Completed Date (the alias order above). If a `state` / `status` column is
 present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
+
+If a `fee` column is present, the fee is **added to the cost** of the
+transaction (sign-aware: it increases the spend magnitude). This matters for
+fee-only rows such as Revolut's `Premium plan fee` (`Amount=0.00, Fee=7.99`),
+which is recorded as a `7.99` spend instead of being dropped as "Amount is
+zero". A row whose amount **and** fee are both zero is still skipped.
 
 ### Incoming money & refunds
 

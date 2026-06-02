@@ -14,6 +14,7 @@ from quid_api.repositories.expenses import (
 
 _NAME_ALIASES = ("name", "description", "merchant", "payee")
 _AMOUNT_ALIASES = ("amount", "value")
+_FEE_ALIASES = ("fee", "fees")
 _DATE_ALIASES = (
     "date",
     "started date",
@@ -155,6 +156,7 @@ def parse_csv(file: CsvFile) -> CsvParsed:
 
     name_col = _pick_column(header_map, _NAME_ALIASES)
     amount_col = _pick_column(header_map, _AMOUNT_ALIASES)
+    fee_col = _pick_column(header_map, _FEE_ALIASES)
     date_col = _pick_column(header_map, _DATE_ALIASES)
     category_col = _pick_column(header_map, _CATEGORY_ALIASES)
     note_col = _pick_column(header_map, _NOTE_ALIASES)
@@ -183,6 +185,7 @@ def parse_csv(file: CsvFile) -> CsvParsed:
     for source_row, raw in enumerate(reader, start=2):
         name = (raw.get(name_col) or "").strip()
         amount_raw = _coerce_amount_string(raw.get(amount_col) or "")
+        fee_raw = _coerce_amount_string(raw.get(fee_col) or "") if fee_col else ""
         date_raw = _normalize_date(raw.get(date_col) or "")
         category = (raw.get(category_col) or "").strip() if category_col else ""
         note = (raw.get(note_col) or "").strip() if note_col else ""
@@ -227,6 +230,23 @@ def parse_csv(file: CsvFile) -> CsvParsed:
                 )
             )
             continue
+
+        # A non-empty fee column (e.g. Revolut "Premium plan fee") adds to the
+        # cost of the transaction. The model is sign-aware here (negative =
+        # spend), and a fee always increases what was paid, so subtract its
+        # magnitude. This keeps `amount=0.00, fee=7.99` as a 7.99 spend instead
+        # of being dropped as "Amount is zero".
+        if fee_raw:
+            try:
+                fee = Decimal(fee_raw)
+            except Exception:
+                invalid.append(
+                    InvalidRow(
+                        source_row, f"Fee “{fee_raw}” is not a number", name, amount_raw, date_raw
+                    )
+                )
+                continue
+            amount = amount - abs(fee) if amount <= 0 else amount + abs(fee)
 
         if amount == 0:
             invalid.append(InvalidRow(source_row, "Amount is zero", name, amount_raw, date_raw))

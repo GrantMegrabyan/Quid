@@ -60,6 +60,26 @@ def test_parse_csv_surfaces_invalid_rows_with_reasons():
     ]
 
 
+def test_parse_csv_adds_fee_to_spend_amount():
+    csv = (
+        "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance\n"
+        # amount=0 but a 7.99 fee -> recorded as a 7.99 spend (sign-aware)
+        "Charge,Current,2025-10-28 05:38:06,,Premium plan fee,0.00,7.99,GBP,COMPLETED,1267.33\n"
+        # ordinary spend with a fee on top -> magnitude is amount + fee
+        "Card Payment,Current,2025-10-29 09:00:00,,ATM,-20.00,1.50,GBP,COMPLETED,1245.84\n"
+        # no fee -> amount unchanged
+        "Card Payment,Current,2025-10-30 09:00:00,,Pret,-3.50,0.00,GBP,COMPLETED,1242.34\n"
+    )
+
+    parsed = parse_csv(CsvFile(filename="fees.csv", content=csv.encode("utf-8")))
+
+    assert parsed.skipped_rows == 0
+    by_name = {item.name: item for item in parsed.items}
+    assert str(by_name["Premium plan fee"].amount) == "-7.99"
+    assert str(by_name["ATM"].amount) == "-21.50"
+    assert str(by_name["Pret"].amount) == "-3.50"
+
+
 async def test_import_canonical_csv(app_client):
     await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     res = await app_client.post(

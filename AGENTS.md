@@ -118,6 +118,14 @@ When NOT to commit:
   export WITH a time gets a different key and inserts a duplicate (preview won't
   flag it) — re-import only new periods, or wipe + re-import, when adopting
   timestamped exports.
+- CSV fee column (`_FEE_ALIASES` = `fee, fees`, optional): when present, the
+  parsed fee is folded into the amount **magnitude** (sign-aware:
+  `amount - abs(fee)` for spend/`amount <= 0`, `amount + abs(fee)` for positive
+  rows) in `csv_import.parse_csv`. This is what makes a Revolut fee-only row
+  (`Amount=0.00, Fee=7.99`) import as a 7.99 spend instead of being dropped as
+  "Amount is zero"; the zero-check runs AFTER folding in the fee. Keep the sign
+  asymmetry so refund/income sign-detection downstream still sees the right
+  direction. A non-numeric fee is a per-row skip (`Fee “…” is not a number`).
 - CSV date column preference: `_DATE_ALIASES` order is `date, started date,
   completed date, …` so Revolut-style statements (which have both) use **Started
   Date**, and `csv_import._normalize_date` PRESERVES the time component.
