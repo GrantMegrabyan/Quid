@@ -43,8 +43,9 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   month, transaction count, top category, and a month-over-month delta where an
   **increase is red/up** and a decrease is green/down, since this is spend), a
   monthly-spend line chart, a **Biggest movers** list (the categories that rose
-  or fell the most this month vs last month, with a signed amount + percent and a
-  "new" badge for categories with no prior spend), a multi-series category-trend
+  or fell the most in the latest month with data vs the month before it — labelled
+  e.g. "May 2026 vs Apr 2026" — with a signed amount + percent and a "new" badge
+  for categories with no prior spend), a multi-series category-trend
   chart (top 8 categories), a spend-by-importance doughnut, a top-merchants bar
   chart, and a spend-by-weekday bar chart. Empty until transactions are imported.
   Backed by the `GET /api/v1/analytics/*` endpoints.
