@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
@@ -8,7 +8,6 @@
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense } from '$lib/stores/expenses';
 	import { categories } from '$lib/stores/categories';
-	import { amazonOrders, refreshAmazonOrders } from '$lib/stores/amazonOrders';
 	import { settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
@@ -59,25 +58,12 @@
 		return map;
 	});
 
-	// Map of Amazon order id -> its short name, so a linked transaction can show
-	// what was purchased as its note.
-	let amazonShortNameById = $derived.by(() => {
-		const map = new Map<string, string>();
-		for (const order of $amazonOrders) {
-			if (order.shortName) map.set(order.id, order.shortName);
-		}
-		return map;
-	});
-
-	// The note shown in a transaction's subheading: the expense's own note, or,
-	// for Amazon-linked transactions without one, the linked order's short name.
+	// The note shown in a transaction's subheading. The server resolves this
+	// (`resolvedNote`): the expense's own note, or, for an Amazon-linked
+	// transaction without one, the linked order's short name. Falls back to the
+	// raw note for mocks/older payloads that predate the field.
 	function noteFor(expense: Expense): string {
-		if (expense.note) return expense.note;
-		for (const orderId of expense.amazonOrderIds ?? []) {
-			const shortName = amazonShortNameById.get(orderId);
-			if (shortName) return shortName;
-		}
-		return '';
+		return expense.resolvedNote ?? expense.note ?? '';
 	}
 
 	const visibleExpenses = $derived(
@@ -211,12 +197,6 @@
 		expandedGroups = next;
 	}
 
-	onMount(() => {
-		// Categories/settings/expenses are owned by the dashboard page (parent
-		// onMount runs first and populates the shared stores, which we only read
-		// here). We just load the Amazon orders this list needs for note resolution.
-		void refreshAmazonOrders();
-	});
 </script>
 
 {#snippet rowActions(expense: Expense)}

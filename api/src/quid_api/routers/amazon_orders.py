@@ -461,6 +461,10 @@ async def match_all_amazon_orders(session: SessionDep) -> AmazonMatchAllResponse
 
 async def _expense_with_links(repo: AmazonOrderRepository, expense: Expense) -> ExpenseOut:
     linked_map = await repo.expense_linked_orders([expense.id])
+    # ``resolved_note`` is intentionally left at its default (""). This hand-built
+    # ExpenseOut comes from a join-table query (not the eager-loaded relationship),
+    # and the /link response is discarded by the client (which re-fetches the list
+    # where resolved_note IS computed). Not worth resolving here.
     return ExpenseOut(
         id=expense.id,
         name=expense.name,
@@ -480,6 +484,8 @@ async def list_suggested_matches(order_id: str, session: SessionDep) -> list[Exp
     repo = AmazonOrderRepository(session)
     candidates = await repo.suggest_matches(order_id)
     linked = await repo.expense_linked_orders([c.id for c in candidates])
+    # ``resolved_note`` left at default ""; this is the match-picker, which does
+    # not render notes (see _expense_with_links for the same rationale).
     return [
         ExpenseOut(
             id=candidate.id,

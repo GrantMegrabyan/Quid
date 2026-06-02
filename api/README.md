@@ -598,7 +598,10 @@ purchased. It is generated once at import time (only when `aiShortNamesEnabled`
 is true) and stored; re-importing the same order never overwrites it, and when
 AI short names are disabled the field is left blank. A linked order's short name
 is surfaced as the transaction's note in the expense list when the expense has
-no note of its own. Backfill missing names with
+no note of its own — this is resolved server-side and returned as the
+`resolvedNote` field on `ExpenseOut` (the expense's own `note`, else the first
+linked order's short name, else `""`), so the client doesn't fetch the whole
+orders table just to label rows. Backfill missing names with
 `uv run quid-api backfill-amazon-short-names`.
 
 Each order also has a **category** (`categoryId`): an AI-derived spending

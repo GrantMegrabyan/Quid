@@ -116,6 +116,10 @@ class ExpenseOut(_Camel):
     importance: Importance
     category_source: CategorySource = "import"
     amazon_order_ids: list[str] = Field(default_factory=list)
+    # Effective note: the expense's own note, else a linked Amazon order's
+    # short name (computed server-side via ``Expense.resolved_note`` so the
+    # client needn't fetch the whole Amazon-orders table just to label rows).
+    resolved_note: str = ""
 
     @field_serializer("amount")
     def _ser_amount(self, value: Decimal) -> str:

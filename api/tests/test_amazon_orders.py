@@ -1139,6 +1139,68 @@ async def test_manual_link_and_unlink(app_client):
     assert unlink.json()["amazonOrderIds"] == []
 
 
+async def test_expense_resolved_note_falls_back_to_linked_order_short_name(app_client):
+    """``resolvedNote`` on the expense list is the expense's own note, else a
+    linked Amazon order's short name (resolved server-side so the client need
+    not fetch the whole orders table). Covers all three branches."""
+    # An expense with NO note of its own, linked to an order whose short name
+    # should surface as the resolved note.
+    no_note_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=99.99, date="2026-05-04"
+    )
+    # A second expense WITH its own note, also linked — its note must win.
+    own_note = await app_client.post(
+        "/api/v1/expenses",
+        json={
+            "name": "Amazon Mktp",
+            "amount": 99.99,
+            "date": "2026-05-06",
+            "categoryId": "uncategorized",
+            "note": "My own note",
+        },
+    )
+    assert own_note.status_code == 201, own_note.text
+    own_note_id: str = own_note.json()["id"]
+
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("exporter.csv", EXPORTER_CSV)],
+    )
+    # Pin a deterministic short name (independent of AI) on the order.
+    named = await app_client.patch(
+        "/api/v1/amazon-orders/555-3333333-4444444/short-name",
+        json={"shortName": "Wireless headphones"},
+    )
+    assert named.status_code == 200, named.text
+
+    for expense_id in (no_note_id, own_note_id):
+        linked = await app_client.post(
+            "/api/v1/amazon-orders/555-3333333-4444444/link",
+            json={"expenseId": expense_id},
+        )
+        assert linked.status_code == 200, linked.text
+
+    listed = await app_client.get("/api/v1/expenses")
+    assert listed.status_code == 200, listed.text
+    by_id = {row["id"]: row for row in listed.json()}
+
+    # No own note -> falls back to the linked order's short name.
+    assert by_id[no_note_id]["resolvedNote"] == "Wireless headphones"
+    # Own note -> wins over the linked order's short name.
+    assert by_id[own_note_id]["resolvedNote"] == "My own note"
+
+
+async def test_expense_resolved_note_empty_without_note_or_link(app_client):
+    """An expense with no note and no linked order resolves to ""."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Tesco", amount=12.34, date="2026-05-04"
+    )
+    listed = await app_client.get("/api/v1/expenses")
+    assert listed.status_code == 200, listed.text
+    row = next(r for r in listed.json() if r["id"] == expense_id)
+    assert row["resolvedNote"] == ""
+
+
 async def test_one_expense_can_link_to_multiple_orders(app_client):
     """When Amazon bills several orders together, the same expense should
     be linkable to each contributing order."""

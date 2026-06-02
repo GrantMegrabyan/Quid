@@ -87,6 +87,37 @@ class Expense(Base):
             return []
         return sorted(link.amazon_order_id for link in self.amazon_order_links)
 
+    @property
+    def resolved_note(self) -> str:
+        """The effective note shown for this expense in the transaction list.
+
+        The expense's own note wins; otherwise, for an Amazon-linked expense
+        with no note of its own, fall back to the linked order's short name
+        (first non-empty, iterating links in ``amazon_order_id`` order to
+        mirror the historic client-side resolution).
+
+        Like ``amazon_order_ids`` this must never force a lazy load under the
+        ``raise_on_sql`` relationships. It guards BOTH levels: the
+        ``amazon_order_links`` collection AND each link's nested
+        ``amazon_order``. Callers that want the fallback populated must eager
+        load both, e.g.
+        ``selectinload(Expense.amazon_order_links).selectinload(
+        ExpenseAmazonOrderLink.amazon_order)``; otherwise this returns the
+        expense's own note (or "").
+        """
+        if self.note:
+            return self.note
+        state = inspect(self)
+        if "amazon_order_links" in state.unloaded:
+            return ""
+        for link in sorted(self.amazon_order_links, key=lambda link_: link_.amazon_order_id):
+            if "amazon_order" in inspect(link).unloaded:
+                continue
+            short_name = link.amazon_order.short_name
+            if short_name:
+                return short_name
+        return ""
+
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positive"),
         CheckConstraint(

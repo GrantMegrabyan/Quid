@@ -22,7 +22,7 @@ from quid_api.category_helpers import (
 )
 from quid_api.datelib import validate_iso_date, validate_iso_datetime
 from quid_api.errors import RepositoryError, RepositoryErrorCode
-from quid_api.models import Category, Expense
+from quid_api.models import Category, Expense, ExpenseAmazonOrderLink
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
 
 if TYPE_CHECKING:
@@ -165,7 +165,14 @@ class ExpenseRepository:
             )
         stmt = (
             select(Expense)
-            .options(selectinload(Expense.amazon_order_links))
+            # Eager-load the linked Amazon orders too (not just the link rows)
+            # so ``Expense.resolved_note`` can fall back to an order's short
+            # name without a lazy load under ``raise_on_sql``.
+            .options(
+                selectinload(Expense.amazon_order_links).selectinload(
+                    ExpenseAmazonOrderLink.amazon_order
+                )
+            )
             .order_by(Expense.date.desc(), Expense.id.desc())
         )
         # ``expenses.date`` is TEXT holding either ``YYYY-MM-DD`` or
@@ -199,7 +206,11 @@ class ExpenseRepository:
     async def get(self, expense_id: str) -> Expense:
         row = await self.session.scalar(
             select(Expense)
-            .options(selectinload(Expense.amazon_order_links))
+            .options(
+                selectinload(Expense.amazon_order_links).selectinload(
+                    ExpenseAmazonOrderLink.amazon_order
+                )
+            )
             .where(Expense.id == expense_id)
         )
         if row is None:

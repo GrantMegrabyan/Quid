@@ -29,6 +29,10 @@ export interface Expense {
 	 *  several orders together as a single bank charge. Optional in mocks
 	 *  and creation payloads; the API always returns at least []. */
 	amazonOrderIds?: string[];
+	/** Effective note for display: the expense's own `note`, else a linked
+	 *  Amazon order's short name (resolved server-side). Optional in mocks;
+	 *  the API always returns it (possibly ""). */
+	resolvedNote?: string;
 }
 
 export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
