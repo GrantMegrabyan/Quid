@@ -4,7 +4,11 @@
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
 	import type { CategoryMover } from '$types';
 
-	let { movers, limit = 8 }: { movers: CategoryMover[]; limit?: number } = $props();
+	let {
+		movers,
+		limit = 8,
+		subtitle = 'Categories that changed the most month over month.'
+	}: { movers: CategoryMover[]; limit?: number; subtitle?: string } = $props();
 
 	type MoverView = {
 		mover: CategoryMover;
@@ -51,9 +55,7 @@
 	data-testid="analytics-movers"
 >
 	<h2 class="mb-1 text-base font-semibold text-ctp-text">Biggest movers</h2>
-	<p class="mb-4 text-xs text-ctp-subtext0">
-		Categories that changed the most this month vs last month.
-	</p>
+	<p class="mb-4 text-xs text-ctp-subtext0">{subtitle}</p>
 
 	{#if !hasData}
 		<div

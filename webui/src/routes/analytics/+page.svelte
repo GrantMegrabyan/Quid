@@ -10,7 +10,7 @@
 		type AnalyticsPeriod
 	} from '$lib/stores/analyticsPeriod';
 	import { formatAmount, amountToNumber } from '$utils/money';
-	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
+	import { addMonths, formatMonthLabel } from '$utils/dates';
 	import MonthlyTrendChart from '$components/analytics/MonthlyTrendChart.svelte';
 	import CategoryTrendChart from '$components/analytics/CategoryTrendChart.svelte';
 	import CategoryMoversList from '$components/analytics/CategoryMoversList.svelte';
@@ -54,25 +54,23 @@
 	async function loadAnalytics(period: AnalyticsPeriod): Promise<void> {
 		const seq = ++requestSeq;
 		const window = periodToWindow(period);
-		const comparisonQuery = monthOverMonthComparisonQuery();
 		try {
-			const [
-				summaryRes,
-				monthlyRes,
-				trendsRes,
-				comparisonRes,
-				merchantsRes,
-				importanceRes,
-				weekdayRes
-			] = await Promise.all([
-				analyticsRepository.summary(window),
-				analyticsRepository.monthlyTotals(window),
-				analyticsRepository.categoryTrends(window),
-				analyticsRepository.categoryComparison(comparisonQuery),
-				analyticsRepository.topMerchants({ ...window, limit: 8 }),
-				analyticsRepository.importanceBreakdown(window),
-				analyticsRepository.weekdayBreakdown(window)
-			]);
+			const [summaryRes, monthlyRes, trendsRes, merchantsRes, importanceRes, weekdayRes] =
+				await Promise.all([
+					analyticsRepository.summary(window),
+					analyticsRepository.monthlyTotals(window),
+					analyticsRepository.categoryTrends(window),
+					analyticsRepository.topMerchants({ ...window, limit: 8 }),
+					analyticsRepository.importanceBreakdown(window),
+					analyticsRepository.weekdayBreakdown(window)
+				]);
+
+			// Movers compare the latest month that actually has data (from the
+			// summary) vs the month before it — not the literal calendar month,
+			// which is often empty and would make every category read "-100%".
+			const comparisonRes = await analyticsRepository.categoryComparison(
+				monthOverMonthComparisonQuery(summaryRes.latestMonth)
+			);
 
 			// Drop stale responses; keep the previous data visible meanwhile.
 			if (seq !== requestSeq) return;
@@ -114,6 +112,14 @@
 		if (!summary || summary.monthOverMonthPercent === null) return null;
 		const sign = summary.monthOverMonthPercent > 0 ? '+' : '';
 		return `${sign}${Math.round(summary.monthOverMonthPercent)}%`;
+	});
+
+	// Movers compare the latest month with data vs the month before it; label it
+	// honestly (e.g. "May 2026 vs Apr 2026") rather than "this month vs last".
+	const moversSubtitle = $derived.by(() => {
+		const latest = summary?.latestMonth;
+		if (!latest) return 'Categories that changed the most month over month.';
+		return `Biggest changes: ${formatMonthLabel(latest)} vs ${formatMonthLabel(addMonths(latest, -1))}.`;
 	});
 
 	function selectPeriod(period: AnalyticsPeriod): void {
@@ -302,7 +308,7 @@
 
 			<!-- Movers + importance: two-up -->
 			{#if comparison}
-				<CategoryMoversList movers={comparison.movers} />
+				<CategoryMoversList movers={comparison.movers} subtitle={moversSubtitle} />
 			{/if}
 			{#if importance}
 				<ImportanceBreakdownCard breakdown={importance.breakdown} total={importance.total} />
