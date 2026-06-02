@@ -7,9 +7,9 @@
 	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense } from '$lib/stores/expenses';
-	import { categories, refreshCategories } from '$lib/stores/categories';
+	import { categories } from '$lib/stores/categories';
 	import { amazonOrders, refreshAmazonOrders } from '$lib/stores/amazonOrders';
-	import { refreshSettings, settings } from '$lib/stores/settings';
+	import { settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
 	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
 	import { amountToNumber, formatAmount } from '$lib/utils/money';
@@ -212,10 +212,9 @@
 	}
 
 	onMount(() => {
-		// Expense fetching is owned by the dashboard page (it re-fetches the
-		// scoped window on month change); we only load the supporting data here.
-		void refreshCategories();
-		void refreshSettings();
+		// Categories/settings/expenses are owned by the dashboard page (parent
+		// onMount runs first and populates the shared stores, which we only read
+		// here). We just load the Amazon orders this list needs for note resolution.
 		void refreshAmazonOrders();
 	});
 </script>
