@@ -16,7 +16,7 @@ from quid_api.csv_import import CsvFile, parse_csv
 from quid_api.db import get_session
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
-from quid_api.refund_detection import detect_refund_pairs
+from quid_api.refund_detection import detect_income_indices, detect_refund_pairs
 from quid_api.repositories.ai_rules import AiRuleRepository
 from quid_api.repositories.app_settings import AppSettingsRepository
 from quid_api.repositories.expenses import (
@@ -512,12 +512,18 @@ async def preview_import_csv(
         detect_refund_pairs(all_items, window_days=settings.refund_window_days)
         - ai_excluded_indices
     )
+    # Remaining incoming-money rows (salary, transfers in, reimbursements) that
+    # aren't part of a refund pair are skipped as income — the sign-less model
+    # would otherwise abs() them into positive expenses. Refund credits are a
+    # subset of income; subtract refund_indices so they're counted as refunds.
+    income_indices = detect_income_indices(all_items) - ai_excluded_indices - refund_indices
     logger.info(
-        "import.preview.refunds import_id=%s refunds=%d",
+        "import.preview.refunds import_id=%s refunds=%d income=%d",
         import_id,
         len(refund_indices),
+        len(income_indices),
     )
-    excluded_indices = ai_excluded_indices | refund_indices
+    excluded_indices = ai_excluded_indices | refund_indices | income_indices
     prepared = await _prepare_preview_items(session, parsed_uploads, all_items, excluded_indices)
     rows = await _build_preview_rows(session, prepared)
     summary = ImportCsvPreviewSummary(
@@ -528,10 +534,11 @@ async def preview_import_csv(
         invalid_rows=sum(upload.skipped_rows for upload in parsed_uploads),
         ai_categorized=ai_categorized,
         skipped_refunds=len(refund_indices),
+        skipped_income=len(income_indices),
     )
     logger.info(
         "import.preview.plan import_id=%s creates=%d category_updates=%d hidden_duplicates=%d "
-        "excluded=%d invalid=%d ai_categorized=%d refunds=%d",
+        "excluded=%d invalid=%d ai_categorized=%d refunds=%d income=%d",
         import_id,
         summary.creates,
         summary.category_updates,
@@ -540,6 +547,7 @@ async def preview_import_csv(
         summary.invalid_rows,
         summary.ai_categorized,
         summary.skipped_refunds,
+        summary.skipped_income,
     )
     reports = []
     for upload in parsed_uploads:
@@ -899,12 +907,14 @@ async def import_csv(
         detect_refund_pairs(all_items, window_days=settings.refund_window_days)
         - ai_excluded_indices
     )
+    income_indices = detect_income_indices(all_items) - ai_excluded_indices - refund_indices
     logger.info(
-        "import.csv.refunds import_id=%s refunds=%d",
+        "import.csv.refunds import_id=%s refunds=%d income=%d",
         import_id,
         len(refund_indices),
+        len(income_indices),
     )
-    excluded_indices = ai_excluded_indices | refund_indices
+    excluded_indices = ai_excluded_indices | refund_indices | income_indices
 
     repo = ExpenseRepository(session)
     result = await repo.bulk_import(
@@ -922,12 +932,13 @@ async def import_csv(
     await session.commit()
     logger.info(
         "import.csv.done import_id=%s imported=%d duplicates=%d excluded=%d refunds=%d "
-        "invalid=%d ai_categorized=%d",
+        "income=%d invalid=%d ai_categorized=%d",
         import_id,
         len(result.expenses),
         result.skipped_duplicates,
         result.skipped_excluded,
         len(refund_indices),
+        len(income_indices),
         sum(p.skipped_rows for p in parsed_files),
         ai_categorized,
     )
@@ -953,6 +964,7 @@ async def import_csv(
         skipped_duplicates=result.skipped_duplicates,
         skipped_excluded=result.skipped_excluded,
         skipped_refunds=len(refund_indices),
+        skipped_income=len(income_indices),
         skipped_invalid_rows=sum(p.skipped_rows for p in parsed_files),
         transactions_found=len(all_items),
         ai_categorized=ai_categorized,

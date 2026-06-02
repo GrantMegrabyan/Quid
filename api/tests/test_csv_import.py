@@ -9,7 +9,7 @@ CANONICAL = (
     "name,category,amount,date,note\n"
     "Pret,eating_out,-3.50,2026-04-01,morning coffee\n"
     "Tesco,groceries,-12.34,2026-04-01,\n"
-    "Uber,transport,19.98,2026-04-02,\n"
+    "Uber,transport,-19.98,2026-04-02,\n"
 )
 
 WITH_EXTRA_COLUMNS = (
@@ -200,7 +200,7 @@ async def test_import_with_time_is_idempotent(app_client):
 async def test_import_multiple_files_combined(app_client):
     await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
     monzo = "name,category,amount,date,note\nPret,eating_out,-3.50,2026-04-01,\n"
-    revolut = "name,category,amount,date,note\nStarbucks,eating_out,10.00,2026-04-01,\n"
+    revolut = "name,category,amount,date,note\nStarbucks,eating_out,-10.00,2026-04-01,\n"
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
         files=[
@@ -243,7 +243,7 @@ async def test_import_skips_invalid_rows_within_file(app_client):
         "Pret,eating_out,-3.50,2026-04-01,\n"
         ",,,,\n"
         "Tesco,groceries,not-a-number,2026-04-01,\n"
-        "Uber,transport,19.98,2026-04-02,\n"
+        "Uber,transport,-19.98,2026-04-02,\n"
     )
     res = await app_client.post(
         "/api/v1/expenses/import-csv",
@@ -627,6 +627,76 @@ async def test_confirm_reject_keeps_existing(app_client, monkeypatch):
 
     expenses = (await app_client.get("/api/v1/expenses")).json()
     assert expenses[0]["categoryId"] == existing_category_id
+
+
+async def test_import_skips_incoming_money_as_income(app_client):
+    # Incoming money (positive amount) — salary, transfers in, reimbursements —
+    # must NOT become a positive "expense" in the sign-less model.
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = (
+        "name,category,amount,date,note\n"
+        "Tesco,groceries,-12.34,2026-04-01,\n"
+        "Salary,income,4000.00,2026-04-01,monthly pay\n"
+        "Reimbursement,income,12.22,2026-04-02,football\n"
+    )
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("monzo.csv", csv)],
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["imported"] == 1
+    assert body["skippedIncome"] == 2
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+    assert expenses[0]["name"] == "Tesco"
+
+
+async def test_import_nets_out_refund_pair(app_client):
+    # A refund credit that matches a prior charge cancels BOTH sides to zero,
+    # rather than dropping the credit and keeping the charge as spend.
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = (
+        "name,category,amount,date,note\n"
+        "Amazon,shopping,-29.99,2026-04-01,\n"
+        "Amazon,shopping,29.99,2026-04-05,refund\n"
+        "Tesco,groceries,-12.34,2026-04-02,\n"
+    )
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv",
+        files=[_upload("monzo.csv", csv)],
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["imported"] == 1
+    assert body["skippedRefunds"] == 2
+    # The matched charge is a refund, not income.
+    assert body["skippedIncome"] == 0
+
+    expenses = (await app_client.get("/api/v1/expenses")).json()
+    assert len(expenses) == 1
+    assert expenses[0]["name"] == "Tesco"
+
+
+async def test_import_preview_surfaces_income_as_excluded(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = (
+        "name,category,amount,date,note\n"
+        "Tesco,groceries,-12.34,2026-04-01,\n"
+        "Salary,income,4000.00,2026-04-01,\n"
+    )
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("monzo.csv", csv)],
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["summary"]["skippedIncome"] == 1
+    assert body["summary"]["excluded"] == 1
+    # Income is shown (as an excluded row), never silently dropped.
+    kinds = sorted(row["kind"] for row in body["rows"])
+    assert kinds == ["create", "excluded"]
 
 
 async def test_confirm_skips_stale_update_when_expense_deleted(app_client, monkeypatch):

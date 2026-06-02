@@ -284,7 +284,48 @@ Required logical fields: `name`, `amount`, `date`. Optional: `category`, `note`.
 | category | `category`, `type`, `tag` (defaults to `uncategorized`) |
 | note | `note`, `notes`, `memo`, `reference` |
 
-Amounts are stored as positive expense magnitudes (negatives are abs'd). Dates accept `YYYY-MM-DD` and `YYYY-MM-DD HH:MM:SS` (the time portion is **preserved** and stored as `YYYY-MM-DDTHH:MM:SS`). When both are present, **Started Date** is preferred over Completed Date (the alias order above). If a `state` / `status` column is present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
+Amounts are stored as positive expense magnitudes (negatives are abs'd), so the
+**sign of the parsed amount is the signal for money direction**: a negative
+amount is money out (an expense), a positive amount is money in. See _Incoming
+money & refunds_ below for how positives are handled. Dates accept `YYYY-MM-DD`
+and `YYYY-MM-DD HH:MM:SS` (the time portion is **preserved** and stored as
+`YYYY-MM-DDTHH:MM:SS`). When both are present, **Started Date** is preferred over
+Completed Date (the alias order above). If a `state` / `status` column is
+present, only `COMPLETED` rows are kept (Revolut bank-statement convention).
+
+### Incoming money & refunds
+
+The expense model is **sign-less** (every expense is a positive magnitude), so
+incoming money would otherwise be `abs()`'d into a positive "expense" and
+pollute spend totals. On import (both preview and confirm) the server therefore
+classifies every parsed row by the sign of its amount:
+
+- **Refunds** — an incoming credit (`amount > 0`) that matches a prior outgoing
+  charge of the **same magnitude and merchant** within `refund_window_days`
+  (default 60; `QUID_REFUND_WINDOW_DAYS`) is treated as a refund. **Both** the
+  credit and its matched charge are excluded so the pair nets to zero — leaving
+  the original charge in would double-count a purchase you were reimbursed for.
+  Matching is **batch-local** (only within the current upload), exact-amount,
+  and greedy one-to-one (each charge pairs at most one credit, nearest date
+  wins). Reported as `skippedRefunds` (counts both sides).
+- **Income** — any remaining positive row (salary, transfers in,
+  reimbursements) that is not part of a refund pair is skipped as income.
+  Reported as `skippedIncome`.
+
+Excluded income/refund rows are **not dropped silently**: they appear in the
+preview plan as `kind = "excluded"` so you can see what was filtered (the one
+risk of sign-based filtering is a genuine expense a bank exported as a positive
+amount). The bare amount sign is used deliberately because it is bank-agnostic —
+Monzo's `Money In`/`Money Out` columns and Revolut's signed `Amount` both reduce
+to it, with no per-bank special-casing.
+
+**Deliberately deferred** (not yet implemented): cross-import refund matching (a
+charge in one upload, its refund in a later one — detection never reaches into
+already-imported DB rows); partial refunds (exact-amount only); non-signed
+"Paid In"/"Paid Out" bank formats; any visible income/cash-flow view (that would
+need a new `direction` column, a dedupe-key change, and relaxing the
+`ck_expenses_amount_positive` CHECK — a separate feature, not this filter); and a
+settings toggle to keep income.
 
 ### Idempotency
 
@@ -305,7 +346,7 @@ while several legitimate identical transactions in the **same** file (e.g. two p
 charges to the same merchant for the same amount on the same day) still accumulate.
 
 The response reports `imported`, `skippedDuplicates`, `skippedInvalidRows`,
-`skippedExcluded`, and a per-file breakdown.
+`skippedExcluded`, `skippedRefunds`, `skippedIncome`, and a per-file breakdown.
 
 ### Preview / confirm
 

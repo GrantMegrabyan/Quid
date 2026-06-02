@@ -125,6 +125,27 @@ When NOT to commit:
   expense date's 10-char day prefix so an inclusive `match_date_to` still matches
   a timestamped transaction on the boundary day. Keep the prefix slice if you
   touch it.
+- Incoming money & refunds (`refund_detection.py`, wired into BOTH
+  `preview_import_csv` and `import_csv` in `routers/expenses.py`): the expense
+  model is sign-less, so the **sign of the parsed amount** drives money
+  direction. After AI exclusion, the router runs `detect_refund_pairs` then
+  `detect_income_indices`; `excluded_indices = ai | refunds | income`.
+  - `detect_refund_pairs` returns indices for BOTH the credit AND its matched
+    charge (it used to return only the credit, which kept the charge as spend —
+    a double-count bug; do NOT revert that). Batch-local, exact-amount, greedy
+    1:1, nearest-date, within `settings.refund_window_days`
+    (`QUID_REFUND_WINDOW_DAYS`, default 60). Counted as `skippedRefunds`.
+  - `detect_income_indices` is "every remaining `amount > 0` row" (salary,
+    transfers in, reimbursements). Subtract `refund_indices` first so refund
+    credits count as refunds, not income. Counted as `skippedIncome`.
+  - Both surface in the preview as `kind="excluded"` rows (never dropped
+    silently). Don't lean on Monzo's `Money In`/`Money Out` columns — Revolut has
+    only a signed `Amount`; the sign is the bank-agnostic signal.
+  - Deliberately deferred: cross-import / DB-backed refund matching, partial
+    refunds, non-signed "Paid In/Out" formats, any visible income view (needs a
+    `direction` column + dedupe-key change + relaxing `ck_expenses_amount_positive`),
+    and a keep-income settings toggle. Don't implement these as part of routine
+    import work.
 - Use `uv run quid-api clear-transactions` for the built-in transaction wipe, but only after explicit confirmation.
 - Import rules: a rule's `set_display_name` and `set_note` are only meaningful
   for `categorize` rules (an `exclude` rule deletes the matched expense), and the
