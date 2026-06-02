@@ -6,10 +6,17 @@ import type {
 	AmazonRecategorizeConfirmRow,
 	AmazonRecategorizeConfirmResult,
 	AmazonRecategorizePreviewResult,
+	AnalyticsSummary,
 	AppSettings,
 	AppSettingsUpdate,
 	Category,
+	CategoryComparisonResult,
+	CategoryTrendsResult,
 	Expense,
+	ImportanceBreakdownResult,
+	MonthlyTotalsResult,
+	TopMerchantsResult,
+	WeekdayBreakdownResult,
 	ImportCsvConfirmRequest,
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
@@ -108,6 +115,30 @@ export interface AmazonOrderRepository {
 		rows: AmazonRecategorizeConfirmRow[]
 	): Promise<AmazonRecategorizeConfirmResult>;
 	delete(id: string): Promise<void>;
+}
+
+/** Optional inclusive `YYYY-MM-DD` date window shared by most analytics calls. */
+export interface AnalyticsWindow {
+	dateFrom?: string;
+	dateTo?: string;
+}
+
+/** The two explicit periods compared by `categoryComparison`. */
+export interface CategoryComparisonQuery {
+	currentFrom: string;
+	currentTo: string;
+	previousFrom: string;
+	previousTo: string;
+}
+
+export interface AnalyticsRepository {
+	summary(window?: AnalyticsWindow): Promise<AnalyticsSummary>;
+	monthlyTotals(window?: AnalyticsWindow): Promise<MonthlyTotalsResult>;
+	categoryTrends(window?: AnalyticsWindow): Promise<CategoryTrendsResult>;
+	categoryComparison(query: CategoryComparisonQuery): Promise<CategoryComparisonResult>;
+	topMerchants(window?: AnalyticsWindow & { limit?: number }): Promise<TopMerchantsResult>;
+	importanceBreakdown(window?: AnalyticsWindow): Promise<ImportanceBreakdownResult>;
+	weekdayBreakdown(window?: AnalyticsWindow): Promise<WeekdayBreakdownResult>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

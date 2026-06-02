@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import {
 		LayoutDashboard,
+		BarChart3,
 		Upload,
 		Tags,
 		ListFilter,
@@ -20,6 +21,7 @@
 
 	const navLinks = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard },
+		{ href: '/analytics', label: 'Analytics', icon: BarChart3 },
 		{ href: '/import', label: 'Import', icon: Upload },
 		{ href: '/categories', label: 'Categories', icon: Tags },
 		{ href: '/rules', label: 'Rules', icon: ListFilter },
