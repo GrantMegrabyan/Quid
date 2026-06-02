@@ -563,6 +563,11 @@ what an Amazon charge actually bought.
   importer leaves it empty (it tracks only the aggregate `skippedRows`).
 - `GET /api/v1/amazon-orders` / `GET /api/v1/amazon-orders/{id}` — list / fetch.
   Each order includes `categoryId` (the order's AI-derived category, or `null`).
+  Each order also carries `linkedExpenseIds` plus `linkedExpenses` — minimal
+  label data (`{ id, name, amount, displayName }`) for each linked expense,
+  resolved server-side so the `/amazon` page can render "Linked to …" labels
+  without fetching the entire expense table. `linkedExpenses` may omit an id
+  whose expense was concurrently deleted (callers fall back to the raw id).
 - `POST /api/v1/amazon-orders/match-all` — re-run auto-matching.
 - `GET /api/v1/amazon-orders/{id}/suggested-matches` — candidate expenses.
 - `POST /api/v1/amazon-orders/{id}/link` / `/unlink` — body `{ "expenseId": "…" }`.

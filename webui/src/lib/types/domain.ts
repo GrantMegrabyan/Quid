@@ -306,6 +306,18 @@ export interface AmazonOrderShipment {
 	items: AmazonOrderItem[];
 }
 
+/**
+ * Minimal expense fields embedded in an Amazon order so the `/amazon` page can
+ * render "Linked to ..." labels without fetching the full expense table.
+ */
+export interface AmazonLinkedExpense {
+	id: string;
+	name: string;
+	/** Canonical decimal string ("19.99"). */
+	amount: string;
+	displayName: string | null;
+}
+
 export interface AmazonOrder {
 	id: string;
 	orderDate: string;
@@ -326,6 +338,11 @@ export interface AmazonOrder {
 	categoryId: string | null;
 	importedAt: string;
 	linkedExpenseIds: string[];
+	/**
+	 * Label data for each id in `linkedExpenseIds` (server-resolved). May omit
+	 * ids whose expense was concurrently deleted; render the raw id as fallback.
+	 */
+	linkedExpenses: AmazonLinkedExpense[];
 }
 
 export interface AmazonImportSkippedOrder {

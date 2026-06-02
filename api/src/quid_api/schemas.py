@@ -504,6 +504,24 @@ class AmazonOrderShipment(_Camel):
         return _money_str(value)
 
 
+class AmazonLinkedExpense(_Camel):
+    """Minimal expense fields needed to label a linked Amazon charge.
+
+    Embedded in ``AmazonOrderOut`` so the ``/amazon`` page can render
+    "Linked to ..." labels without fetching the entire expense table just to
+    resolve a handful of linked ids.
+    """
+
+    id: str
+    name: str
+    amount: Decimal
+    display_name: str | None = None
+
+    @field_serializer("amount")
+    def _ser_amount(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
 class AmazonOrderOut(_Camel):
     id: str
     order_date: str
@@ -517,6 +535,7 @@ class AmazonOrderOut(_Camel):
     category_id: str | None = None
     imported_at: str
     linked_expense_ids: list[str] = Field(default_factory=list)
+    linked_expenses: list[AmazonLinkedExpense] = Field(default_factory=list)
 
     @field_serializer("total")
     def _ser_total(self, value: Decimal) -> str:

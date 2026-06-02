@@ -145,6 +145,19 @@ class ExpenseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def get_many(self, expense_ids: list[str]) -> list[Expense]:
+        """Fetch expenses by id (any order, missing ids silently omitted).
+
+        Used to resolve a known set of linked expense ids into label data
+        without scanning the whole table.
+        """
+        if not expense_ids:
+            return []
+        rows = (
+            await self.session.scalars(select(Expense).where(Expense.id.in_(expense_ids)))
+        ).all()
+        return list(rows)
+
     async def list_all(
         self,
         *,
