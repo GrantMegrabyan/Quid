@@ -102,9 +102,35 @@ async def test_delete_category(app_client):
     created = await app_client.post("/api/v1/categories", json={"name": "Temp"})
     cat_id = created.json()["id"]
     res = await app_client.delete(f"/api/v1/categories/{cat_id}")
-    assert res.status_code == 204
+    assert res.status_code == 200
+    assert res.json()["reassigned"] == 0
     follow = await app_client.get(f"/api/v1/categories/{cat_id}")
     assert follow.status_code == 404
+
+
+async def test_delete_category_returns_reassigned_count(app_client):
+    cat = (await app_client.post("/api/v1/categories", json={"name": "Trips"})).json()
+    e1 = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={"name": "Hotel", "amount": "120", "date": "2026-05-01", "categoryId": cat["id"]},
+        )
+    ).json()
+    e2 = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={"name": "Flight", "amount": "240", "date": "2026-05-02", "categoryId": cat["id"]},
+        )
+    ).json()
+
+    res = await app_client.delete(f"/api/v1/categories/{cat['id']}")
+    assert res.status_code == 200
+    assert res.json()["reassigned"] == 2
+
+    e1_after = (await app_client.get(f"/api/v1/expenses/{e1['id']}")).json()
+    e2_after = (await app_client.get(f"/api/v1/expenses/{e2['id']}")).json()
+    assert e1_after["categoryId"] == "uncategorized"
+    assert e2_after["categoryId"] == "uncategorized"
 
 
 async def test_delete_uncategorized_returns_409(app_client):

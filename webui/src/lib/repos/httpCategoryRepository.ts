@@ -1,6 +1,6 @@
 import type { Category } from '$types';
 import { httpClient, HttpClient } from './httpClient.js';
-import type { CategoryRepository } from './types.js';
+import type { CategoryDeleteResult, CategoryRepository } from './types.js';
 
 export class HttpCategoryRepository implements CategoryRepository {
 	constructor(private readonly client: HttpClient = httpClient) {}
@@ -23,10 +23,11 @@ export class HttpCategoryRepository implements CategoryRepository {
 		});
 	}
 
-	async delete(id: string): Promise<void> {
-		await this.client.request<void>(`api/v1/categories/${encodeURIComponent(id)}`, {
-			method: 'DELETE'
-		});
+	async delete(id: string): Promise<CategoryDeleteResult> {
+		return this.client.request<CategoryDeleteResult>(
+			`api/v1/categories/${encodeURIComponent(id)}`,
+			{ method: 'DELETE' }
+		);
 	}
 }
 

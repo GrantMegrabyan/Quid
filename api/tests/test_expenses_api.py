@@ -108,6 +108,24 @@ async def test_list_pagination(app_client):
     assert body[0]["date"] == "2026-02-01"
 
 
+async def test_list_date_range_filter(app_client):
+    cat = await _make_cat(app_client)
+    for d in ("2026-05-31", "2026-06-01", "2026-06-30T23:59:59", "2026-07-01"):
+        await app_client.post(
+            "/api/v1/expenses",
+            json={"name": d, "amount": "1", "date": d, "categoryId": cat["id"]},
+        )
+    res = await app_client.get("/api/v1/expenses?date_from=2026-06-01&date_to=2026-06-30")
+    assert res.status_code == 200
+    dates = sorted(e["date"] for e in res.json())
+    assert dates == ["2026-06-01", "2026-06-30T23:59:59"]
+
+
+async def test_list_date_range_rejects_bad_date(app_client):
+    res = await app_client.get("/api/v1/expenses?date_from=2026-13-40")
+    assert res.status_code == 422
+
+
 async def test_patch_partial(app_client):
     cat = await _make_cat(app_client)
     cat2 = await _make_cat(app_client, name="Travel")
@@ -164,7 +182,8 @@ async def test_cascade_delete_via_http(app_client):
     ).json()
 
     res = await app_client.delete(f"/api/v1/categories/{target['id']}")
-    assert res.status_code == 204
+    assert res.status_code == 200
+    assert res.json()["reassigned"] == 1
 
     e1_after = (await app_client.get(f"/api/v1/expenses/{e1['id']}")).json()
     e2_after = (await app_client.get(f"/api/v1/expenses/{e2['id']}")).json()

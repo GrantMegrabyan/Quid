@@ -29,8 +29,9 @@ async def test_delete_category_reparents_expenses_to_uncategorized(session):
     stay_put_id = stay_put.id
     other_id = other.id
 
-    await cat_repo.delete(target.id)
+    reassigned = await cat_repo.delete(target.id)
     await session.commit()
+    assert reassigned == 2
 
     expenses = (await session.scalars(select(Expense))).all()
     by_id = {e.id: e.category_id for e in expenses}
@@ -42,7 +43,8 @@ async def test_delete_category_reparents_expenses_to_uncategorized(session):
 async def test_delete_category_with_no_expenses_succeeds(session):
     cat_repo = CategoryRepository(session)
     cat = await cat_repo.create(name="Empty")
-    await cat_repo.delete(cat.id)
+    reassigned = await cat_repo.delete(cat.id)
+    assert reassigned == 0
 
     rows = await cat_repo.list_all()
     assert cat.id not in [c.id for c in rows]

@@ -89,7 +89,9 @@ test.describe('categories page', () => {
 
 		const notice = page.getByTestId('cascade-notice');
 		await expect(notice).toBeVisible();
-		await expect(notice).toContainText('moved to Uncategorized');
+		// Count comes authoritatively from the server (cat-groceries has exactly
+		// one seeded expense), not from the now-scoped client expense store.
+		await expect(notice).toContainText('1 expense moved to Uncategorized');
 		await expect(page.getByTestId('category-row')).toHaveCount(2);
 
 		await page.goto('/');

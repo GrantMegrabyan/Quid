@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { categoryRepository } from '$lib/repos';
+import type { CategoryDeleteResult } from '$lib/repos/types';
 import type { Category } from '$lib/types';
 import { refreshExpenses } from './expenses.js';
 
@@ -23,8 +24,9 @@ export async function editCategory(id: string, patch: CategoryUpdatePatch): Prom
 	await refreshCategories();
 }
 
-export async function deleteCategoryWithCascade(id: string): Promise<void> {
-	await categoryRepository.delete(id);
+export async function deleteCategoryWithCascade(id: string): Promise<CategoryDeleteResult> {
+	const result = await categoryRepository.delete(id);
 	await refreshCategories();
 	await refreshExpenses();
+	return result;
 }

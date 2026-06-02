@@ -84,6 +84,10 @@ class CategoryOut(_Camel):
     description: str
 
 
+class CategoryDeleteResult(_Camel):
+    reassigned: int
+
+
 class CategoryCreate(_Camel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     color: str | None = None

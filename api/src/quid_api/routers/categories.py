@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, status
 
 from quid_api.db import get_session
 from quid_api.repositories.categories import CategoryRepository
-from quid_api.schemas import CategoryCreate, CategoryOut, CategoryUpdate
+from quid_api.schemas import (
+    CategoryCreate,
+    CategoryDeleteResult,
+    CategoryOut,
+    CategoryUpdate,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,9 +59,9 @@ async def update_category(
     return CategoryOut.model_validate(row)
 
 
-@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_category(category_id: str, session: SessionDep) -> Response:
+@router.delete("/{category_id}", response_model=CategoryDeleteResult)
+async def delete_category(category_id: str, session: SessionDep) -> CategoryDeleteResult:
     repo = CategoryRepository(session)
-    await repo.delete(category_id)
+    reassigned = await repo.delete(category_id)
     await session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return CategoryDeleteResult(reassigned=reassigned)

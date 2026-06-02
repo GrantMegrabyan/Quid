@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 
 from quid_api.category_helpers import (
     UNCATEGORIZED_ID,
@@ -139,7 +139,13 @@ class CategoryRepository:
         await self.session.flush()
         return row
 
-    async def delete(self, category_id: str) -> None:
+    async def delete(self, category_id: str) -> int:
+        """Delete a category, reassigning its expenses to Uncategorized.
+
+        Returns the number of expenses that were reassigned, so callers can
+        report an authoritative cascade count instead of guessing client-side
+        from a possibly-scoped local view.
+        """
         if category_id == UNCATEGORIZED_ID:
             raise RepositoryError(
                 RepositoryErrorCode.IMMUTABLE,
@@ -155,10 +161,12 @@ class CategoryRepository:
         # Reset to the low-priority 'import' source: the category was forcibly
         # changed to a system default the user did not choose, so it should be
         # re-categorisable by Amazon inheritance / rules / re-import.
-        await self.session.execute(
+        result = await self.session.execute(
             update(Expense)
             .where(Expense.category_id == category_id)
             .values(category_id=UNCATEGORIZED_ID, category_source="import")
         )
+        reassigned = cast("CursorResult[object]", result).rowcount or 0
         await self.session.delete(row)
         await self.session.flush()
+        return reassigned

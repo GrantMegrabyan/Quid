@@ -3,7 +3,7 @@ import { UNCATEGORIZED_ID } from '$lib/types';
 import { colorForCategoryId } from '$lib/utils/categoryColor';
 import { normalizeCategoryIcon } from '$lib/utils/categoryIcons';
 import { getStore, setStore } from './mockStore.js';
-import { RepositoryError, type CategoryRepository } from './types.js';
+import { RepositoryError, type CategoryDeleteResult, type CategoryRepository } from './types.js';
 
 export class MockCategoryRepository implements CategoryRepository {
 	async list(): Promise<Category[]> {
@@ -93,7 +93,7 @@ export class MockCategoryRepository implements CategoryRepository {
 		return updated;
 	}
 
-	async delete(id: string): Promise<void> {
+	async delete(id: string): Promise<CategoryDeleteResult> {
 		if (id === UNCATEGORIZED_ID) {
 			throw new RepositoryError('IMMUTABLE', 'The Uncategorized category cannot be deleted.');
 		}
@@ -104,6 +104,7 @@ export class MockCategoryRepository implements CategoryRepository {
 			throw new RepositoryError('NOT_FOUND', `Category "${id}" not found.`);
 		}
 
+		const reassigned = store.expenses.filter((e) => e.categoryId === id).length;
 		setStore((s) => {
 			s.categories = s.categories.filter((c) => c.id !== id);
 			for (const expense of s.expenses) {
@@ -112,6 +113,7 @@ export class MockCategoryRepository implements CategoryRepository {
 				}
 			}
 		});
+		return { reassigned };
 	}
 }
 
