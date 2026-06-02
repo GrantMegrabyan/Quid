@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any
 
 from quid_api.ai_categorization import CategorizedBulkItems
+from quid_api.csv_import import CsvFile, parse_csv
 
 CANONICAL = (
     "name,category,amount,date,note\n"
@@ -35,6 +36,28 @@ CANONICAL_WITH_DUPES = (
 
 def _upload(name: str, body: str) -> tuple[str, tuple[str, bytes, str]]:
     return ("files", (name, body.encode("utf-8"), "text/csv"))
+
+
+def test_parse_csv_surfaces_invalid_rows_with_reasons():
+    csv = (
+        "name,category,amount,date,state\n"
+        "Coffee,other,-3.50,2026-04-01,COMPLETED\n"
+        "Missing amount,other,,2026-04-02,COMPLETED\n"
+        "Bad number,other,abc,2026-04-03,COMPLETED\n"
+        "Free coffee,other,0,2026-04-04,COMPLETED\n"
+        "Pending coffee,other,-2.50,2026-04-05,PENDING\n"
+    )
+
+    parsed = parse_csv(CsvFile(filename="sample.csv", content=csv.encode("utf-8")))
+
+    assert parsed.skipped_rows == len(parsed.invalid_rows) == 4
+    assert [row.source_row for row in parsed.invalid_rows] == [3, 4, 5, 6]
+    assert [row.reason for row in parsed.invalid_rows] == [
+        "Missing required value: amount",
+        "Amount “abc” is not a number",
+        "Amount is zero",
+        "Status is “PENDING”, not Completed",
+    ]
 
 
 async def test_import_canonical_csv(app_client):
@@ -253,6 +276,41 @@ async def test_import_skips_invalid_rows_within_file(app_client):
     body = res.json()
     assert body["imported"] == 2
     assert body["skippedInvalidRows"] == 2
+
+
+async def test_import_preview_returns_invalid_rows_with_reason_and_counts(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    csv = (
+        "name,category,amount,date,state\n"
+        "Coffee,other,-3.50,2026-04-01,COMPLETED\n"
+        "Missing amount,other,,2026-04-02,COMPLETED\n"
+        "Bad number,other,abc,2026-04-03,COMPLETED\n"
+        "Free coffee,other,0,2026-04-04,COMPLETED\n"
+        "Pending coffee,other,-2.50,2026-04-05,PENDING\n"
+    )
+
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("invalids.csv", csv)],
+    )
+
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["summary"]["invalidRows"] == 4
+    assert len(body["invalid"]) == 4
+    assert [row["sourceRow"] for row in body["invalid"]] == [3, 4, 5, 6]
+    assert [row["name"] for row in body["invalid"]] == [
+        "Missing amount",
+        "Bad number",
+        "Free coffee",
+        "Pending coffee",
+    ]
+    assert [row["reason"] for row in body["invalid"]] == [
+        "Missing required value: amount",
+        "Amount “abc” is not a number",
+        "Amount is zero",
+        "Status is “PENDING”, not Completed",
+    ]
 
 
 async def test_import_dedupes_across_uploads_with_category_drift(app_client, monkeypatch):
@@ -697,6 +755,36 @@ async def test_import_preview_surfaces_income_as_excluded(app_client):
     # Income is shown (as an excluded row), never silently dropped.
     kinds = sorted(row["kind"] for row in body["rows"])
     assert kinds == ["create", "excluded"]
+
+
+async def test_import_preview_excluded_rows_include_rule_reason(app_client):
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Exclude Tesco",
+            "action": "exclude",
+            "matchNameOp": "contains",
+            "matchNameValue": "Tesco",
+        },
+    )
+    csv = (
+        "name,category,amount,date,note\n"
+        "Tesco,groceries,-12.34,2026-04-01,weekly shop\n"
+        "Pret,eating_out,-3.50,2026-04-01,morning coffee\n"
+    )
+
+    res = await app_client.post(
+        "/api/v1/expenses/import-csv/preview",
+        files=[_upload("rules.csv", csv)],
+    )
+
+    assert res.status_code == 200, res.text
+    body = res.json()
+    excluded = [row for row in body["rows"] if row["kind"] == "excluded"]
+    assert len(excluded) == 1
+    assert excluded[0]["name"] == "Tesco"
+    assert excluded[0]["reason"] == "Excluded by rule “Exclude Tesco”"
 
 
 async def test_confirm_skips_stale_update_when_expense_deleted(app_client, monkeypatch):

@@ -55,6 +55,7 @@ async def test_freeform_preview_returns_review_rows(app_client, monkeypatch):
     body = preview.json()
     assert body["summary"]["creates"] == 2
     assert body["summary"]["aiCategorized"] == 2
+    assert body["invalid"] == []
     assert len(body["rows"]) == 2
     names = {row["name"] for row in body["rows"]}
     assert names == {"Coffee", "Tesco"}
