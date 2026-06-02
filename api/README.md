@@ -464,6 +464,48 @@ newest first. Each entry (`ImportLogOut`, camelCase) has: `id`, `importedAt`,
 UI shows this as the **Import history** table below the Import tabs, with a
 **Source** column and an expandable raw-input view for AI free-form runs.
 
+## Analytics
+
+Read-only spending analytics over the `expenses` table, aggregated server-side
+(`/api/v1/analytics`, web UI **Analytics** page). Unlike the dashboard — a
+strict single-month view that aggregates one month's rows client-side — these
+endpoints span many months/all of history, so the summation happens in SQL.
+
+All endpoints accept an optional inclusive date window via `date_from` /
+`date_to` (`YYYY-MM-DD`); omit both for all-of-history. The window is half-open
+internally (`>= date_from` and `< date_to + 1 day`) so a timestamped
+`...T23:59:59` row on the `date_to` boundary day is still counted. Money fields
+are canonical 2dp strings; `percentChange` fields are JSON numbers (or `null`
+when there is no previous baseline). Month grouping uses the 7-char `YYYY-MM`
+prefix and works for both date-only and timestamped expense dates.
+
+- `GET /api/v1/analytics/summary` — headline KPIs over the window: `total`,
+  `transactionCount`, `monthsCovered`, `averagePerMonth`,
+  `averagePerTransaction`, `busiestMonth(+Total)`, `topCategoryId/Name(+Total)`,
+  and month-over-month (`latestMonth`, `latestMonthTotal`, `previousMonthTotal`,
+  `monthOverMonthDelta`, `monthOverMonthPercent`).
+- `GET /api/v1/analytics/monthly-totals` — `{ months: [{ month, total, count }],
+  total, average, count }`, months ascending. The spend-over-time trend.
+- `GET /api/v1/analytics/category-trends` — per-category spend per month:
+  `{ months: ["YYYY-MM", …], series: [{ categoryId, categoryName, color, total,
+  points: [{ month, total }] }] }`. The `months` axis is dense (zero-filled) and
+  shared across all series; series are ordered by overall spend descending.
+- `GET /api/v1/analytics/category-comparison` — "which categories went up". Takes
+  FOUR required params (`current_from`, `current_to`, `previous_from`,
+  `previous_to`) and returns each category's `current`/`previous`/`delta`/
+  `percentChange`, sorted by absolute delta descending. `percentChange` is `null`
+  when the category had no spend in the previous period.
+- `GET /api/v1/analytics/top-merchants` — top merchants by spend
+  (`?limit=` 1–100, default 10). There is no merchant column, so this groups on
+  `lower(trim(name))`; the display label is the group's representative name.
+- `GET /api/v1/analytics/importance-breakdown` — spend + count by importance tier
+  (`essential` / `important` / `discretionary`), plus `total`.
+- `GET /api/v1/analytics/weekday-breakdown` — spend + count by day of week. Always
+  returns 7 rows, Monday-first (`weekday` 0=Mon..6=Sun), zero-filled for days
+  with no spend. Uses SQLite `strftime('%w', …)` remapped to a Mon-first week.
+
+A bad date param returns 422 with `{ "code": "VALIDATION" }`.
+
 ## Import rules
 
 Import rules (`/api/v1/import-rules`, web UI **Rules** page) match transactions

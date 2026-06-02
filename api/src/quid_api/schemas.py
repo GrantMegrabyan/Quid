@@ -736,5 +736,176 @@ class ErrorBody(_Camel):
     message: str
 
 
+# --------------------------------------------------------------------------- #
+# Analytics                                                                    #
+# --------------------------------------------------------------------------- #
+# All analytics responses aggregate expenses server-side. Money is emitted as
+# the canonical 2dp string (via ``_money_str``); deltas/percentages that can be
+# negative are also strings for the money fields and floats for percentages.
+
+
+class MonthlyTotalOut(_Camel):
+    """Total spend + transaction count for a single calendar month."""
+
+    month: str  # "YYYY-MM"
+    total: Decimal
+    count: int
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class MonthlyTotalsResponse(_Camel):
+    months: list[MonthlyTotalOut] = Field(default_factory=list)
+    total: Decimal
+    average: Decimal
+    count: int
+
+    @field_serializer("total", "average")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class CategoryTrendPointOut(_Camel):
+    month: str  # "YYYY-MM"
+    total: Decimal
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class CategoryTrendSeriesOut(_Camel):
+    category_id: str
+    category_name: str
+    color: str
+    total: Decimal
+    points: list[CategoryTrendPointOut] = Field(default_factory=list)
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class CategoryTrendsResponse(_Camel):
+    months: list[str] = Field(default_factory=list)
+    series: list[CategoryTrendSeriesOut] = Field(default_factory=list)
+
+
+class CategoryMoverOut(_Camel):
+    """A category's spend in the current period vs the previous one."""
+
+    category_id: str
+    category_name: str
+    color: str
+    current: Decimal
+    previous: Decimal
+    delta: Decimal
+    # Percent change vs previous period. ``None`` when previous was zero
+    # (an "appeared this period" / infinite increase).
+    percent_change: float | None = None
+
+    @field_serializer("current", "previous", "delta")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class CategoryComparisonResponse(_Camel):
+    current_period_label: str
+    previous_period_label: str
+    current_total: Decimal
+    previous_total: Decimal
+    movers: list[CategoryMoverOut] = Field(default_factory=list)
+
+    @field_serializer("current_total", "previous_total")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class TopMerchantOut(_Camel):
+    merchant: str
+    total: Decimal
+    count: int
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class TopMerchantsResponse(_Camel):
+    merchants: list[TopMerchantOut] = Field(default_factory=list)
+
+
+class ImportanceBreakdownPointOut(_Camel):
+    importance: Importance
+    total: Decimal
+    count: int
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceBreakdownResponse(_Camel):
+    breakdown: list[ImportanceBreakdownPointOut] = Field(default_factory=list)
+    total: Decimal
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class WeekdayBreakdownPointOut(_Camel):
+    # 0 = Monday .. 6 = Sunday
+    weekday: int
+    total: Decimal
+    count: int
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class WeekdayBreakdownResponse(_Camel):
+    breakdown: list[WeekdayBreakdownPointOut] = Field(default_factory=list)
+
+
+class AnalyticsSummaryResponse(_Camel):
+    """Headline KPIs over the requested window."""
+
+    total: Decimal
+    transaction_count: int
+    months_covered: int
+    average_per_month: Decimal
+    average_per_transaction: Decimal
+    # The single highest-spend month in the window, if any.
+    busiest_month: str | None = None
+    busiest_month_total: Decimal
+    # Top category by spend over the window, if any.
+    top_category_id: str | None = None
+    top_category_name: str | None = None
+    top_category_total: Decimal
+    # Month-over-month change: latest full month vs the one before it.
+    latest_month: str | None = None
+    latest_month_total: Decimal
+    previous_month_total: Decimal
+    month_over_month_delta: Decimal
+    month_over_month_percent: float | None = None
+
+    @field_serializer(
+        "total",
+        "average_per_month",
+        "average_per_transaction",
+        "busiest_month_total",
+        "top_category_total",
+        "latest_month_total",
+        "previous_month_total",
+        "month_over_month_delta",
+    )
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
 def dump_camel(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_unset=True)
