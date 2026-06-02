@@ -15,10 +15,30 @@ function byDateDesc(a: Expense, b: Expense): number {
 	return b.date.localeCompare(a.date);
 }
 
+/** First day (as `YYYY-MM-DD`) after the given `YYYY-MM-DD` date. */
+function dayAfter(dateOnly: string): string {
+	const [year, month, day] = dateOnly.split('-').map(Number);
+	const next = new Date(year, month - 1, day + 1);
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+}
+
 export class MockExpenseRepository implements ExpenseRepository {
 	async list(query?: ListExpensesQuery): Promise<Expense[]> {
 		const { expenses } = getStore();
-		const sorted = expenses.slice().sort(byDateDesc);
+		let rows = expenses.slice();
+		// Half-open lexical range, mirroring the backend: inclusive lower bound
+		// and an exclusive upper bound at the start of the day AFTER `dateTo`, so
+		// `YYYY-MM-DDTHH:MM:SS` rows on the boundary day are kept.
+		if (query?.dateFrom !== undefined) {
+			const from = query.dateFrom;
+			rows = rows.filter((e) => e.date >= from);
+		}
+		if (query?.dateTo !== undefined) {
+			const exclusiveUpper = dayAfter(query.dateTo);
+			rows = rows.filter((e) => e.date < exclusiveUpper);
+		}
+		const sorted = rows.sort(byDateDesc);
 		const offset = query?.offset ?? 0;
 		return query?.limit !== undefined
 			? sorted.slice(offset, offset + query.limit)

@@ -9,7 +9,7 @@
 		editCategory,
 		deleteCategoryWithCascade
 	} from '$lib/stores/categories';
-	import { expenses, refreshExpenses } from '$lib/stores/expenses';
+
 	import { UNCATEGORIZED_ID } from '$lib/types';
 	import { colorForCategoryId, UNCATEGORIZED_COLOR } from '$lib/utils/categoryColor';
 	import { FALLBACK_CATEGORY_ICON, normalizeCategoryIcon } from '$utils/categoryIcons';
@@ -200,12 +200,14 @@
 
 	async function confirmDelete(id: string): Promise<void> {
 		if (deleting || id === UNCATEGORIZED_ID) return;
-		const affected = $expenses.filter((e) => e.categoryId === id).length;
 		deleting = true;
 		try {
-			await deleteCategoryWithCascade(id);
+			// Use the authoritative count returned by the server: the local
+			// `$expenses` store now holds only a scoped window, so a client-side
+			// count would undercount expenses outside the current month window.
+			const { reassigned } = await deleteCategoryWithCascade(id);
 			confirmingDeleteId = null;
-			showCascadeNotice(affected);
+			showCascadeNotice(reassigned);
 		} finally {
 			deleting = false;
 		}
@@ -214,7 +216,6 @@
 	onMount(() => {
 		newColor = pickRandomDefaultColor();
 		void refreshCategories();
-		void refreshExpenses();
 
 		return () => {
 			if (cascadeTimer !== null) {

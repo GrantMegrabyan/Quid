@@ -124,8 +124,17 @@
 		editingExpense = undefined;
 	}
 
-	onMount(() => {
+	// Re-fetch the scoped expense window whenever the selected month changes.
+	// `refreshExpenses` reads the current month itself; we just depend on the
+	// store so the effect re-runs on navigation. The store keeps the previous
+	// data visible until the new response lands (no empty flash) and guards
+	// against out-of-order responses.
+	$effect(() => {
+		void $selectedMonth;
 		void refreshExpenses();
+	});
+
+	onMount(() => {
 		void refreshCategories();
 		void refreshSettings();
 

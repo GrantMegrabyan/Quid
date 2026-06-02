@@ -17,7 +17,7 @@
 	} from '$lib/stores/amazonOrders';
 	import { buildBookmarkletHref } from '$lib/amazon/bookmarklet';
 	import { categories, refreshCategories } from '$lib/stores/categories';
-	import { expenses, refreshExpenses } from '$lib/stores/expenses';
+	import { expenseRepository } from '$lib/repos';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { formatAmount } from '$lib/utils/money';
 	import { UNCATEGORIZED_ID } from '$lib/types';
@@ -63,9 +63,19 @@
 		() => (recategorizeRows ?? []).filter((row) => row.accept).length
 	);
 
+	// Linked Amazon charges can be from ANY date, so this page can't rely on the
+	// dashboard's scoped expense window. We load the full expense list locally
+	// (only for resolving the "Linked to ..." labels) instead of the shared
+	// scoped store.
+	let allExpenses = $state<Expense[]>([]);
+
+	async function loadAllExpenses(): Promise<void> {
+		allExpenses = await expenseRepository.list();
+	}
+
 	const expenseById = $derived.by(() => {
 		const map = new Map<string, Expense>();
-		for (const expense of $expenses) map.set(expense.id, expense);
+		for (const expense of allExpenses) map.set(expense.id, expense);
 		return map;
 	});
 
@@ -379,6 +389,7 @@
 		banner = null;
 		try {
 			await linkAmazonOrder(orderId, expenseId);
+			await loadAllExpenses();
 			const suggestions = await suggestedAmazonMatches(orderId);
 			suggestionsByOrderId = { ...suggestionsByOrderId, [orderId]: suggestions };
 			banner = { kind: 'success', message: 'Amazon order linked.' };
@@ -417,7 +428,7 @@
 
 	onMount(() => {
 		void refreshAmazonOrders();
-		void refreshExpenses();
+		void loadAllExpenses();
 		void refreshSettings();
 		void refreshCategories();
 	});

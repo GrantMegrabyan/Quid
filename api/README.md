@@ -246,6 +246,30 @@ A single expense is created with `POST /api/v1/expenses` (JSON body matching
 `amount` is a decimal string (`"12.50"`); a JSON number is also accepted (see
 _Money format_). The created expense is returned with `amount` as a 2dp string.
 
+### Listing expenses
+
+`GET /api/v1/expenses` returns expenses newest-first (`date DESC, id DESC`).
+Optional query params scope the result so the UI fetches only what it needs
+instead of the whole table:
+
+| Param | Default | Purpose |
+| --- | --- | --- |
+| `limit` | unset (all) | Max rows to return (`0`–`10000`). |
+| `offset` | `0` | Rows to skip (pagination). |
+| `date_from` | unset | Inclusive lower bound, `YYYY-MM-DD`. |
+| `date_to` | unset | **Inclusive** upper bound, `YYYY-MM-DD`. |
+
+`date_to` is inclusive of the whole day: rows stored as `YYYY-MM-DDTHH:MM:SS`
+on the boundary day are still returned (the filter uses a half-open range with
+an exclusive bound at the start of the *following* day). A malformed date
+(`2026-13-40`) is a `422`. The web dashboard fetches a single centered
+12-month window around the selected month with these params.
+
+```sh
+# Just June 2026 (date-only and timestamped rows on the 30th are included):
+curl "http://localhost:8000/api/v1/expenses?date_from=2026-06-01&date_to=2026-06-30"
+```
+
 ## CSV import
 
 Two transports import CSVs:

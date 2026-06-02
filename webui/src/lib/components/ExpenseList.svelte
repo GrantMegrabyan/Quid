@@ -6,7 +6,7 @@
 	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
-	import { expenses, deleteExpense, refreshExpenses } from '$lib/stores/expenses';
+	import { expenses, deleteExpense } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { amazonOrders, refreshAmazonOrders } from '$lib/stores/amazonOrders';
 	import { refreshSettings, settings } from '$lib/stores/settings';
@@ -212,7 +212,8 @@
 	}
 
 	onMount(() => {
-		void refreshExpenses();
+		// Expense fetching is owned by the dashboard page (it re-fetches the
+		// scoped window on month change); we only load the supporting data here.
 		void refreshCategories();
 		void refreshSettings();
 		void refreshAmazonOrders();

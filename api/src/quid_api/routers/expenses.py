@@ -443,9 +443,16 @@ async def list_expenses(
     session: SessionDep,
     limit: Annotated[int | None, Query(ge=0, le=10_000)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
+    date_from: Annotated[str | None, Query(description="Inclusive lower bound, YYYY-MM-DD")] = None,
+    date_to: Annotated[str | None, Query(description="Inclusive upper bound, YYYY-MM-DD")] = None,
 ) -> list[ExpenseOut]:
     repo = ExpenseRepository(session)
-    rows = await repo.list_all(limit=limit, offset=offset)
+    rows = await repo.list_all(
+        limit=limit,
+        offset=offset,
+        date_from=date_from,
+        date_to=date_to,
+    )
     return [ExpenseOut.model_validate(r) for r in rows]
 
 

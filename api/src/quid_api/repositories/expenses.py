@@ -4,6 +4,8 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date as date_cls
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -18,7 +20,7 @@ from quid_api.category_helpers import (
     slugify_category,
     titleize_slug,
 )
-from quid_api.datelib import validate_iso_datetime
+from quid_api.datelib import validate_iso_date, validate_iso_datetime
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
@@ -143,7 +145,14 @@ class ExpenseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def list_all(self, *, limit: int | None = None, offset: int = 0) -> list[Expense]:
+    async def list_all(
+        self,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[Expense]:
         if offset < 0:
             raise RepositoryError(
                 RepositoryErrorCode.VALIDATION,
@@ -159,6 +168,27 @@ class ExpenseRepository:
             .options(selectinload(Expense.amazon_order_links))
             .order_by(Expense.date.desc(), Expense.id.desc())
         )
+        # ``expenses.date`` is TEXT holding either ``YYYY-MM-DD`` or
+        # ``YYYY-MM-DDTHH:MM:SS``. Both forms compare correctly under lexical
+        # ordering, so a half-open range works for either: an inclusive lower
+        # bound (``>= YYYY-MM-DD``) keeps same-day timestamped rows, and an
+        # EXCLUSIVE upper bound at the first day AFTER ``date_to`` keeps
+        # ``...T23:59:59`` rows that an inclusive ``<= date_to`` would drop.
+        if date_from is not None:
+            try:
+                lower = validate_iso_date(date_from)
+            except ValueError as exc:
+                raise RepositoryError(RepositoryErrorCode.VALIDATION, str(exc)) from exc
+            stmt = stmt.where(Expense.date >= lower)
+        if date_to is not None:
+            try:
+                upper_inclusive = validate_iso_date(date_to)
+            except ValueError as exc:
+                raise RepositoryError(RepositoryErrorCode.VALIDATION, str(exc)) from exc
+            exclusive_upper = (
+                date_cls.fromisoformat(upper_inclusive) + timedelta(days=1)
+            ).isoformat()
+            stmt = stmt.where(Expense.date < exclusive_upper)
         if offset:
             stmt = stmt.offset(offset)
         if limit is not None:

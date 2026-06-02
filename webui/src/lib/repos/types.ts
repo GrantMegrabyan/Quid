@@ -33,6 +33,15 @@ import type {
 export interface ListExpensesQuery {
 	limit?: number;
 	offset?: number;
+	/** Inclusive lower bound, `YYYY-MM-DD`. */
+	dateFrom?: string;
+	/** Inclusive upper bound, `YYYY-MM-DD` (the API treats it as inclusive). */
+	dateTo?: string;
+}
+
+/** Result of deleting a category: how many expenses were reassigned to Uncategorized. */
+export interface CategoryDeleteResult {
+	reassigned: number;
 }
 
 /**
@@ -58,7 +67,7 @@ export interface CategoryRepository {
 	list(): Promise<Category[]>;
 	create(input: Omit<Category, 'id'>): Promise<Category>;
 	update(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<Category>;
-	delete(id: string): Promise<void>;
+	delete(id: string): Promise<CategoryDeleteResult>;
 }
 
 export interface ImportRuleRepository {

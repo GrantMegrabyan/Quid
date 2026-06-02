@@ -15,7 +15,12 @@ export class HttpExpenseRepository implements ExpenseRepository {
 
 	async list(query?: ListExpensesQuery): Promise<Expense[]> {
 		return this.client.request<Expense[]>('api/v1/expenses', {
-			query: { limit: query?.limit, offset: query?.offset }
+			query: {
+				limit: query?.limit,
+				offset: query?.offset,
+				date_from: query?.dateFrom,
+				date_to: query?.dateTo
+			}
 		});
 	}
 

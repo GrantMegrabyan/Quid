@@ -68,6 +68,46 @@ test.describe('dashboard', () => {
 		await expect(page.getByText('Current Coffee')).toHaveCount(0);
 	});
 
+	test('12-month charts show data for months after the selected month (window upper bound)', async ({
+		page
+	}) => {
+		// Regression guard: the dashboard fetches a CENTERED 12-month window which
+		// extends past the selected month. Seed spend in the CURRENT month, then
+		// view a month 3 back. The current month is still inside the window, so its
+		// data must be fetched and the "by category over time" chart (which reads
+		// the scoped expense store) must render bars rather than its empty state.
+		await seedApiState(
+			page,
+			buildSeed({
+				expenses: [
+					{
+						id: 'exp-now',
+						name: 'Current Spend',
+						amount: '55.00',
+						date: isoMonthOffset(0, 5),
+						categoryId: 'cat-groceries',
+						note: ''
+					}
+				]
+			})
+		);
+
+		await page.goto('/');
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+
+		for (let i = 0; i < 3; i++) {
+			await page.getByTestId('month-prev').click();
+		}
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-3));
+
+		await page.getByTestId('toggle-category-monthly-chart').check();
+		const chart = page.getByTestId('category-monthly-chart');
+		await expect(chart).toBeVisible();
+		// If the window upper bound were wrong, the current-month expense would be
+		// outside the fetched range and the chart would show its no-data message.
+		await expect(chart).not.toContainText('No expenses recorded');
+	});
+
 	test('remembers the selected month after reload', async ({ page }) => {
 		await page.goto('/');
 

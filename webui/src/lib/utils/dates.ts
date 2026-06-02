@@ -77,6 +77,29 @@ export function last12MonthKeys(reference: Date = new Date()): string[] {
 	});
 }
 
+/**
+ * The inclusive `YYYY-MM-DD` date range that bounds the centered 12-month
+ * window for a selected month. This is the SINGLE range the dashboard needs to
+ * fetch: it covers the selected month, the previous month (for the month-change
+ * stat), and both 12-month charts in one request. `from` is the first day of
+ * the earliest window month; `to` is the last day of the latest window month
+ * (note the window extends up to 5 months PAST the selected month, capped at
+ * today — so `to` is NOT simply the end of the selected month).
+ */
+export function windowDateRange(
+	selectedKey: string,
+	todayKey = currentMonthKey()
+): { from: string; to: string } {
+	const months = centered12MonthWindow(selectedKey, todayKey);
+	const first = months[0];
+	const last = months[months.length - 1];
+	const lastDay = daysInMonth(last);
+	return {
+		from: `${first}-01`,
+		to: `${last}-${pad(lastDay)}`
+	};
+}
+
 export function formatMonthLabel(key: string): string {
 	const [year, month] = key.split('-').map(Number);
 	const date = new Date(year, month - 1, 1);

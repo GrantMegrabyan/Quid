@@ -117,6 +117,44 @@ async def test_list_rejects_negative_offset(session):
         await repo.list_all(offset=-1)
 
 
+async def test_list_date_range_half_open_filter(session):
+    cat = await _make_category(session)
+    repo = ExpenseRepository(session)
+    await repo.create(name="before", amount="1", date="2026-05-31", category_id=cat.id)
+    await repo.create(name="start", amount="1", date="2026-06-01", category_id=cat.id)
+    await repo.create(name="mid", amount="1", date="2026-06-15", category_id=cat.id)
+    await repo.create(name="end", amount="1", date="2026-06-30", category_id=cat.id)
+    await repo.create(name="after", amount="1", date="2026-07-01", category_id=cat.id)
+
+    rows = await repo.list_all(date_from="2026-06-01", date_to="2026-06-30")
+    names = sorted(r.name for r in rows)
+    assert names == ["end", "mid", "start"]
+
+
+async def test_list_date_range_includes_timestamped_boundary_rows(session):
+    cat = await _make_category(session)
+    repo = ExpenseRepository(session)
+    # A late-in-the-day timestamped row on the inclusive upper bound must be
+    # included (the upper bound is exclusive at the FOLLOWING day), and a
+    # date-only row on the lower bound must be included.
+    await repo.create(name="lower", amount="1", date="2026-06-01", category_id=cat.id)
+    await repo.create(name="upper-ts", amount="1", date="2026-06-30T23:59:59", category_id=cat.id)
+    await repo.create(
+        name="next-day-ts", amount="1", date="2026-07-01T00:00:00", category_id=cat.id
+    )
+
+    rows = await repo.list_all(date_from="2026-06-01", date_to="2026-06-30")
+    names = sorted(r.name for r in rows)
+    assert names == ["lower", "upper-ts"]
+
+
+async def test_list_date_range_rejects_bad_date(session):
+    repo = ExpenseRepository(session)
+    with pytest.raises(RepositoryError) as exc:
+        await repo.list_all(date_from="2026-13-40")
+    assert exc.value.code == RepositoryErrorCode.VALIDATION
+
+
 async def test_get_missing(session):
     repo = ExpenseRepository(session)
     with pytest.raises(RepositoryError) as exc:
