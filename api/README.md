@@ -489,12 +489,17 @@ prefix and works for both date-only and timestamped expense dates.
     honest baseline + MoM: `completeMonthsCovered` and `averagePerCompleteMonth`
     are computed over completed months only, and `latestMonth` / the MoM fields
     point at the last *complete* month (not the partial current one — this is what
-    stops the early-in-month "−100% / huge fake drop" bias). It also surfaces a
+    stops the early-in-month "−100% / huge fake drop" bias). It also exposes a
     live run-rate for the current month: `currentMonth` (`YYYY-MM` or `null`),
     `currentMonthToDate`, `currentMonthProjected` (linear projection
     `MTD / day_of_month × days_in_month`), and `currentMonthPaceVsAverage`
     (projection vs `averagePerCompleteMonth`, `null` with no baseline). Omitting
     `as_of` keeps the legacy behaviour (current month treated as a full month).
+    NOTE: the Analytics page is deliberately retrospective and does **not** render
+    the projection fields — its hero reports the last *complete* month vs the
+    trailing average. `currentMonth` is still used to de-emphasize the in-progress
+    point on the trend chart; the `currentMonth{ToDate,Projected,PaceVsAverage}`
+    fields remain available for API consumers but are currently unused by the UI.
 - `GET /api/v1/analytics/monthly-totals` — `{ months: [{ month, total, count }],
   total, average, count }`, months ascending. The spend-over-time trend.
 - `GET /api/v1/analytics/category-trends` — per-category spend per month:

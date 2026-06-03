@@ -41,14 +41,17 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   rolling period (3M / 6M / 12M / All; the choice is remembered across reloads in
   `localStorage`, defaulting to 6M). The page leads with **actionable, baselined**
   numbers rather than context-free totals:
-  - **KPI row** led by a **projection hero** ("this month so far · on pace for ~X ·
-    ±% vs your average"), then **Avg / month** computed over *complete* months only
-    (the in-progress month is excluded so the average isn't biased low), a **vs
-    last month** card (an **increase is red/up**, a decrease green/down — it links
-    down to the attribution list), **Total spend**, and **Avg transaction**. The
-    page passes `as_of=today` to the summary endpoint to drive the complete-month
-    averages, the run-rate projection, and a month-over-month that compares the
-    last *complete* month (so it no longer reads a fake "−100%" early in a month).
+  - **KPI row** led by a retrospective **last-complete-month hero** ("Last complete
+    month · May 2026 · £X · ±% vs your average") — Analytics is intentionally
+    *backward-looking*: the headline is always a finished month you can actually
+    analyse, never a few days of partial in-progress data. Then **Avg / month**
+    computed over *complete* months only (the in-progress month is excluded so the
+    average isn't biased low), a **vs last month** card (an **increase is red/up**,
+    a decrease green/down — it links down to the attribution list), **Total spend**,
+    and **Avg transaction**. The page passes `as_of=today` to the summary endpoint
+    so the averages and the month-over-month both exclude the in-progress month
+    (the MoM compares the last *complete* month, so it never reads a fake "−100%"
+    early in a month).
   - **Monthly spend** line chart with a dashed **3-month rolling average** overlay
     and a zero-filled month axis; the in-progress month is drawn dashed/hollow so
     the trend doesn't appear to nose-dive at the right edge.

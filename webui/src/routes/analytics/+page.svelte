@@ -23,7 +23,7 @@
 		Wallet,
 		CalendarDays,
 		Receipt,
-		Rocket,
+		CalendarCheck,
 		TrendingUp,
 		TrendingDown
 	} from '@lucide/svelte';
@@ -131,17 +131,26 @@
 	const totalNum = $derived(summary ? amountToNumber(summary.total) : 0);
 	const isEmpty = $derived(loaded && summary !== null && summary.transactionCount === 0);
 
-	// --- Projection hero -------------------------------------------------------
-	// When there's an in-progress month with spend, lead with the live pace.
-	// Otherwise gracefully fall back to the last complete month total.
-	const hasCurrentMonth = $derived(summary?.currentMonth != null);
+	// --- Last-complete-month hero ---------------------------------------------
+	// Analytics is retrospective: we lead with the most recent COMPLETE month
+	// (the in-progress month is excluded by the API when `asOf` is passed) and
+	// frame it against the trailing average, so the headline number is always a
+	// full month you can actually analyse — never a few days of partial data.
+	const hasLatestMonth = $derived(summary?.latestMonth != null);
 
-	const paceLabel = $derived.by(() => {
-		if (!summary || summary.currentMonthPaceVsAverage === null) return null;
-		const sign = summary.currentMonthPaceVsAverage > 0 ? '+' : '';
-		return `${sign}${Math.round(summary.currentMonthPaceVsAverage)}%`;
+	const latestVsAvgDelta = $derived.by(() => {
+		if (!summary) return 0;
+		return amountToNumber(summary.latestMonthTotal) - amountToNumber(summary.averagePerCompleteMonth);
 	});
-	const paceIsOver = $derived((summary?.currentMonthPaceVsAverage ?? 0) > 0);
+	const latestVsAvgIsOver = $derived(latestVsAvgDelta > 0);
+	const latestVsAvgLabel = $derived.by(() => {
+		if (!summary) return null;
+		const avg = amountToNumber(summary.averagePerCompleteMonth);
+		if (avg <= 0) return null;
+		const pct = Math.round((latestVsAvgDelta / avg) * 100);
+		const sign = pct > 0 ? '+' : '';
+		return `${sign}${pct}%`;
+	});
 
 	// --- Month over month ------------------------------------------------------
 	// For expenses, an INCREASE is bad (red/up), a DECREASE is good (green/down).
@@ -248,56 +257,54 @@
 	{:else}
 		<!-- KPI row: projection hero first, then supporting metrics. -->
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-			<!-- HERO: This month — projected -->
+			<!-- HERO: Last complete month vs the trailing average -->
 			<div
 				class="rounded-xl border-2 border-ctp-accent/50 bg-gradient-to-br from-ctp-accent/[0.07] to-ctp-base p-4 shadow-lg shadow-black/20 sm:col-span-2 sm:row-span-1"
-				data-testid="analytics-kpi-projected"
+				data-testid="analytics-kpi-latest-month"
 			>
 				<div class="flex items-start gap-3">
 					<span
 						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ctp-accent/20 text-ctp-accent"
 					>
-						<Rocket class="h-5 w-5" />
+						<CalendarCheck class="h-5 w-5" />
 					</span>
 					<div class="min-w-0 flex-1">
-						{#if hasCurrentMonth && summary}
+						{#if hasLatestMonth && summary}
 							<p class="text-xs font-medium text-ctp-subtext0">
-								This month so far
-								{#if summary.currentMonth}
-									<span class="text-ctp-overlay0">· {formatMonthLabel(summary.currentMonth)}</span>
+								Last complete month
+								{#if summary.latestMonth}
+									<span class="text-ctp-overlay0">· {formatMonthLabel(summary.latestMonth)}</span>
 								{/if}
 							</p>
 							<p class="text-2xl font-bold leading-tight tracking-tight text-ctp-text">
-								{formatAmount(summary.currentMonthToDate, $settings.currency)}
+								{formatAmount(summary.latestMonthTotal, $settings.currency)}
 							</p>
 							<div class="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
 								<span class="text-ctp-subtext0">
-									on pace for ~<span class="font-semibold text-ctp-text"
-										>{formatAmount(summary.currentMonthProjected, $settings.currency)}</span
-									>
+									vs <span class="font-semibold text-ctp-text"
+										>{formatAmount(summary.averagePerCompleteMonth, $settings.currency)}</span
+									> avg
 								</span>
-								{#if paceLabel}
+								{#if latestVsAvgLabel}
 									<span
-										class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums {paceIsOver
+										class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums {latestVsAvgIsOver
 											? 'bg-ctp-red/15 text-ctp-red'
 											: 'bg-ctp-green/15 text-ctp-green'}"
 									>
-										{#if paceIsOver}
+										{#if latestVsAvgIsOver}
 											<TrendingUp class="h-3 w-3" />
 										{:else}
 											<TrendingDown class="h-3 w-3" />
 										{/if}
-										{paceLabel} vs avg
+										{latestVsAvgLabel} vs avg
 									</span>
 								{/if}
 							</div>
 						{:else if summary}
 							<p class="text-xs font-medium text-ctp-subtext0">Last complete month</p>
-							<p class="text-2xl font-bold leading-tight tracking-tight text-ctp-text">
-								{formatAmount(summary.latestMonthTotal, $settings.currency)}
-							</p>
+							<p class="text-2xl font-bold leading-tight tracking-tight text-ctp-overlay0">—</p>
 							<p class="mt-1.5 text-sm text-ctp-overlay0">
-								{summary.latestMonth ? formatMonthLabel(summary.latestMonth) : 'No in-progress month'}
+								Not enough history yet — a full month is needed.
 							</p>
 						{/if}
 					</div>

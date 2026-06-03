@@ -117,8 +117,8 @@ test.describe('analytics page', () => {
 		await expect(total).toBeVisible();
 		await expect(total).toHaveText(/£\d/);
 
-		// Projection hero KPI is present.
-		await expect(page.getByTestId('analytics-kpi-projected')).toBeVisible();
+		// Last-complete-month hero KPI is present.
+		await expect(page.getByTestId('analytics-kpi-latest-month')).toBeVisible();
 
 		// Month-over-month KPI renders a signed currency delta.
 		await expect(page.getByTestId('analytics-kpi-mom')).toContainText('£');
