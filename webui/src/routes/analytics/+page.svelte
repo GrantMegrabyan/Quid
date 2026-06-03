@@ -59,14 +59,27 @@
 	let loaded = $state(false);
 	let loadError = $state<string | null>(null);
 
-	// Monotonic request id guards against out-of-order responses when the user
-	// flips the period quickly: a stale response is dropped if a newer fetch has
-	// started since it was issued.
+	// Plain, NON-reactive bookkeeping. In runes mode a bare `let` is never a
+	// dependency, so reading/writing these can neither be tracked nor schedule a
+	// re-run.
+	//
+	// `requestSeq` drops out-of-order responses: the load does two serial
+	// round-trips (the movers comparison needs the summary's latestMonth), so a
+	// superseded run can resolve late. Only the newest issued request
+	// (`seq === requestSeq`) is allowed to commit.
+	//
+	// `loadedPeriod` is the period the most-recent load was STARTED for. The
+	// driver below dedupes on it, so a duplicate emission of the same value never
+	// stacks a second in-flight load — the exact failure that lets `requestSeq`
+	// outrun every response and hang the spinner forever.
 	let requestSeq = 0;
+	let loadedPeriod: AnalyticsPeriod | null = null;
 
 	async function loadAnalytics(period: AnalyticsPeriod): Promise<void> {
 		const seq = ++requestSeq;
 		const window = periodToWindow(period);
+		// Capture the clock once so `dateTo` and `asOf` can't straddle midnight.
+		const asOf = todayIso();
 		try {
 			const [
 				summaryRes,
@@ -80,7 +93,7 @@
 			] = await Promise.all([
 				// `asOf` lets the summary exclude the in-progress month from the
 				// averages / latestMonth / MoM, and surface the projection fields.
-				analyticsRepository.summary({ ...window, asOf: todayIso() }),
+				analyticsRepository.summary({ ...window, asOf }),
 				analyticsRepository.monthlyTotals(window),
 				analyticsRepository.categoryTrends({ ...window, limit: 5 }),
 				analyticsRepository.topMerchants({ ...window, limit: 8 }),
@@ -90,6 +103,10 @@
 				analyticsRepository.distribution(window)
 			]);
 
+			// Superseded by a newer load during phase 1? Don't even fire the
+			// dependent comparison request.
+			if (seq !== requestSeq) return;
+
 			// Movers compare the latest COMPLETE month (from the summary) vs the
 			// month before it — not the literal calendar month, which is often
 			// partial/empty and would make every category read "-100%".
@@ -97,7 +114,7 @@
 				monthOverMonthComparisonQuery(summaryRes.latestMonth)
 			);
 
-			// Drop stale responses; keep the previous data visible meanwhile.
+			// Superseded during phase 2? Drop it; keep the previous data on screen.
 			if (seq !== requestSeq) return;
 
 			summary = summaryRes;
@@ -120,12 +137,27 @@
 
 	onMount(() => {
 		void refreshSettings();
-	});
 
-	// Re-fetch whenever the period changes. Keeps previous data on screen until
-	// the new response lands (no empty flash).
-	$effect(() => {
-		void loadAnalytics($analyticsPeriod);
+		// Drive loads from an explicit store subscription, NOT a `$effect`.
+		//
+		// `loadAnalytics` writes reactive `$state` (`loaded`, `summary`, …). A
+		// `$effect` that read any of that state — directly or transitively — would
+		// re-invalidate itself; combined with the serial two-RTT load, `requestSeq`
+		// could outrun every response so nothing ever satisfies `seq === requestSeq`
+		// at commit (permanent spinner). A plain `subscribe` callback is NOT a
+		// tracked reaction, so no write inside the load can ever schedule another
+		// run.
+		//
+		// `subscribe` fires once synchronously with the current value, then only on
+		// genuine changes (`writable` suppresses equal-value emits). The value
+		// dedupe is belt-and-braces: even a duplicate/leaked emission issues at most
+		// one load per distinct period. The returned unsubscribe tears the driver
+		// down on unmount, so client-side navigations / HMR can't stack drivers.
+		return analyticsPeriod.subscribe((period) => {
+			if (period === loadedPeriod) return;
+			loadedPeriod = period;
+			void loadAnalytics(period);
+		});
 	});
 
 	const totalNum = $derived(summary ? amountToNumber(summary.total) : 0);
@@ -232,6 +264,14 @@
 			data-testid="analytics-error"
 		>
 			Couldn't load analytics: {loadError}
+		</div>
+	{:else if !loaded}
+		<div
+			class="flex items-center justify-center gap-3 rounded-xl border border-ctp-surface1 bg-ctp-base p-12 text-sm text-ctp-subtext0 shadow-lg shadow-black/20"
+			data-testid="analytics-loading"
+		>
+			<span class="h-4 w-4 animate-spin rounded-full border-2 border-ctp-surface2 border-t-ctp-accent"></span>
+			Loading analytics…
 		</div>
 	{:else if isEmpty}
 		<div

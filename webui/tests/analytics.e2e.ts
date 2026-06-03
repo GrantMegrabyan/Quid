@@ -92,6 +92,17 @@ const analyticsSeed = buildSeed({
 			date: isoMonthOffset(-1, 15),
 			categoryId: 'cat-transport',
 			note: ''
+		},
+		// An older transaction (5 months back) so a 12M window total is strictly
+		// larger than a 3M window total — lets us assert the window selector
+		// actually re-queries instead of freezing on the first value.
+		{
+			id: 'exp-old',
+			name: 'Old purchase',
+			amount: '999.00',
+			date: isoMonthOffset(-5, 10),
+			categoryId: 'cat-groceries',
+			note: ''
 		}
 	]
 });
@@ -176,11 +187,44 @@ test.describe('analytics page', () => {
 		await expect(recurringRows.first()).toBeVisible();
 		await expect(recurring).toContainText('Netflix');
 
-		// The biggest-purchases list leads with the £450 outlier.
+		// The biggest-purchases list leads with the largest outlier (£999).
 		const large = page.getByTestId('analytics-large-transactions');
 		await expect(large).toBeVisible();
 		const largeRows = page.getByTestId('analytics-large-row');
-		await expect(largeRows.first()).toContainText('Flights');
+		await expect(largeRows.first()).toContainText('Old purchase');
+		// The £450 flight is also present in the list.
+		await expect(large).toContainText('Flights');
+	});
+
+	test('changing the window actually re-queries (no frozen totals)', async ({ page }) => {
+		const consoleErrors: string[] = [];
+		page.on('console', (msg) => {
+			if (msg.type() === 'error') consoleErrors.push(msg.text());
+		});
+
+		await page.goto('/analytics');
+		const total = page.getByTestId('analytics-kpi-total');
+
+		// 3M excludes the 5-month-old £999 purchase; 12M includes it. The totals
+		// must differ, proving the window selector re-fetches and commits the
+		// latest response (regression guard for the period-freeze bug).
+		await page.getByTestId('analytics-period-3m').click();
+		await expect(page.getByTestId('analytics-period-3m')).toHaveAttribute('aria-pressed', 'true');
+		await expect(total).toHaveText(/£\d/);
+		const total3m = await total.textContent();
+
+		await page.getByTestId('analytics-period-12m').click();
+		await expect(page.getByTestId('analytics-period-12m')).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		await expect(total).not.toHaveText(total3m ?? '');
+
+		// And back again resolves to the original 3M total.
+		await page.getByTestId('analytics-period-3m').click();
+		await expect(total).toHaveText(total3m ?? '');
+
+		expect(consoleErrors).toEqual([]);
 	});
 
 	test('persists the selected period across reloads', async ({ page }) => {
