@@ -560,15 +560,90 @@ export interface AnalyticsSummary {
 	transactionCount: number;
 	monthsCovered: number;
 	averagePerMonth: string;
+	/** Months in the window EXCLUDING the in-progress current month (when `asOf` given). */
+	completeMonthsCovered: number;
+	/** Honest baseline: total of complete months / completeMonthsCovered. */
+	averagePerCompleteMonth: string;
 	averagePerTransaction: string;
 	busiestMonth: string | null;
 	busiestMonthTotal: string;
+	/** The in-progress month (`YYYY-MM`) when `asOf` is supplied and it has spend. */
+	currentMonth: string | null;
+	/** Spend so far in `currentMonth`. */
+	currentMonthToDate: string;
+	/** Linear projection of `currentMonth` spend to end of month. */
+	currentMonthProjected: string;
+	/** Percent change of the projection vs `averagePerCompleteMonth`; null with no baseline. */
+	currentMonthPaceVsAverage: number | null;
 	topCategoryId: string | null;
 	topCategoryName: string | null;
 	topCategoryTotal: string;
+	/** Last COMPLETE month (in-progress month excluded when `asOf` given). */
 	latestMonth: string | null;
 	latestMonthTotal: string;
 	previousMonthTotal: string;
 	monthOverMonthDelta: string;
 	monthOverMonthPercent: number | null;
+}
+
+export interface RecurringItem {
+	name: string;
+	amount: string;
+	occurrences: number;
+	monthsCovered: number;
+	firstMonth: string;
+	lastMonth: string;
+	monthlyEstimate: string;
+}
+
+export interface RecurringResult {
+	items: RecurringItem[];
+	monthlyTotal: string;
+	count: number;
+}
+
+export interface LargeTransaction {
+	id: string;
+	name: string;
+	displayName: string | null;
+	amount: string;
+	date: string;
+	categoryId: string | null;
+	categoryName: string | null;
+	categoryColor: string | null;
+}
+
+export interface LargeTransactionsResult {
+	transactions: LargeTransaction[];
+	periodTotal: string;
+	/** Returned txns as a 0-1 fraction of period total; null when period total is 0. */
+	topShare: number | null;
+}
+
+export interface DistributionResult {
+	mean: string;
+	median: string;
+	p90: string;
+	min: string;
+	max: string;
+	count: number;
+}
+
+export interface ImportanceTrendPoint {
+	/** `YYYY-MM`. */
+	month: string;
+	total: string;
+}
+
+export interface ImportanceTrendSeries {
+	importance: ExpenseImportance;
+	total: string;
+	/** Dense, zero-filled points over the parent `months` axis. */
+	points: ImportanceTrendPoint[];
+}
+
+export interface ImportanceTrendResult {
+	/** Dense ascending `YYYY-MM` axis shared by every series. */
+	months: string[];
+	series: ImportanceTrendSeries[];
 }

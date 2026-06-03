@@ -52,12 +52,13 @@ export function periodToWindow(period: AnalyticsPeriod): AnalyticsWindow {
  * Independent of the selected period preset — movers are always a single-month
  * comparison.
  *
- * Pass `referenceMonth` (a `YYYY-MM` key) to anchor the comparison on the most
- * recent month that actually HAS data (the API's `summary.latestMonth`) instead
- * of the literal calendar month. Without this, the comparison would use the
- * current calendar month, which is often empty early in a month (or when the
- * data lags), making every category read as "-100%". Defaults to the current
- * calendar month when no reference is given.
+ * Pass `referenceMonth` (a `YYYY-MM` key) to anchor the comparison on the LAST
+ * COMPLETE month (the API's `summary.latestMonth`, which now excludes the
+ * in-progress month when `asOf` is supplied) instead of the literal calendar
+ * month. Without this, the comparison would use the current calendar month,
+ * which is partial early in a month (or empty when the data lags), making every
+ * category read as a fake collapse / "-100%". Defaults to the current calendar
+ * month when no reference is given.
  */
 export function monthOverMonthComparisonQuery(
 	referenceMonth?: string | null

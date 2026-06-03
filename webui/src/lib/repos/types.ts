@@ -12,9 +12,13 @@ import type {
 	Category,
 	CategoryComparisonResult,
 	CategoryTrendsResult,
+	DistributionResult,
 	Expense,
 	ImportanceBreakdownResult,
+	ImportanceTrendResult,
+	LargeTransactionsResult,
 	MonthlyTotalsResult,
+	RecurringResult,
 	TopMerchantsResult,
 	WeekdayBreakdownResult,
 	ImportCsvConfirmRequest,
@@ -132,13 +136,18 @@ export interface CategoryComparisonQuery {
 }
 
 export interface AnalyticsRepository {
-	summary(window?: AnalyticsWindow): Promise<AnalyticsSummary>;
+	/** `asOf` (a `YYYY-MM-DD` "today") unlocks complete-month averages + run-rate fields. */
+	summary(window?: AnalyticsWindow & { asOf?: string }): Promise<AnalyticsSummary>;
 	monthlyTotals(window?: AnalyticsWindow): Promise<MonthlyTotalsResult>;
-	categoryTrends(window?: AnalyticsWindow): Promise<CategoryTrendsResult>;
+	categoryTrends(window?: AnalyticsWindow & { limit?: number }): Promise<CategoryTrendsResult>;
 	categoryComparison(query: CategoryComparisonQuery): Promise<CategoryComparisonResult>;
 	topMerchants(window?: AnalyticsWindow & { limit?: number }): Promise<TopMerchantsResult>;
 	importanceBreakdown(window?: AnalyticsWindow): Promise<ImportanceBreakdownResult>;
 	weekdayBreakdown(window?: AnalyticsWindow): Promise<WeekdayBreakdownResult>;
+	recurring(window?: AnalyticsWindow): Promise<RecurringResult>;
+	largeTransactions(window?: AnalyticsWindow & { limit?: number }): Promise<LargeTransactionsResult>;
+	distribution(window?: AnalyticsWindow): Promise<DistributionResult>;
+	importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

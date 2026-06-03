@@ -39,16 +39,35 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   first visit.
 - **Analytics** (`/analytics`) — cross-month spending insights for a selectable
   rolling period (3M / 6M / 12M / All; the choice is remembered across reloads in
-  `localStorage`, defaulting to 6M). Shows KPI cards (total spend, average per
-  month, transaction count, top category, and a month-over-month delta where an
-  **increase is red/up** and a decrease is green/down, since this is spend), a
-  monthly-spend line chart, a **Biggest movers** list (the categories that rose
-  or fell the most in the latest month with data vs the month before it — labelled
-  e.g. "May 2026 vs Apr 2026" — with a signed amount + percent and a "new" badge
-  for categories with no prior spend), a multi-series category-trend
-  chart (top 8 categories), a spend-by-importance doughnut, a top-merchants bar
-  chart, and a spend-by-weekday bar chart. Empty until transactions are imported.
-  Backed by the `GET /api/v1/analytics/*` endpoints.
+  `localStorage`, defaulting to 6M). The page leads with **actionable, baselined**
+  numbers rather than context-free totals:
+  - **KPI row** led by a **projection hero** ("this month so far · on pace for ~X ·
+    ±% vs your average"), then **Avg / month** computed over *complete* months only
+    (the in-progress month is excluded so the average isn't biased low), a **vs
+    last month** card (an **increase is red/up**, a decrease green/down — it links
+    down to the attribution list), **Total spend**, and **Avg transaction**. The
+    page passes `as_of=today` to the summary endpoint to drive the complete-month
+    averages, the run-rate projection, and a month-over-month that compares the
+    last *complete* month (so it no longer reads a fake "−100%" early in a month).
+  - **Monthly spend** line chart with a dashed **3-month rolling average** overlay
+    and a zero-filled month axis; the in-progress month is drawn dashed/hollow so
+    the trend doesn't appear to nose-dive at the right edge.
+  - **What changed** — the movers list reframed as the explanation of the MoM KPI
+    (net delta + the top drivers), with a signed amount + percent and a "new" badge
+    for categories with no prior spend.
+  - **Recurring payments** (detected subscriptions, with a monthly total) and
+    **Biggest purchases** (top single transactions + their share of the period) —
+    the two most actionable panels.
+  - **Spend by importance over time** (stacked area, replaces the old doughnut),
+    a **category composition** stacked-area chart (top 5 + "Other"), a
+    **top-merchants** bar chart with a *By spend / By visits* toggle (showing visit
+    count + avg ticket), and a **transaction-size distribution** card
+    (median vs mean vs p90).
+
+  Empty until transactions are imported. Backed by the `GET /api/v1/analytics/*`
+  endpoints (`summary`, `monthly-totals`, `category-trends`,
+  `category-comparison`, `top-merchants`, `recurring`, `large-transactions`,
+  `distribution`, `importance-trend`).
 - **Import** (`/import`) — the single place to add transactions, organised into
   three tabs:
   - **CSV file** — the CSV import preview/confirm flow. AI categorisation is no

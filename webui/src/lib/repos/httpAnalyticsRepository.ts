@@ -2,8 +2,12 @@ import type {
 	AnalyticsSummary,
 	CategoryComparisonResult,
 	CategoryTrendsResult,
+	DistributionResult,
 	ImportanceBreakdownResult,
+	ImportanceTrendResult,
+	LargeTransactionsResult,
 	MonthlyTotalsResult,
+	RecurringResult,
 	TopMerchantsResult,
 	WeekdayBreakdownResult
 } from '$types';
@@ -24,9 +28,9 @@ function windowQuery(window?: AnalyticsWindow): Record<string, string | undefine
 export class HttpAnalyticsRepository implements AnalyticsRepository {
 	constructor(private readonly client: HttpClient = httpClient) {}
 
-	async summary(window?: AnalyticsWindow): Promise<AnalyticsSummary> {
+	async summary(window?: AnalyticsWindow & { asOf?: string }): Promise<AnalyticsSummary> {
 		return this.client.request<AnalyticsSummary>('api/v1/analytics/summary', {
-			query: windowQuery(window)
+			query: { ...windowQuery(window), as_of: window?.asOf }
 		});
 	}
 
@@ -36,9 +40,11 @@ export class HttpAnalyticsRepository implements AnalyticsRepository {
 		});
 	}
 
-	async categoryTrends(window?: AnalyticsWindow): Promise<CategoryTrendsResult> {
+	async categoryTrends(
+		window?: AnalyticsWindow & { limit?: number }
+	): Promise<CategoryTrendsResult> {
 		return this.client.request<CategoryTrendsResult>('api/v1/analytics/category-trends', {
-			query: windowQuery(window)
+			query: { ...windowQuery(window), limit: window?.limit }
 		});
 	}
 
@@ -70,6 +76,32 @@ export class HttpAnalyticsRepository implements AnalyticsRepository {
 
 	async weekdayBreakdown(window?: AnalyticsWindow): Promise<WeekdayBreakdownResult> {
 		return this.client.request<WeekdayBreakdownResult>('api/v1/analytics/weekday-breakdown', {
+			query: windowQuery(window)
+		});
+	}
+
+	async recurring(window?: AnalyticsWindow): Promise<RecurringResult> {
+		return this.client.request<RecurringResult>('api/v1/analytics/recurring', {
+			query: windowQuery(window)
+		});
+	}
+
+	async largeTransactions(
+		window?: AnalyticsWindow & { limit?: number }
+	): Promise<LargeTransactionsResult> {
+		return this.client.request<LargeTransactionsResult>('api/v1/analytics/large-transactions', {
+			query: { ...windowQuery(window), limit: window?.limit }
+		});
+	}
+
+	async distribution(window?: AnalyticsWindow): Promise<DistributionResult> {
+		return this.client.request<DistributionResult>('api/v1/analytics/distribution', {
+			query: windowQuery(window)
+		});
+	}
+
+	async importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult> {
+		return this.client.request<ImportanceTrendResult>('api/v1/analytics/importance-trend', {
 			query: windowQuery(window)
 		});
 	}

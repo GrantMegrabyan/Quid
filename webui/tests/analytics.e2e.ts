@@ -49,6 +49,49 @@ const analyticsSeed = buildSeed({
 			date: isoMonthOffset(-1, 8),
 			categoryId: 'cat-transport',
 			note: ''
+		},
+		// A recurring subscription: same name + amount across 4 distinct months
+		// (>= 3 months => detected as recurring).
+		{
+			id: 'exp-sub-0',
+			name: 'Netflix',
+			amount: '10.99',
+			date: isoMonthOffset(0, 2),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		{
+			id: 'exp-sub-1',
+			name: 'Netflix',
+			amount: '10.99',
+			date: isoMonthOffset(-1, 2),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		{
+			id: 'exp-sub-2',
+			name: 'Netflix',
+			amount: '10.99',
+			date: isoMonthOffset(-2, 2),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		{
+			id: 'exp-sub-3',
+			name: 'Netflix',
+			amount: '10.99',
+			date: isoMonthOffset(-3, 2),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		// A big-ticket outlier so "Biggest purchases" has a clear top row.
+		{
+			id: 'exp-big',
+			name: 'Flights',
+			amount: '450.00',
+			date: isoMonthOffset(-1, 15),
+			categoryId: 'cat-transport',
+			note: ''
 		}
 	]
 });
@@ -74,23 +117,30 @@ test.describe('analytics page', () => {
 		await expect(total).toBeVisible();
 		await expect(total).toHaveText(/£\d/);
 
+		// Projection hero KPI is present.
+		await expect(page.getByTestId('analytics-kpi-projected')).toBeVisible();
+
 		// Month-over-month KPI renders a signed currency delta.
 		await expect(page.getByTestId('analytics-kpi-mom')).toContainText('£');
 
 		// Monthly trend chart container is present.
 		await expect(page.getByTestId('analytics-monthly-trend')).toBeVisible();
 
-		// Movers list is the centerpiece: at least one mover row with content.
+		// "What changed" attribution: at least one mover row with content.
 		await expect(page.getByTestId('analytics-movers')).toBeVisible();
 		const moverRows = page.getByTestId('analytics-mover-row');
 		await expect(moverRows.first()).toBeVisible();
 		await expect(page.getByTestId('analytics-mover-badge').first()).toBeVisible();
 
-		// Other cards exist.
-		await expect(page.getByTestId('analytics-importance')).toBeVisible();
+		// Actionable core: recurring + biggest purchases.
+		await expect(page.getByTestId('analytics-recurring')).toBeVisible();
+		await expect(page.getByTestId('analytics-large-transactions')).toBeVisible();
+
+		// Composition + supporting cards.
+		await expect(page.getByTestId('analytics-importance-trend')).toBeVisible();
 		await expect(page.getByTestId('analytics-category-trend')).toBeVisible();
 		await expect(page.getByTestId('analytics-top-merchants')).toBeVisible();
-		await expect(page.getByTestId('analytics-weekday')).toBeVisible();
+		await expect(page.getByTestId('analytics-distribution')).toBeVisible();
 
 		expect(consoleErrors).toEqual([]);
 	});
@@ -114,6 +164,23 @@ test.describe('analytics page', () => {
 		await expect(page.getByTestId('analytics-movers')).toBeVisible();
 
 		expect(consoleErrors).toEqual([]);
+	});
+
+	test('surfaces recurring payments and biggest purchases', async ({ page }) => {
+		await page.goto('/analytics');
+
+		// The recurring panel detects the 4-month Netflix subscription.
+		const recurring = page.getByTestId('analytics-recurring');
+		await expect(recurring).toBeVisible();
+		const recurringRows = page.getByTestId('analytics-recurring-row');
+		await expect(recurringRows.first()).toBeVisible();
+		await expect(recurring).toContainText('Netflix');
+
+		// The biggest-purchases list leads with the £450 outlier.
+		const large = page.getByTestId('analytics-large-transactions');
+		await expect(large).toBeVisible();
+		const largeRows = page.getByTestId('analytics-large-row');
+		await expect(largeRows.first()).toContainText('Flights');
 	});
 
 	test('persists the selected period across reloads', async ({ page }) => {

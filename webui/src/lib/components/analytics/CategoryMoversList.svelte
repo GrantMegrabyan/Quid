@@ -7,8 +7,9 @@
 	let {
 		movers,
 		limit = 8,
+		title = 'Biggest movers',
 		subtitle = 'Categories that changed the most month over month.'
-	}: { movers: CategoryMover[]; limit?: number; subtitle?: string } = $props();
+	}: { movers: CategoryMover[]; limit?: number; title?: string; subtitle?: string } = $props();
 
 	type MoverView = {
 		mover: CategoryMover;
@@ -54,7 +55,7 @@
 	class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20 sm:p-5"
 	data-testid="analytics-movers"
 >
-	<h2 class="mb-1 text-base font-semibold text-ctp-text">Biggest movers</h2>
+	<h2 class="mb-1 text-base font-semibold text-ctp-text">{title}</h2>
 	<p class="mb-4 text-xs text-ctp-subtext0">{subtitle}</p>
 
 	{#if !hasData}
