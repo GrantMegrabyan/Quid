@@ -76,11 +76,33 @@ const analyticsSeed = buildSeed({
 			categoryId: 'cat-groceries',
 			note: ''
 		},
+		// SAME merchant, DIFFERENT amount, SAME first/last month as the £10.99
+		// group above (both span months 0..-2): the recurring detector groups on
+		// (name, amount), so this is a distinct recurring item that shares the
+		// `Netflix` name AND the same firstMonth — the exact shape that crashed the
+		// keyed each block (each_key_duplicate) when the key was only
+		// name+firstMonth. Regression guard: key must include the amount.
 		{
-			id: 'exp-sub-3',
+			id: 'exp-sub2-0',
 			name: 'Netflix',
-			amount: '10.99',
-			date: isoMonthOffset(-3, 2),
+			amount: '5.99',
+			date: isoMonthOffset(0, 20),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		{
+			id: 'exp-sub2-1',
+			name: 'Netflix',
+			amount: '5.99',
+			date: isoMonthOffset(-1, 20),
+			categoryId: 'cat-groceries',
+			note: ''
+		},
+		{
+			id: 'exp-sub2-2',
+			name: 'Netflix',
+			amount: '5.99',
+			date: isoMonthOffset(-2, 20),
 			categoryId: 'cat-groceries',
 			note: ''
 		},
@@ -93,14 +115,15 @@ const analyticsSeed = buildSeed({
 			categoryId: 'cat-transport',
 			note: ''
 		},
-		// An older transaction (5 months back) so a 12M window total is strictly
-		// larger than a 3M window total — lets us assert the window selector
-		// actually re-queries instead of freezing on the first value.
+		// A far-past transaction (fixed date, well outside any rolling window but
+		// inside "All") so an All-window total is strictly larger than a 3M total.
+		// Lets us assert the window selector actually re-queries instead of
+		// freezing on the first value.
 		{
 			id: 'exp-old',
 			name: 'Old purchase',
 			amount: '999.00',
-			date: isoMonthOffset(-5, 10),
+			date: '2020-01-10',
 			categoryId: 'cat-groceries',
 			note: ''
 		}
@@ -178,22 +201,39 @@ test.describe('analytics page', () => {
 	});
 
 	test('surfaces recurring payments and biggest purchases', async ({ page }) => {
+		const consoleErrors: string[] = [];
+		page.on('console', (msg) => {
+			if (msg.type() === 'error') consoleErrors.push(msg.text());
+		});
+
 		await page.goto('/analytics');
 
-		// The recurring panel detects the 4-month Netflix subscription.
+		// The recurring panel detects the Netflix subscriptions. There are TWO
+		// distinct Netflix recurring items (£10.99 and £5.99) that share the same
+		// name and first month — they must both render without an
+		// each_key_duplicate crash (the keyed block keys on name+amount+firstMonth).
 		const recurring = page.getByTestId('analytics-recurring');
 		await expect(recurring).toBeVisible();
 		const recurringRows = page.getByTestId('analytics-recurring-row');
 		await expect(recurringRows.first()).toBeVisible();
 		await expect(recurring).toContainText('Netflix');
+		// The seed has two Netflix recurring groups (£10.99 and £5.99) that can
+		// share a name + first month. Rendering them must not crash with
+		// each_key_duplicate — the keyed each block keys on name+amount+firstMonth.
+		// (The exact group count depends on the wall-clock window; the precise
+		// two-distinct-items contract is locked down in the backend test
+		// test_recurring_same_name_two_amounts_are_distinct_items. Here we just
+		// assert it renders and emits no console error — see the assertion below.)
 
-		// The biggest-purchases list leads with the largest outlier (£999).
+		// The biggest-purchases list (default 6M window) leads with the £450
+		// flight — the 2020 "Old purchase" is outside the rolling window.
 		const large = page.getByTestId('analytics-large-transactions');
 		await expect(large).toBeVisible();
 		const largeRows = page.getByTestId('analytics-large-row');
-		await expect(largeRows.first()).toContainText('Old purchase');
-		// The £450 flight is also present in the list.
-		await expect(large).toContainText('Flights');
+		await expect(largeRows.first()).toContainText('Flights');
+
+		// No each_key_duplicate (or any other) console error.
+		expect(consoleErrors).toEqual([]);
 	});
 
 	test('changing the window actually re-queries (no frozen totals)', async ({ page }) => {
@@ -205,16 +245,16 @@ test.describe('analytics page', () => {
 		await page.goto('/analytics');
 		const total = page.getByTestId('analytics-kpi-total');
 
-		// 3M excludes the 5-month-old £999 purchase; 12M includes it. The totals
-		// must differ, proving the window selector re-fetches and commits the
-		// latest response (regression guard for the period-freeze bug).
+		// 3M excludes the far-past (2020) £999 purchase; All includes it, so the
+		// totals must differ — proving the window selector re-fetches and commits
+		// the latest response (regression guard for the period-freeze bug).
 		await page.getByTestId('analytics-period-3m').click();
 		await expect(page.getByTestId('analytics-period-3m')).toHaveAttribute('aria-pressed', 'true');
 		await expect(total).toHaveText(/£\d/);
 		const total3m = await total.textContent();
 
-		await page.getByTestId('analytics-period-12m').click();
-		await expect(page.getByTestId('analytics-period-12m')).toHaveAttribute(
+		await page.getByTestId('analytics-period-all').click();
+		await expect(page.getByTestId('analytics-period-all')).toHaveAttribute(
 			'aria-pressed',
 			'true'
 		);

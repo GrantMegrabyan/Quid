@@ -50,7 +50,7 @@
 		</div>
 	{:else}
 		<ul class="flex flex-col divide-y divide-ctp-surface0">
-			{#each data.items as item (item.name + item.firstMonth)}
+			{#each data.items as item (item.name + '|' + item.amount + '|' + item.firstMonth)}
 				<li class="flex items-center gap-3 py-2.5" data-testid="analytics-recurring-row">
 					<div class="min-w-0 flex-1">
 						<p class="truncate text-sm font-medium text-ctp-text" title={item.name}>

@@ -191,6 +191,31 @@ async def test_recurring_detects_three_month_groups(app_client):
     assert item["monthsCovered"] == 3
 
 
+async def test_recurring_same_name_two_amounts_are_distinct_items(app_client):
+    # Same merchant at two different amounts, BOTH spanning >= 3 months and the
+    # SAME first/last month. The detector groups on (name, amount), so this must
+    # surface as TWO distinct recurring items sharing the name + firstMonth —
+    # the shape that crashed the keyed each block in the UI (each_key_duplicate).
+    cat = await _make_cat(app_client, "Food")
+    for month in ["2026-01", "2026-02", "2026-03"]:
+        await _make_expense(
+            app_client, name="Apple", amount="0.99", date=f"{month}-05", category_id=cat["id"]
+        )
+        await _make_expense(
+            app_client, name="Apple", amount="9.99", date=f"{month}-20", category_id=cat["id"]
+        )
+
+    res = await app_client.get("/api/v1/analytics/recurring")
+    body = res.json()
+    assert body["count"] == 2
+    items = {item["amount"]: item for item in body["items"]}
+    assert set(items) == {"0.99", "9.99"}
+    # Both share the name and the same first/last month.
+    assert {item["name"] for item in body["items"]} == {"Apple"}
+    assert items["0.99"]["firstMonth"] == items["9.99"]["firstMonth"] == "2026-01"
+    assert items["0.99"]["monthsCovered"] == items["9.99"]["monthsCovered"] == 3
+
+
 async def test_large_transactions_returns_top_spend(app_client):
     cat = await _make_cat(app_client, "Food")
     await _make_expense(
