@@ -871,6 +871,92 @@ class WeekdayBreakdownResponse(_Camel):
     breakdown: list[WeekdayBreakdownPointOut] = Field(default_factory=list)
 
 
+class RecurringItemOut(_Camel):
+    name: str
+    amount: Decimal
+    occurrences: int
+    months_covered: int
+    first_month: str
+    last_month: str
+    monthly_estimate: Decimal
+
+    @field_serializer("amount", "monthly_estimate")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class RecurringResponse(_Camel):
+    items: list[RecurringItemOut] = Field(default_factory=list)
+    monthly_total: Decimal
+    count: int
+
+    @field_serializer("monthly_total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class LargeTransactionOut(_Camel):
+    id: str
+    name: str
+    display_name: str | None = None
+    amount: Decimal
+    date: str
+    category_id: str | None = None
+    category_name: str | None = None
+    category_color: str | None = None
+
+    @field_serializer("amount")
+    def _ser_amount(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class LargeTransactionsResponse(_Camel):
+    transactions: list[LargeTransactionOut] = Field(default_factory=list)
+    period_total: Decimal
+    top_share: float | None = None
+
+    @field_serializer("period_total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class DistributionResponse(_Camel):
+    mean: Decimal
+    median: Decimal
+    p90: Decimal
+    min: Decimal
+    max: Decimal
+    count: int
+
+    @field_serializer("mean", "median", "p90", "min", "max")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceTrendPointOut(_Camel):
+    month: str
+    total: Decimal
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceTrendSeriesOut(_Camel):
+    importance: Importance
+    total: Decimal
+    points: list[ImportanceTrendPointOut] = Field(default_factory=list)
+
+    @field_serializer("total")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceTrendResponse(_Camel):
+    months: list[str] = Field(default_factory=list)
+    series: list[ImportanceTrendSeriesOut] = Field(default_factory=list)
+
+
 class AnalyticsSummaryResponse(_Camel):
     """Headline KPIs over the requested window."""
 
@@ -878,10 +964,16 @@ class AnalyticsSummaryResponse(_Camel):
     transaction_count: int
     months_covered: int
     average_per_month: Decimal
+    complete_months_covered: int
+    average_per_complete_month: Decimal
     average_per_transaction: Decimal
     # The single highest-spend month in the window, if any.
     busiest_month: str | None = None
     busiest_month_total: Decimal
+    current_month: str | None = None
+    current_month_to_date: Decimal = Decimal("0.00")
+    current_month_projected: Decimal = Decimal("0.00")
+    current_month_pace_vs_average: float | None = None
     # Top category by spend over the window, if any.
     top_category_id: str | None = None
     top_category_name: str | None = None
@@ -896,8 +988,11 @@ class AnalyticsSummaryResponse(_Camel):
     @field_serializer(
         "total",
         "average_per_month",
+        "average_per_complete_month",
         "average_per_transaction",
         "busiest_month_total",
+        "current_month_to_date",
+        "current_month_projected",
         "top_category_total",
         "latest_month_total",
         "previous_month_total",

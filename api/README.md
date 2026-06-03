@@ -484,12 +484,26 @@ prefix and works for both date-only and timestamped expense dates.
   `averagePerTransaction`, `busiestMonth(+Total)`, `topCategoryId/Name(+Total)`,
   and month-over-month (`latestMonth`, `latestMonthTotal`, `previousMonthTotal`,
   `monthOverMonthDelta`, `monthOverMonthPercent`).
+  - Accepts an optional `as_of` (`YYYY-MM-DD`, the client's "today"). When given,
+    the summary **excludes the in-progress current month** (`as_of[:7]`) from the
+    honest baseline + MoM: `completeMonthsCovered` and `averagePerCompleteMonth`
+    are computed over completed months only, and `latestMonth` / the MoM fields
+    point at the last *complete* month (not the partial current one — this is what
+    stops the early-in-month "−100% / huge fake drop" bias). It also surfaces a
+    live run-rate for the current month: `currentMonth` (`YYYY-MM` or `null`),
+    `currentMonthToDate`, `currentMonthProjected` (linear projection
+    `MTD / day_of_month × days_in_month`), and `currentMonthPaceVsAverage`
+    (projection vs `averagePerCompleteMonth`, `null` with no baseline). Omitting
+    `as_of` keeps the legacy behaviour (current month treated as a full month).
 - `GET /api/v1/analytics/monthly-totals` — `{ months: [{ month, total, count }],
   total, average, count }`, months ascending. The spend-over-time trend.
 - `GET /api/v1/analytics/category-trends` — per-category spend per month:
   `{ months: ["YYYY-MM", …], series: [{ categoryId, categoryName, color, total,
   points: [{ month, total }] }] }`. The `months` axis is dense (zero-filled) and
   shared across all series; series are ordered by overall spend descending.
+  Accepts `?limit=` (1–50, default 8): keeps the top-N categories by total and
+  collapses the remainder into a single trailing `Other` series
+  (`categoryId="__other__"`, grey `#6c7086`).
 - `GET /api/v1/analytics/category-comparison` — "which categories went up". Takes
   FOUR required params (`current_from`, `current_to`, `previous_from`,
   `previous_to`) and returns each category's `current`/`previous`/`delta`/
@@ -497,12 +511,34 @@ prefix and works for both date-only and timestamped expense dates.
   when the category had no spend in the previous period.
 - `GET /api/v1/analytics/top-merchants` — top merchants by spend
   (`?limit=` 1–100, default 10). There is no merchant column, so this groups on
-  `lower(trim(name))`; the display label is the group's representative name.
+  `lower(trim(name))`; the display label is the group's representative name. Each
+  row also carries `count` (visit count) so the UI can show frequency / avg ticket.
+- `GET /api/v1/analytics/recurring` — detected subscription-like spend. Groups on
+  `(lower(trim(name)), amount)` and keeps groups appearing in **≥3 distinct
+  months**: `{ items: [{ name, amount, occurrences, monthsCovered, firstMonth,
+  lastMonth, monthlyEstimate }], monthlyTotal, count }`, sorted by
+  `monthlyEstimate` desc. Heuristic (exact name+amount, monthly cadence assumed);
+  it intentionally misses variable bills and renamed merchants.
+- `GET /api/v1/analytics/large-transactions` — the biggest single expenses in the
+  window (`?limit=` 1–50, default 5): `{ transactions: [{ id, name, displayName,
+  amount, date, categoryId, categoryName, categoryColor }], periodTotal,
+  topShare }`, sorted by amount desc. `topShare` is the returned txns' share of
+  `periodTotal` as a 0–1 fraction (`null` when the period total is 0).
+- `GET /api/v1/analytics/distribution` — transaction-size distribution over the
+  window: `{ mean, median, p90, min, max, count }` (median/mean divergence flags
+  big-ticket skew). All zero when there are no rows.
+- `GET /api/v1/analytics/importance-trend` — per-month spend split by importance
+  tier: `{ months: ["YYYY-MM", …], series: [{ importance, total, points:
+  [{ month, total }] }] }`. Always emits all three tiers (essential/important/
+  discretionary) with a dense, zero-filled `months` axis. The Analytics page
+  renders this as a stacked area chart (replacing the older static breakdown).
 - `GET /api/v1/analytics/importance-breakdown` — spend + count by importance tier
-  (`essential` / `important` / `discretionary`), plus `total`.
+  (`essential` / `important` / `discretionary`), plus `total`. (Still available;
+  the UI now prefers `importance-trend`.)
 - `GET /api/v1/analytics/weekday-breakdown` — spend + count by day of week. Always
   returns 7 rows, Monday-first (`weekday` 0=Mon..6=Sun), zero-filled for days
   with no spend. Uses SQLite `strftime('%w', …)` remapped to a Mon-first week.
+  (Still available; no longer surfaced on the Analytics page.)
 
 A bad date param returns 422 with `{ "code": "VALIDATION" }`.
 

@@ -8,11 +8,14 @@ can ask "this month vs last month" or "this quarter vs last quarter".
 
 from __future__ import annotations
 
+import calendar
+import math
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from quid_api.datelib import validate_iso_date
 from quid_api.db import get_session
 from quid_api.repositories.analytics import AnalyticsRepository
 from quid_api.schemas import (
@@ -22,10 +25,18 @@ from quid_api.schemas import (
     CategoryTrendPointOut,
     CategoryTrendSeriesOut,
     CategoryTrendsResponse,
+    DistributionResponse,
     ImportanceBreakdownPointOut,
     ImportanceBreakdownResponse,
+    ImportanceTrendPointOut,
+    ImportanceTrendResponse,
+    ImportanceTrendSeriesOut,
+    LargeTransactionOut,
+    LargeTransactionsResponse,
     MonthlyTotalOut,
     MonthlyTotalsResponse,
+    RecurringItemOut,
+    RecurringResponse,
     TopMerchantOut,
     TopMerchantsResponse,
     WeekdayBreakdownPointOut,
@@ -43,6 +54,7 @@ _ZERO = Decimal("0.00")
 
 DateFrom = Annotated[str | None, Query(alias="date_from")]
 DateTo = Annotated[str | None, Query(alias="date_to")]
+AsOf = Annotated[str | None, Query(alias="as_of")]
 
 
 def _percent_change(current: Decimal, previous: Decimal) -> float | None:
@@ -54,6 +66,11 @@ def _percent_change(current: Decimal, previous: Decimal) -> float | None:
     if previous == _ZERO:
         return None
     return float((current - previous) / previous * 100)
+
+
+def _month_days(month: str) -> int:
+    year, month_num = map(int, month.split("-"))
+    return calendar.monthrange(year, month_num)[1]
 
 
 @router.get("/monthly-totals", response_model=MonthlyTotalsResponse)
@@ -80,9 +97,10 @@ async def category_trends(
     session: SessionDep,
     date_from: DateFrom = None,
     date_to: DateTo = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 8,
 ) -> CategoryTrendsResponse:
     repo = AnalyticsRepository(session)
-    series = await repo.category_trends(date_from=date_from, date_to=date_to)
+    series = await repo.category_trends(date_from=date_from, date_to=date_to, limit=limit)
 
     # Collect the union of months across all series so the UI gets a single,
     # dense, ascending month axis.
@@ -196,11 +214,122 @@ async def weekday_breakdown(
     )
 
 
+@router.get("/recurring", response_model=RecurringResponse)
+async def recurring(
+    session: SessionDep,
+    date_from: DateFrom = None,
+    date_to: DateTo = None,
+) -> RecurringResponse:
+    repo = AnalyticsRepository(session)
+    rows = await repo.recurring(date_from=date_from, date_to=date_to)
+    monthly_total = sum((r.monthly_estimate for r in rows), _ZERO)
+    return RecurringResponse(
+        items=[
+            RecurringItemOut(
+                name=r.name,
+                amount=r.amount,
+                occurrences=r.occurrences,
+                months_covered=r.months_covered,
+                first_month=r.first_month,
+                last_month=r.last_month,
+                monthly_estimate=r.monthly_estimate,
+            )
+            for r in rows
+        ],
+        monthly_total=monthly_total,
+        count=len(rows),
+    )
+
+
+@router.get("/large-transactions", response_model=LargeTransactionsResponse)
+async def large_transactions(
+    session: SessionDep,
+    date_from: DateFrom = None,
+    date_to: DateTo = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 5,
+) -> LargeTransactionsResponse:
+    repo = AnalyticsRepository(session)
+    rows, period_total = await repo.large_transactions(
+        date_from=date_from, date_to=date_to, limit=limit
+    )
+    top_total = sum((r.amount for r in rows), _ZERO)
+    return LargeTransactionsResponse(
+        transactions=[
+            LargeTransactionOut(
+                id=r.id,
+                name=r.name,
+                display_name=r.display_name,
+                amount=r.amount,
+                date=r.date,
+                category_id=r.category_id,
+                category_name=r.category_name,
+                category_color=r.category_color,
+            )
+            for r in rows
+        ],
+        period_total=period_total,
+        top_share=(float(top_total / period_total) if period_total != _ZERO else None),
+    )
+
+
+@router.get("/distribution", response_model=DistributionResponse)
+async def distribution(
+    session: SessionDep,
+    date_from: DateFrom = None,
+    date_to: DateTo = None,
+) -> DistributionResponse:
+    repo = AnalyticsRepository(session)
+    values = await repo.distribution(date_from=date_from, date_to=date_to)
+    if not values:
+        return DistributionResponse(
+            mean=_ZERO, median=_ZERO, p90=_ZERO, min=_ZERO, max=_ZERO, count=0
+        )
+    values_sorted = sorted(values)
+    count = len(values_sorted)
+    mean = (sum(values_sorted, _ZERO) / count).quantize(_ZERO)
+    median = (
+        values_sorted[count // 2]
+        if count % 2 == 1
+        else ((values_sorted[count // 2 - 1] + values_sorted[count // 2]) / 2).quantize(_ZERO)
+    )
+    p90_index = min(count - 1, max(0, math.ceil(count * 0.9) - 1))
+    return DistributionResponse(
+        mean=mean,
+        median=median,
+        p90=values_sorted[p90_index],
+        min=values_sorted[0],
+        max=values_sorted[-1],
+        count=count,
+    )
+
+
+@router.get("/importance-trend", response_model=ImportanceTrendResponse)
+async def importance_trend(
+    session: SessionDep,
+    date_from: DateFrom = None,
+    date_to: DateTo = None,
+) -> ImportanceTrendResponse:
+    repo = AnalyticsRepository(session)
+    months, series = await repo.importance_trend(date_from=date_from, date_to=date_to)
+    return ImportanceTrendResponse(
+        months=months,
+        series=[
+            ImportanceTrendSeriesOut(
+                importance=s.importance,  # type: ignore[arg-type]
+                total=s.total,
+                points=[ImportanceTrendPointOut(month=p.month, total=p.total) for p in s.points],
+            )
+            for s in series
+        ],
+    )
+
+
 @router.get("/summary", response_model=AnalyticsSummaryResponse)
 async def summary(
     session: SessionDep,
     date_from: DateFrom = None,
     date_to: DateTo = None,
+    as_of: AsOf = None,
 ) -> AnalyticsSummaryResponse:
     repo = AnalyticsRepository(session)
     months = await repo.monthly_totals(date_from=date_from, date_to=date_to)
@@ -210,6 +339,17 @@ async def summary(
     transaction_count = sum(m.count for m in months)
     months_covered = len(months)
     average_per_month = (total / months_covered).quantize(_ZERO) if months_covered else _ZERO
+    if as_of is not None:
+        validate_iso_date(as_of)
+    current_month = as_of[:7] if as_of is not None else None
+    complete_months = [m for m in months if m.month != current_month] if current_month else months
+    complete_months_covered = len(complete_months)
+    complete_total = sum((m.total for m in complete_months), _ZERO)
+    average_per_complete_month = (
+        (complete_total / complete_months_covered).quantize(_ZERO)
+        if complete_months_covered
+        else _ZERO
+    )
     average_per_transaction = (
         (total / transaction_count).quantize(_ZERO) if transaction_count else _ZERO
     )
@@ -217,20 +357,40 @@ async def summary(
     busiest = max(months, key=lambda m: m.total, default=None)
     top_category = trends[0] if trends else None
 
-    # Month-over-month: the latest month in the window vs the prior one.
-    latest = months[-1] if months else None
-    previous = months[-2] if len(months) >= 2 else None
+    # Month-over-month: latest complete month vs the prior one.
+    mom_months = complete_months if as_of is not None else months
+    latest = mom_months[-1] if mom_months else None
+    previous = mom_months[-2] if len(mom_months) >= 2 else None
     latest_total = latest.total if latest else _ZERO
     previous_total = previous.total if previous else _ZERO
+    current_month_row = (
+        next((m for m in months if m.month == current_month), None) if current_month else None
+    )
+    current_month_to_date = current_month_row.total if current_month_row else _ZERO
+    current_month_projected = _ZERO
+    current_month_pace_vs_average = None
+    if as_of is not None and current_month and current_month_row is not None:
+        day_of_month = int(validate_iso_date(as_of)[8:10])
+        projected = current_month_to_date / day_of_month * Decimal(str(_month_days(current_month)))
+        current_month_projected = projected.quantize(_ZERO)
+        current_month_pace_vs_average = _percent_change(
+            current_month_projected, average_per_complete_month
+        )
 
     return AnalyticsSummaryResponse(
         total=total,
         transaction_count=transaction_count,
         months_covered=months_covered,
         average_per_month=average_per_month,
+        complete_months_covered=complete_months_covered,
+        average_per_complete_month=average_per_complete_month,
         average_per_transaction=average_per_transaction,
         busiest_month=busiest.month if busiest else None,
         busiest_month_total=busiest.total if busiest else _ZERO,
+        current_month=current_month,
+        current_month_to_date=current_month_to_date,
+        current_month_projected=current_month_projected,
+        current_month_pace_vs_average=current_month_pace_vs_average,
         top_category_id=top_category.category_id if top_category else None,
         top_category_name=top_category.category_name if top_category else None,
         top_category_total=top_category.total if top_category else _ZERO,

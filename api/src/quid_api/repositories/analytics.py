@@ -100,6 +100,42 @@ class ImportancePoint:
 
 
 @dataclass(frozen=True)
+class RecurringItem:
+    name: str
+    amount: Decimal
+    occurrences: int
+    months_covered: int
+    first_month: str
+    last_month: str
+    monthly_estimate: Decimal
+
+
+@dataclass(frozen=True)
+class LargeTransaction:
+    id: str
+    name: str
+    display_name: str | None
+    amount: Decimal
+    date: str
+    category_id: str | None
+    category_name: str | None
+    category_color: str | None
+
+
+@dataclass(frozen=True)
+class ImportanceTrendPoint:
+    month: str
+    total: Decimal
+
+
+@dataclass(frozen=True)
+class ImportanceTrendSeries:
+    importance: str
+    total: Decimal
+    points: list[ImportanceTrendPoint]
+
+
+@dataclass(frozen=True)
 class WeekdayPoint:
     weekday: int  # 0=Monday .. 6=Sunday
     total: Decimal
@@ -141,7 +177,7 @@ class AnalyticsRepository:
         ]
 
     async def category_trends(
-        self, *, date_from: str | None = None, date_to: str | None = None
+        self, *, date_from: str | None = None, date_to: str | None = None, limit: int = 8
     ) -> list[CategoryTrendSeries]:
         """Per-category spend per month. One series per category that has spend.
 
@@ -182,6 +218,23 @@ class AnalyticsRepository:
             for cid, total in totals.items()
         ]
         series.sort(key=lambda s: s.total, reverse=True)
+        if len(series) > limit:
+            top = series[:limit]
+            other_total = sum((s.total for s in series[limit:]), _ZERO)
+            other_points: dict[str, Decimal] = {}
+            for s in series[limit:]:
+                for month_key, amt in s.points.items():
+                    other_points[month_key] = other_points.get(month_key, _ZERO) + amt
+            top.append(
+                CategoryTrendSeries(
+                    category_id="__other__",
+                    category_name="Other",
+                    color="#6c7086",
+                    total=other_total,
+                    points=other_points,
+                )
+            )
+            return top
         return series
 
     async def category_movers(
@@ -264,6 +317,129 @@ class AnalyticsRepository:
             for r in rows
         ]
 
+    async def recurring(
+        self, *, date_from: str | None = None, date_to: str | None = None
+    ) -> list[RecurringItem]:
+        month = _MONTH_EXPR.label("month")
+        key = func.lower(func.trim(Expense.name)).label("merchant_key")
+        stmt = (
+            select(
+                func.max(Expense.name),
+                Expense.amount,
+                func.count(),
+                func.count(func.distinct(month)),
+                func.min(month),
+                func.max(month),
+            )
+            .group_by(key, Expense.amount)
+            .having(func.count(func.distinct(month)) >= 3)
+            .order_by(Expense.amount.desc())
+        )
+        stmt = self._window(stmt, date_from, date_to)
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            RecurringItem(
+                name=str(name),
+                amount=_as_decimal(amount),
+                occurrences=int(occurrences),
+                months_covered=int(months_covered),
+                first_month=str(first_month),
+                last_month=str(last_month),
+                monthly_estimate=_as_decimal(amount),
+            )
+            for name, amount, occurrences, months_covered, first_month, last_month in rows
+        ]
+
+    async def large_transactions(
+        self,
+        *,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 5,
+    ) -> tuple[list[LargeTransaction], Decimal]:
+        category_name = Category.name.label("category_name")
+        category_color = Category.color.label("category_color")
+        stmt = (
+            select(
+                Expense.id,
+                Expense.name,
+                Expense.display_name,
+                Expense.amount,
+                Expense.date,
+                Expense.category_id,
+                category_name,
+                category_color,
+            )
+            .join(Category, Category.id == Expense.category_id, isouter=True)
+            .order_by(Expense.amount.desc(), Expense.date.desc())
+            .limit(limit)
+        )
+        stmt = self._window(stmt, date_from, date_to)
+        rows = (await self.session.execute(stmt)).all()
+
+        total_stmt = select(func.sum(Expense.amount))
+        total_stmt = self._window(total_stmt, date_from, date_to)
+        total = _as_decimal((await self.session.execute(total_stmt)).scalar_one_or_none())
+
+        return (
+            [
+                LargeTransaction(
+                    id=str(rid),
+                    name=str(name),
+                    display_name=None if display_name is None else str(display_name),
+                    amount=_as_decimal(amount),
+                    date=str(date),
+                    category_id=None if category_id is None else str(category_id),
+                    category_name=None if category_name is None else str(category_name),
+                    category_color=None if category_color is None else str(category_color),
+                )
+                for rid, name, display_name, amount, date, category_id, category_name, category_color in rows
+            ],
+            total,
+        )
+
+    async def distribution(
+        self, *, date_from: str | None = None, date_to: str | None = None
+    ) -> list[Decimal]:
+        stmt = select(Expense.amount).order_by(Expense.amount)
+        stmt = self._window(stmt, date_from, date_to)
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [_as_decimal(v) for v in rows]
+
+    async def importance_trend(
+        self, *, date_from: str | None = None, date_to: str | None = None
+    ) -> tuple[list[str], list[ImportanceTrendSeries]]:
+        month = _MONTH_EXPR.label("month")
+        stmt = (
+            select(Expense.importance, month, func.sum(Expense.amount))
+            .group_by(Expense.importance, month)
+            .order_by(month)
+        )
+        stmt = self._window(stmt, date_from, date_to)
+        rows = (await self.session.execute(stmt)).all()
+        months = sorted({str(month_key) for _, month_key, _ in rows})
+        by_importance: dict[str, dict[str, Decimal]] = {
+            k: {} for k in ("essential", "important", "discretionary")
+        }
+        totals: dict[str, Decimal] = dict.fromkeys(by_importance, _ZERO)
+        for importance, month_key, amount in rows:
+            imp = str(importance)
+            amt = _as_decimal(amount)
+            by_importance.setdefault(imp, {})[str(month_key)] = amt
+            totals[imp] = totals.get(imp, _ZERO) + amt
+        series = [
+            ImportanceTrendSeries(
+                importance=imp,
+                total=totals.get(imp, _ZERO),
+                points=[
+                    ImportanceTrendPoint(month=m, total=by_importance.get(imp, {}).get(m, _ZERO))
+                    for m in months
+                ],
+            )
+            for imp in ("essential", "important", "discretionary")
+        ]
+        return months, series
+
     async def weekday_breakdown(
         self, *, date_from: str | None = None, date_to: str | None = None
     ) -> list[WeekdayPoint]:
@@ -330,7 +506,11 @@ __all__ = [
     "CategoryMover",
     "CategoryTrendSeries",
     "ImportancePoint",
+    "ImportanceTrendPoint",
+    "ImportanceTrendSeries",
+    "LargeTransaction",
     "MonthlyTotal",
+    "RecurringItem",
     "TopMerchant",
     "WeekdayPoint",
 ]

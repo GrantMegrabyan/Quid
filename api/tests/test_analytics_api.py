@@ -140,6 +140,148 @@ async def test_category_trends_dense_month_axis(app_client):
     ]
 
 
+async def test_category_trends_rolls_overflow_into_other(app_client):
+    cat = await _make_cat(app_client, "Food")
+    # Nine categories so the 8th limit forces an Other bucket.
+    cats = [cat]
+    for i in range(8):
+        cats.append(await _make_cat(app_client, f"Cat{i}"))
+    for i, c in enumerate(cats):
+        await _make_expense(
+            app_client,
+            name=f"E{i}",
+            amount=f"{10 * (i + 1)}.00",
+            date="2026-01-05",
+            category_id=c["id"],
+        )
+    res = await app_client.get("/api/v1/analytics/category-trends")
+    body = res.json()
+    assert body["series"][-1]["categoryId"] == "__other__"
+    assert body["series"][-1]["categoryName"] == "Other"
+    assert body["series"][-1]["color"] == "#6c7086"
+
+
+# --------------------------------------------------------------------------- #
+# recurring / large-transactions / distribution / importance-trend             #
+# --------------------------------------------------------------------------- #
+
+
+async def test_recurring_detects_three_month_groups(app_client):
+    cat = await _make_cat(app_client, "Food")
+    for month in ["2026-01", "2026-02", "2026-03"]:
+        await _make_expense(
+            app_client, name="Netflix", amount="12.00", date=f"{month}-05", category_id=cat["id"]
+        )
+    for month in ["2026-01", "2026-02"]:
+        await _make_expense(
+            app_client, name="Spotify", amount="8.00", date=f"{month}-05", category_id=cat["id"]
+        )
+    await _make_expense(
+        app_client, name="Netflix", amount="13.00", date="2026-01-10", category_id=cat["id"]
+    )
+
+    res = await app_client.get("/api/v1/analytics/recurring")
+    body = res.json()
+    assert body["count"] == 1
+    assert body["monthlyTotal"] == "12.00"
+    item = body["items"][0]
+    assert item["name"] == "Netflix"
+    assert item["amount"] == "12.00"
+    assert item["occurrences"] == 3
+    assert item["monthsCovered"] == 3
+
+
+async def test_large_transactions_returns_top_spend(app_client):
+    cat = await _make_cat(app_client, "Food")
+    await _make_expense(
+        app_client, name="Small", amount="10.00", date="2026-01-01", category_id=cat["id"]
+    )
+    await _make_expense(
+        app_client, name="Big", amount="100.00", date="2026-01-03", category_id=cat["id"]
+    )
+    await _make_expense(
+        app_client, name="Mid", amount="50.00", date="2026-01-02", category_id=cat["id"]
+    )
+
+    res = await app_client.get("/api/v1/analytics/large-transactions", params={"limit": 2})
+    body = res.json()
+    assert body["periodTotal"] == "160.00"
+    assert body["topShare"] == 0.9375
+    assert [t["name"] for t in body["transactions"]] == ["Big", "Mid"]
+
+
+async def test_distribution_computes_percentiles(app_client):
+    cat = await _make_cat(app_client, "Food")
+    for idx, amount in enumerate(["10.00", "20.00", "30.00", "40.00", "1000.00"]):
+        await _make_expense(
+            app_client,
+            name=f"T{idx}",
+            amount=amount,
+            date=f"2026-01-0{idx + 1}",
+            category_id=cat["id"],
+        )
+    res = await app_client.get("/api/v1/analytics/distribution")
+    body = res.json()
+    assert body == {
+        "mean": "220.00",
+        "median": "30.00",
+        "p90": "1000.00",
+        "min": "10.00",
+        "max": "1000.00",
+        "count": 5,
+    }
+
+
+async def test_importance_trend_dense_axis(app_client):
+    cat = await _make_cat(app_client, "Food")
+    await _make_expense(
+        app_client,
+        name="A",
+        amount="10.00",
+        date="2026-01-01",
+        category_id=cat["id"],
+        importance="essential",
+    )
+    await _make_expense(
+        app_client,
+        name="B",
+        amount="20.00",
+        date="2026-02-01",
+        category_id=cat["id"],
+        importance="important",
+    )
+    res = await app_client.get("/api/v1/analytics/importance-trend")
+    body = res.json()
+    assert body["months"] == ["2026-01", "2026-02"]
+    assert [s["importance"] for s in body["series"]] == ["essential", "important", "discretionary"]
+    assert body["series"][0]["points"] == [
+        {"month": "2026-01", "total": "10.00"},
+        {"month": "2026-02", "total": "0.00"},
+    ]
+
+
+async def test_summary_as_of_uses_complete_month_baseline(app_client):
+    cat = await _make_cat(app_client, "Food")
+    await _make_expense(
+        app_client, name="Jan", amount="100.00", date="2026-01-01", category_id=cat["id"]
+    )
+    await _make_expense(
+        app_client, name="Feb", amount="200.00", date="2026-02-01", category_id=cat["id"]
+    )
+    await _make_expense(
+        app_client, name="MTD", amount="30.00", date="2026-03-10", category_id=cat["id"]
+    )
+
+    res = await app_client.get("/api/v1/analytics/summary", params={"as_of": "2026-03-10"})
+    body = res.json()
+    assert body["completeMonthsCovered"] == 2
+    assert body["averagePerCompleteMonth"] == "150.00"
+    assert body["latestMonth"] == "2026-02"
+    assert body["latestMonthTotal"] == "200.00"
+    assert body["currentMonth"] == "2026-03"
+    assert body["currentMonthToDate"] == "30.00"
+
+
 # --------------------------------------------------------------------------- #
 # category-comparison                                                          #
 # --------------------------------------------------------------------------- #
