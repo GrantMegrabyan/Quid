@@ -269,7 +269,7 @@
 			Group by
 			<select
 				bind:value={expenseGroupBy}
-				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-1.5 text-sm text-ctp-text"
+				class="field field-select"
 			>
 				<option value="transaction">Transaction</option>
 				<option value="merchant">Merchant</option>
