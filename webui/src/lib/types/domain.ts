@@ -345,6 +345,26 @@ export interface AmazonOrder {
 	linkedExpenses: AmazonLinkedExpense[];
 }
 
+/** Server-driven filters for the Amazon orders list. */
+export interface AmazonOrderListQuery {
+	limit?: number;
+	offset?: number;
+	/** `true` = only linked orders, `false` = only not-linked, undefined = all. */
+	linked?: boolean;
+	/** A category id, or `''`/`'uncategorized'` to mean "no category". */
+	categoryId?: string;
+	/** Case-insensitive substring over order id, short name, and item titles. */
+	search?: string;
+}
+
+/** A page of Amazon orders plus the total count matching the active filters. */
+export interface AmazonOrderList {
+	items: AmazonOrder[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
 export interface AmazonImportSkippedOrder {
 	orderId: string;
 	reason: string;

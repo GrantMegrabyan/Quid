@@ -542,6 +542,17 @@ class AmazonOrderOut(_Camel):
         return _money_str(value)
 
 
+class AmazonOrderListOut(_Camel):
+    """Paginated Amazon order list: a page of orders plus the total count of
+    orders matching the active filters (so the UI can render page controls
+    without fetching the whole table)."""
+
+    items: list[AmazonOrderOut] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 0
+    offset: int = 0
+
+
 class AmazonImportSkippedOrder(_Camel):
     """An order dropped during import, with a human-readable reason.
 

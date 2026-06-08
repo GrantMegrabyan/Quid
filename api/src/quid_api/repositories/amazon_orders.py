@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
 
+from quid_api.category_helpers import UNCATEGORIZED_ID
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import AmazonOrder, Category, Expense, ExpenseAmazonOrderLink
 from quid_api.settings import get_settings
@@ -225,6 +226,78 @@ class AmazonOrderRepository:
             select(AmazonOrder).order_by(AmazonOrder.order_date.desc(), AmazonOrder.id)
         )
         return list(result.all())
+
+    def _list_filters(
+        self,
+        *,
+        linked: bool | None,
+        category_id: str | None,
+        search: str | None,
+    ) -> list[ColumnElement[bool]]:
+        """Build the shared WHERE clauses for the paginated list + its count.
+
+        ``linked`` filters on existence of a row in ``expense_amazon_orders``.
+        ``category_id`` accepts a real category id, or the ``UNCATEGORIZED_ID``
+        sentinel / ``""`` to mean "orders with no category" (the column is
+        nullable, so "no category" is ``category_id IS NULL``). ``search`` is a
+        case-insensitive substring over the order id, the short name, and the
+        serialised items blob (which holds the item titles)."""
+        clauses: list[ColumnElement[bool]] = []
+        if linked is not None:
+            link_exists = (
+                select(ExpenseAmazonOrderLink.amazon_order_id)
+                .where(ExpenseAmazonOrderLink.amazon_order_id == AmazonOrder.id)
+                .exists()
+            )
+            clauses.append(link_exists if linked else ~link_exists)
+        if category_id is not None:
+            if category_id in ("", UNCATEGORIZED_ID):
+                clauses.append(AmazonOrder.category_id.is_(None))
+            else:
+                clauses.append(AmazonOrder.category_id == category_id)
+        if search:
+            needle = f"%{search.strip().lower()}%"
+            if needle != "%%":
+                clauses.append(
+                    or_(
+                        func.lower(AmazonOrder.id).like(needle),
+                        func.lower(func.coalesce(AmazonOrder.short_name, "")).like(needle),
+                        func.lower(AmazonOrder.items_json).like(needle),
+                    )
+                )
+        return clauses
+
+    async def list_paginated(
+        self,
+        *,
+        limit: int,
+        offset: int = 0,
+        linked: bool | None = None,
+        category_id: str | None = None,
+        search: str | None = None,
+    ) -> tuple[list[AmazonOrder], int]:
+        """Return a page of orders (newest first) plus the total matching count.
+
+        ``limit``/``offset`` page the result so the ``/amazon`` page never has
+        to fetch the whole table. The total is computed with the same filters
+        so the UI can render "showing X of N" / page controls."""
+        if offset < 0:
+            raise RepositoryError(RepositoryErrorCode.VALIDATION, "Offset must be >= 0.")
+        if limit < 0:
+            raise RepositoryError(RepositoryErrorCode.VALIDATION, "Limit must be >= 0.")
+        clauses = self._list_filters(linked=linked, category_id=category_id, search=search)
+        total = await self.session.scalar(
+            select(func.count()).select_from(AmazonOrder).where(*clauses)
+        )
+        stmt = (
+            select(AmazonOrder)
+            .where(*clauses)
+            .order_by(AmazonOrder.order_date.desc(), AmazonOrder.id)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.session.scalars(stmt)
+        return list(result.all()), int(total or 0)
 
     async def get(self, order_id: str) -> AmazonOrder:
         row = await self.session.get(AmazonOrder, order_id)

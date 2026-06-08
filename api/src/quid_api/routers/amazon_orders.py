@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, cast
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy import select
 
 from quid_api.ai_order_categorization import (
@@ -46,6 +46,7 @@ from quid_api.schemas import (
     AmazonLinkRequest,
     AmazonMatchAllResponse,
     AmazonOrderItem,
+    AmazonOrderListOut,
     AmazonOrderOut,
     AmazonOrderShipment,
     AmazonRecategorizeConfirmRequest,
@@ -128,13 +129,35 @@ def _order_to_out(
     )
 
 
-@router.get("", response_model=list[AmazonOrderOut])
-async def list_amazon_orders(session: SessionDep) -> list[AmazonOrderOut]:
+@router.get("", response_model=AmazonOrderListOut)
+async def list_amazon_orders(
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    linked: Annotated[bool | None, Query()] = None,
+    category_id: Annotated[str | None, Query(alias="categoryId")] = None,
+    search: Annotated[str | None, Query()] = None,
+) -> AmazonOrderListOut:
+    """List Amazon orders, paginated and filterable.
+
+    - ``limit``/``offset`` page the result (never fetch the whole table).
+    - ``linked`` filters to linked (``true``) or not-linked (``false``) orders.
+    - ``categoryId`` filters by category; ``""`` / ``uncategorized`` means
+      "orders with no category".
+    - ``search`` is a case-insensitive substring over the order id, short name,
+      and item titles.
+    """
     repo = AmazonOrderRepository(session)
-    orders = await repo.list_all()
+    orders, total = await repo.list_paginated(
+        limit=limit,
+        offset=offset,
+        linked=linked,
+        category_id=category_id,
+        search=search,
+    )
     links = await repo.linked_map([order.id for order in orders])
-    # Resolve every linked expense id (across all orders) once, so the page can
-    # render "Linked to ..." labels without fetching the whole expense table.
+    # Resolve every linked expense id (across this page only) once, so the page
+    # can render "Linked to ..." labels without fetching the whole expense table.
     linked_ids = {eid for ids in links.values() for eid in ids}
     expense_repo = ExpenseRepository(session)
     expenses = await expense_repo.get_many(list(linked_ids))
@@ -147,12 +170,12 @@ async def list_amazon_orders(session: SessionDep) -> list[AmazonOrderOut]:
         )
         for e in expenses
     }
-    out: list[AmazonOrderOut] = []
+    items: list[AmazonOrderOut] = []
     for order in orders:
         ids = links.get(order.id, [])
         labels = [label_by_id[eid] for eid in ids if eid in label_by_id]
-        out.append(_order_to_out(order, ids, labels))
-    return out
+        items.append(_order_to_out(order, ids, labels))
+    return AmazonOrderListOut(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{order_id}", response_model=AmazonOrderOut)

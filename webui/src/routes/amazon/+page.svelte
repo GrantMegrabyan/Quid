@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
+		AMAZON_ORDERS_PAGE_SIZE,
 		amazonOrders,
+		amazonOrderQuery,
+		amazonOrdersLoading,
+		amazonOrdersTotal,
 		confirmRecategorizeAmazon,
 		deleteAmazonOrder,
 		importAmazonCsv,
@@ -10,6 +14,8 @@
 		matchAllAmazonOrders,
 		previewRecategorizeAmazon,
 		refreshAmazonOrders,
+		setAmazonOrderFilters,
+		setAmazonOrderPage,
 		suggestedAmazonMatches,
 		unlinkAmazonOrder,
 		updateAmazonOrderCategory,
@@ -41,6 +47,74 @@
 	let editingOrderId: string | null = $state(null);
 	let shortNameDraft = $state('');
 	let categoryEditingOrderId: string | null = $state(null);
+
+	// Filter / search / pagination controls. Single source of truth for the
+	// three filter values; `applyFilters()` pushes them to the store (which
+	// resets to page 0 and re-fetches). Search is debounced.
+	let searchText = $state('');
+	let linkedFilter = $state<'all' | 'linked' | 'unlinked'>('all');
+	let categoryFilter = $state<string | undefined>(undefined);
+	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+
+	function linkedFilterValue(): boolean | undefined {
+		if (linkedFilter === 'linked') return true;
+		if (linkedFilter === 'unlinked') return false;
+		return undefined;
+	}
+
+	function applyFilters(): void {
+		void setAmazonOrderFilters({
+			linked: linkedFilterValue(),
+			categoryId: categoryFilter,
+			search: searchText.trim()
+		});
+	}
+
+	function onSearchInput(value: string): void {
+		searchText = value;
+		if (searchDebounce) clearTimeout(searchDebounce);
+		searchDebounce = setTimeout(() => {
+			searchDebounce = null;
+			applyFilters();
+		}, 300);
+	}
+
+	function onLinkedFilterChange(value: string): void {
+		linkedFilter = value === 'linked' ? 'linked' : value === 'unlinked' ? 'unlinked' : 'all';
+		applyFilters();
+	}
+
+	function onCategoryFilterChange(value: string): void {
+		// '__all__' -> undefined (all), '' -> '' (no category), else a real id.
+		categoryFilter = value === '__all__' ? undefined : value;
+		applyFilters();
+	}
+
+	function clearFilters(): void {
+		if (searchDebounce) {
+			clearTimeout(searchDebounce);
+			searchDebounce = null;
+		}
+		searchText = '';
+		linkedFilter = 'all';
+		categoryFilter = undefined;
+		void setAmazonOrderFilters({});
+	}
+
+	const filtersActive = $derived(
+		$amazonOrderQuery.linked !== undefined ||
+			$amazonOrderQuery.categoryId !== undefined ||
+			($amazonOrderQuery.search ?? '') !== ''
+	);
+
+	// Pagination math derived from the active query window + total count.
+	const pageLimit = $derived($amazonOrderQuery.limit ?? AMAZON_ORDERS_PAGE_SIZE);
+	const currentPage = $derived(Math.floor(($amazonOrderQuery.offset ?? 0) / pageLimit));
+	const pageCount = $derived(Math.max(1, Math.ceil($amazonOrdersTotal / pageLimit)));
+	const showingFrom = $derived(
+		$amazonOrders.length === 0 ? 0 : ($amazonOrderQuery.offset ?? 0) + 1
+	);
+	const showingTo = $derived(($amazonOrderQuery.offset ?? 0) + $amazonOrders.length);
 
 	// Browser-export import panel.
 	let exportPanelOpen = $state(false);
@@ -482,7 +556,7 @@
 				type="button"
 				data-testid="amazon-match-all-button"
 				onclick={matchAll}
-				disabled={loading || $amazonOrders.length === 0}
+				disabled={loading || $amazonOrdersTotal === 0}
 				class="rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
 			>
 				Re-match all
@@ -491,7 +565,7 @@
 				type="button"
 				data-testid="amazon-recategorize-button"
 				onclick={startRecategorize}
-				disabled={loading || recategorizing || $amazonOrders.length === 0}
+				disabled={loading || recategorizing || $amazonOrdersTotal === 0}
 				class="inline-flex items-center gap-1.5 rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-60"
 			>
 				<Sparkles size={15} aria-hidden="true" />
@@ -738,10 +812,69 @@
 		</div>
 	{/if}
 
-	{#if $amazonOrders.length === 0}
+	<div
+		class="flex flex-col gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base p-3 sm:flex-row sm:items-center sm:gap-3"
+	>
+		<div class="relative flex-1">
+			<Search
+				size={16}
+				aria-hidden="true"
+				class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ctp-overlay1"
+			/>
+			<input
+				data-testid="amazon-search-input"
+				type="search"
+				placeholder="Search orders, items, names…"
+				value={searchText}
+				oninput={(event) => onSearchInput(event.currentTarget.value)}
+				class="w-full rounded-md border border-ctp-surface2 bg-ctp-base py-2 pl-9 pr-3 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+			/>
+		</div>
+		<select
+			data-testid="amazon-linked-filter"
+			value={linkedFilter}
+			onchange={(event) => onLinkedFilterChange(event.currentTarget.value)}
+			class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+		>
+			<option value="all">All</option>
+			<option value="linked">Linked</option>
+			<option value="unlinked">Not linked</option>
+		</select>
+		<select
+			data-testid="amazon-category-filter"
+			value={categoryFilter === undefined ? '__all__' : categoryFilter}
+			onchange={(event) => onCategoryFilterChange(event.currentTarget.value)}
+			class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+		>
+			<option value="__all__">All categories</option>
+			<option value="">No category</option>
+			{#each $categories as cat (cat.id)}
+				{#if cat.id !== UNCATEGORIZED_ID}
+					<option value={cat.id}>{cat.name}</option>
+				{/if}
+			{/each}
+		</select>
+	</div>
+
+	{#if $amazonOrders.length === 0 && !filtersActive && $amazonOrdersTotal === 0}
 		<div class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center">
 			<p class="font-medium text-ctp-text">No Amazon orders imported yet.</p>
 			<p class="mt-1 text-sm text-ctp-overlay1">Upload a CSV export to start matching orders.</p>
+		</div>
+	{:else if $amazonOrders.length === 0}
+		<div class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center">
+			<p class="font-medium text-ctp-text">No orders match your filters.</p>
+			<p class="mt-1 text-sm text-ctp-overlay1">
+				Try a different search or clear the filters to see everything.
+			</p>
+			<button
+				type="button"
+				data-testid="amazon-clear-filters"
+				onclick={clearFilters}
+				class="mt-4 rounded-md border border-ctp-surface2 bg-ctp-base px-4 py-2 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1"
+			>
+				Clear filters
+			</button>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-3">
@@ -995,6 +1128,40 @@
 					{/if}
 				</div>
 			{/each}
+		</div>
+	{/if}
+
+	{#if $amazonOrdersTotal > 0}
+		<div
+			class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base px-4 py-3 text-sm text-ctp-subtext0"
+		>
+			<p data-testid="amazon-pagination-summary">
+				Showing <span class="font-medium text-ctp-text">{showingFrom}</span>–<span
+					class="font-medium text-ctp-text">{showingTo}</span
+				>
+				of <span class="font-medium text-ctp-text">{$amazonOrdersTotal}</span>
+			</p>
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-ctp-overlay1">Page {currentPage + 1} of {pageCount}</span>
+				<button
+					type="button"
+					data-testid="amazon-prev-page"
+					onclick={() => void setAmazonOrderPage(currentPage - 1)}
+					disabled={$amazonOrdersLoading || currentPage <= 0}
+					class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-1.5 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-50"
+				>
+					Previous
+				</button>
+				<button
+					type="button"
+					data-testid="amazon-next-page"
+					onclick={() => void setAmazonOrderPage(currentPage + 1)}
+					disabled={$amazonOrdersLoading || currentPage >= pageCount - 1}
+					class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-1.5 text-sm font-medium text-ctp-text transition-colors hover:bg-ctp-surface1 disabled:opacity-50"
+				>
+					Next
+				</button>
+			</div>
 		</div>
 	{/if}
 </section>

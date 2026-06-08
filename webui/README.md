@@ -112,7 +112,12 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   suggestion already matches the current category are hidden behind a **Show
   unchanged** toggle, each changed row is pre-ticked, and **Apply** writes only
   the accepted rows (creating any new categories and updating linked
-  transactions). Two import paths:
+  transactions). The list is **paginated and filterable** (it only requests one
+  page at a time, so it stays fast as your order history grows): a controls bar
+  offers a **search** box (matches order id, short name, and item titles), a
+  **linked / not-linked** filter, and a **category** filter ("All", "No
+  category", or a specific category), with **Previous / Next** page controls and
+  a "Showing X–Y of N" count below. Two import paths:
   - **Import CSV** — upload one or more Amazon order-export CSVs (the canonical,
     reliable path).
   - **Import from browser** — for when you don't want to hunt for a CSV. Opens a

@@ -3,6 +3,8 @@ import type {
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
+	AmazonOrderList,
+	AmazonOrderListQuery,
 	AmazonRecategorizeConfirmRow,
 	AmazonRecategorizeConfirmResult,
 	AmazonRecategorizePreviewResult,
@@ -14,8 +16,16 @@ import type { AmazonOrderRepository } from './types.js';
 export class HttpAmazonOrderRepository implements AmazonOrderRepository {
 	constructor(private readonly client: HttpClient = httpClient) {}
 
-	async list(): Promise<AmazonOrder[]> {
-		return this.client.request<AmazonOrder[]>('api/v1/amazon-orders');
+	async list(query: AmazonOrderListQuery = {}): Promise<AmazonOrderList> {
+		return this.client.request<AmazonOrderList>('api/v1/amazon-orders', {
+			query: {
+				limit: query.limit,
+				offset: query.offset,
+				linked: query.linked === undefined ? undefined : String(query.linked),
+				categoryId: query.categoryId,
+				search: query.search?.trim() || undefined
+			}
+		});
 	}
 
 	async get(id: string): Promise<AmazonOrder> {

@@ -644,7 +644,23 @@ what an Amazon charge actually bought.
 
   The `skipped[]` per-order reasons are populated by this endpoint only; the CSV
   importer leaves it empty (it tracks only the aggregate `skippedRows`).
-- `GET /api/v1/amazon-orders` / `GET /api/v1/amazon-orders/{id}` — list / fetch.
+- `GET /api/v1/amazon-orders` — **paginated + filterable** list. Returns
+  `{ items, total, limit, offset }` (NOT a bare array): `items` is the page of
+  orders (newest first), `total` is the count matching the active filters.
+  Query params:
+  - `limit` (1–200, default 50), `offset` (≥0, default 0) — paging; the page
+    never fetches the whole table.
+  - `linked` (`true`/`false`) — only linked (has a row in
+    `expense_amazon_orders`) or only not-linked orders.
+  - `categoryId` — filter by category; an empty string `""` (or the
+    `uncategorized` sentinel) means "orders with no category" (the column is
+    nullable, so this is `category_id IS NULL`).
+  - `search` — case-insensitive substring over the order id, short name, and
+    item titles (the serialised items blob).
+
+  Example: `GET /api/v1/amazon-orders?limit=25&offset=0&linked=false&search=mouse`
+- `GET /api/v1/amazon-orders/{id}` — fetch a single order (unchanged, returns
+  the bare order object).
   Each order includes `categoryId` (the order's AI-derived category, or `null`).
   Each order also carries `linkedExpenseIds` plus `linkedExpenses` — minimal
   label data (`{ id, name, amount, displayName }`) for each linked expense,

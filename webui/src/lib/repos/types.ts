@@ -3,6 +3,8 @@ import type {
 	AmazonImportResult,
 	AmazonMatchAllResult,
 	AmazonOrder,
+	AmazonOrderList,
+	AmazonOrderListQuery,
 	AmazonRecategorizeConfirmRow,
 	AmazonRecategorizeConfirmResult,
 	AmazonRecategorizePreviewResult,
@@ -104,7 +106,7 @@ export interface AppSettingsRepository {
 }
 
 export interface AmazonOrderRepository {
-	list(): Promise<AmazonOrder[]>;
+	list(query?: AmazonOrderListQuery): Promise<AmazonOrderList>;
 	get(id: string): Promise<AmazonOrder>;
 	importCsv(files: File[]): Promise<AmazonImportResult>;
 	importExport(payload: AmazonExportRequest): Promise<AmazonImportResult>;
