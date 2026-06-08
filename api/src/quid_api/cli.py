@@ -247,6 +247,12 @@ def serve(
         host=host,
         port=port,
         reload=reload,
+        # Watch only the source tree. Watching the whole CWD (api/) makes the
+        # reloader see writes to ./.data/quid.log; since watchfiles' own
+        # "change detected" log line lands in that file, it would feed itself
+        # in an endless loop. Scoping to src/ also avoids spurious reloads on
+        # DB/log churn.
+        reload_dirs=["src"] if reload else None,
         log_level=log_level,
         factory=False,
     )
