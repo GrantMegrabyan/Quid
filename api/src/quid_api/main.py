@@ -17,6 +17,7 @@ from quid_api.errors import RepositoryError, RepositoryErrorCode, http_status_fo
 from quid_api.routers import (
     ai_rules,
     amazon_orders,
+    analytics,
     app_settings,
     categories,
     expenses,
@@ -192,6 +193,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(expenses.router)
     app.include_router(amazon_orders.router)
     app.include_router(app_settings.router)
+    app.include_router(analytics.router)
 
     if cfg.testing:
         app.include_router(testing.router)

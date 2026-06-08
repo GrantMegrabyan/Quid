@@ -347,3 +347,36 @@ Verification checklist for any user-facing change:
   'csv') and a nullable `raw_input` (the submitted free-form text; NULL for CSV).
   Migration `0017`. `GET /api/v1/import-logs` exposes them as `source`/`rawInput`;
   the Import history table shows a Source column + expandable raw input.
+
+## Analytics context
+
+- The **Analytics** page (`webui/src/routes/analytics/+page.svelte`, nav link in
+  `+layout.svelte`) is backed by a READ-ONLY `/api/v1/analytics/*` router
+  (`routers/analytics.py` + `repositories/analytics.py`). No schema/migration —
+  it only aggregates existing `expenses`. There is intentionally NO repository
+  write path here; keep it read-only (no `commit`).
+- Aggregations group on the date string's prefix: month = `substr(date,1,7)`
+  (`YYYY-MM`), day = `substr(date,1,10)`. This works for BOTH date-only and
+  timestamped expense dates. The date window is half-open
+  (`>= date_from`, `< date_to + 1 day`) so a boundary-day `...T23:59:59` row is
+  kept — mirror this if you add an endpoint (helper: `AnalyticsRepository._window`).
+- Weekday breakdown uses SQLite `strftime('%w', …)` (0=Sun..6=Sat) REMAPPED to a
+  Monday-first week (0=Mon..6=Sun) and always returns 7 zero-filled rows. If you
+  ever support a non-SQLite backend, that strftime call needs a portable rewrite.
+- There is no merchant column; `top-merchants` groups on `lower(trim(name))` and
+  shows a representative original-cased name (`max(name)`).
+- **Movers gotcha:** the "Biggest movers" card does NOT compare the literal
+  current calendar month. The frontend anchors the month-over-month comparison on
+  `summary.latestMonth` (the most recent month that has data) so it doesn't read
+  "-100% everywhere" early in a month / when data lags. The page therefore fetches
+  `summary` first, then `category-comparison` using that month
+  (`monthOverMonthComparisonQuery(latestMonth)` in `stores/analyticsPeriod.ts`);
+  the rest of the loads stay parallel. Keep that ordering if you touch the page.
+- Period presets (3M/6M/12M/All) live in the persisted `analyticsPeriod` store
+  (`quid:analytics-period:v1`, default `6m`). `periodToWindow` builds the API
+  window; `'all'` is an empty window (whole history).
+- Charts reuse the existing chart.js + Catppuccin theme-observer pattern (see
+  `CumulativeChart.svelte`). In DEV, svelte-chartjs emits benign
+  `state_snapshot_uncloneable` WARNINGS for the tooltip `callbacks.label` function
+  inside the `$derived` chart options — these are warnings only (stripped in prod
+  builds), not errors; the e2e suite asserts on console ERRORS, so they don't fail.

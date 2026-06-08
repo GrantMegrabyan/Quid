@@ -306,6 +306,18 @@ export interface AmazonOrderShipment {
 	items: AmazonOrderItem[];
 }
 
+/**
+ * Minimal expense fields embedded in an Amazon order so the `/amazon` page can
+ * render "Linked to ..." labels without fetching the full expense table.
+ */
+export interface AmazonLinkedExpense {
+	id: string;
+	name: string;
+	/** Canonical decimal string ("19.99"). */
+	amount: string;
+	displayName: string | null;
+}
+
 export interface AmazonOrder {
 	id: string;
 	orderDate: string;
@@ -326,6 +338,11 @@ export interface AmazonOrder {
 	categoryId: string | null;
 	importedAt: string;
 	linkedExpenseIds: string[];
+	/**
+	 * Label data for each id in `linkedExpenseIds` (server-resolved). May omit
+	 * ids whose expense was concurrently deleted; render the raw id as fallback.
+	 */
+	linkedExpenses: AmazonLinkedExpense[];
 }
 
 export interface AmazonImportSkippedOrder {
@@ -439,4 +456,194 @@ export interface AmazonExportRequest {
 	/** Source domain (e.g. "amazon.co.uk"); used for provenance/logging. */
 	domain?: string;
 	orders: AmazonExportOrder[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Analytics                                                                  */
+/* -------------------------------------------------------------------------- */
+/* All `total`/`amount`/`delta` fields are canonical decimal STRINGS ("19.99")
+ * (deltas may be negative, e.g. "-12.00"). Parse with `amountToNumber` for
+ * charting/sorting. `percentChange`/`monthOverMonthPercent` are JS numbers
+ * (e.g. 25 = +25%) or `null` when there is no previous baseline. `month`
+ * values are `YYYY-MM`. */
+
+export interface MonthlyTotal {
+	/** `YYYY-MM`. */
+	month: string;
+	total: string;
+	count: number;
+}
+
+export interface MonthlyTotalsResult {
+	months: MonthlyTotal[];
+	total: string;
+	average: string;
+	count: number;
+}
+
+export interface CategoryTrendPoint {
+	/** `YYYY-MM`. */
+	month: string;
+	total: string;
+}
+
+export interface CategoryTrendSeries {
+	categoryId: string;
+	categoryName: string;
+	color: string;
+	total: string;
+	/** One point per month in the parent `months` axis (zero-filled, dense). */
+	points: CategoryTrendPoint[];
+}
+
+export interface CategoryTrendsResult {
+	/** Dense ascending `YYYY-MM` axis shared by every series. */
+	months: string[];
+	series: CategoryTrendSeries[];
+}
+
+export interface CategoryMover {
+	categoryId: string;
+	categoryName: string;
+	color: string;
+	current: string;
+	previous: string;
+	delta: string;
+	/** Percent change vs previous period, or `null` when previous was zero. */
+	percentChange: number | null;
+}
+
+export interface CategoryComparisonResult {
+	currentPeriodLabel: string;
+	previousPeriodLabel: string;
+	currentTotal: string;
+	previousTotal: string;
+	/** Sorted by absolute delta descending (biggest movers first). */
+	movers: CategoryMover[];
+}
+
+export interface TopMerchant {
+	merchant: string;
+	total: string;
+	count: number;
+}
+
+export interface TopMerchantsResult {
+	merchants: TopMerchant[];
+}
+
+export interface ImportanceBreakdownPoint {
+	importance: ExpenseImportance;
+	total: string;
+	count: number;
+}
+
+export interface ImportanceBreakdownResult {
+	breakdown: ImportanceBreakdownPoint[];
+	total: string;
+}
+
+export interface WeekdayBreakdownPoint {
+	/** 0 = Monday .. 6 = Sunday. */
+	weekday: number;
+	total: string;
+	count: number;
+}
+
+export interface WeekdayBreakdownResult {
+	/** Always 7 entries, Monday-first, zero-filled. */
+	breakdown: WeekdayBreakdownPoint[];
+}
+
+export interface AnalyticsSummary {
+	total: string;
+	transactionCount: number;
+	monthsCovered: number;
+	averagePerMonth: string;
+	/** Months in the window EXCLUDING the in-progress current month (when `asOf` given). */
+	completeMonthsCovered: number;
+	/** Honest baseline: total of complete months / completeMonthsCovered. */
+	averagePerCompleteMonth: string;
+	averagePerTransaction: string;
+	busiestMonth: string | null;
+	busiestMonthTotal: string;
+	/** The in-progress month (`YYYY-MM`) when `asOf` is supplied and it has spend. */
+	currentMonth: string | null;
+	/** Spend so far in `currentMonth`. */
+	currentMonthToDate: string;
+	/** Linear projection of `currentMonth` spend to end of month. */
+	currentMonthProjected: string;
+	/** Percent change of the projection vs `averagePerCompleteMonth`; null with no baseline. */
+	currentMonthPaceVsAverage: number | null;
+	topCategoryId: string | null;
+	topCategoryName: string | null;
+	topCategoryTotal: string;
+	/** Last COMPLETE month (in-progress month excluded when `asOf` given). */
+	latestMonth: string | null;
+	latestMonthTotal: string;
+	previousMonthTotal: string;
+	monthOverMonthDelta: string;
+	monthOverMonthPercent: number | null;
+}
+
+export interface RecurringItem {
+	name: string;
+	amount: string;
+	occurrences: number;
+	monthsCovered: number;
+	firstMonth: string;
+	lastMonth: string;
+	monthlyEstimate: string;
+}
+
+export interface RecurringResult {
+	items: RecurringItem[];
+	monthlyTotal: string;
+	count: number;
+}
+
+export interface LargeTransaction {
+	id: string;
+	name: string;
+	displayName: string | null;
+	amount: string;
+	date: string;
+	categoryId: string | null;
+	categoryName: string | null;
+	categoryColor: string | null;
+}
+
+export interface LargeTransactionsResult {
+	transactions: LargeTransaction[];
+	periodTotal: string;
+	/** Returned txns as a 0-1 fraction of period total; null when period total is 0. */
+	topShare: number | null;
+}
+
+export interface DistributionResult {
+	mean: string;
+	median: string;
+	p90: string;
+	min: string;
+	max: string;
+	count: number;
+}
+
+export interface ImportanceTrendPoint {
+	/** `YYYY-MM`. */
+	month: string;
+	total: string;
+}
+
+export interface ImportanceTrendSeries {
+	importance: ExpenseImportance;
+	total: string;
+	/** Dense, zero-filled points over the parent `months` axis. */
+	points: ImportanceTrendPoint[];
+}
+
+export interface ImportanceTrendResult {
+	/** Dense ascending `YYYY-MM` axis shared by every series. */
+	months: string[];
+	series: ImportanceTrendSeries[];
 }

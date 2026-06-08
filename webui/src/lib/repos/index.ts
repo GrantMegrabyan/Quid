@@ -20,4 +20,8 @@ export {
 	httpAmazonOrderRepository as amazonOrderRepository,
 	HttpAmazonOrderRepository
 } from './httpAmazonOrderRepository.js';
+export {
+	httpAnalyticsRepository as analyticsRepository,
+	HttpAnalyticsRepository
+} from './httpAnalyticsRepository.js';
 export { httpClient, HttpClient } from './httpClient.js';

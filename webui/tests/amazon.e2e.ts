@@ -61,6 +61,11 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 		.filter({ hasText: '123-4567890-1234567' });
 	await expect(row).toHaveCount(1);
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute('data-link-status', 'linked');
+	// The "Linked to ..." label is rendered from the linked-expense label data
+	// embedded in the orders response (the page no longer fetches every expense
+	// just to resolve these labels). Confirm it resolves the id to name+amount.
+	await expect(row).toContainText('Linked to AMZN Mktp');
+	await expect(row).toContainText('19.99');
 	// AI short names are disabled above, so the row shows the product-title fallback.
 	await expect(row).toContainText('Wireless Mouse');
 

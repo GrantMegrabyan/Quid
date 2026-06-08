@@ -6,10 +6,21 @@ import type {
 	AmazonRecategorizeConfirmRow,
 	AmazonRecategorizeConfirmResult,
 	AmazonRecategorizePreviewResult,
+	AnalyticsSummary,
 	AppSettings,
 	AppSettingsUpdate,
 	Category,
+	CategoryComparisonResult,
+	CategoryTrendsResult,
+	DistributionResult,
 	Expense,
+	ImportanceBreakdownResult,
+	ImportanceTrendResult,
+	LargeTransactionsResult,
+	MonthlyTotalsResult,
+	RecurringResult,
+	TopMerchantsResult,
+	WeekdayBreakdownResult,
 	ImportCsvConfirmRequest,
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
@@ -108,6 +119,35 @@ export interface AmazonOrderRepository {
 		rows: AmazonRecategorizeConfirmRow[]
 	): Promise<AmazonRecategorizeConfirmResult>;
 	delete(id: string): Promise<void>;
+}
+
+/** Optional inclusive `YYYY-MM-DD` date window shared by most analytics calls. */
+export interface AnalyticsWindow {
+	dateFrom?: string;
+	dateTo?: string;
+}
+
+/** The two explicit periods compared by `categoryComparison`. */
+export interface CategoryComparisonQuery {
+	currentFrom: string;
+	currentTo: string;
+	previousFrom: string;
+	previousTo: string;
+}
+
+export interface AnalyticsRepository {
+	/** `asOf` (a `YYYY-MM-DD` "today") unlocks complete-month averages + run-rate fields. */
+	summary(window?: AnalyticsWindow & { asOf?: string }): Promise<AnalyticsSummary>;
+	monthlyTotals(window?: AnalyticsWindow): Promise<MonthlyTotalsResult>;
+	categoryTrends(window?: AnalyticsWindow & { limit?: number }): Promise<CategoryTrendsResult>;
+	categoryComparison(query: CategoryComparisonQuery): Promise<CategoryComparisonResult>;
+	topMerchants(window?: AnalyticsWindow & { limit?: number }): Promise<TopMerchantsResult>;
+	importanceBreakdown(window?: AnalyticsWindow): Promise<ImportanceBreakdownResult>;
+	weekdayBreakdown(window?: AnalyticsWindow): Promise<WeekdayBreakdownResult>;
+	recurring(window?: AnalyticsWindow): Promise<RecurringResult>;
+	largeTransactions(window?: AnalyticsWindow & { limit?: number }): Promise<LargeTransactionsResult>;
+	distribution(window?: AnalyticsWindow): Promise<DistributionResult>;
+	importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

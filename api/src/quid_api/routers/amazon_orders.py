@@ -42,6 +42,7 @@ from quid_api.schemas import (
     AmazonImportFileReport,
     AmazonImportResponse,
     AmazonImportSkippedOrder,
+    AmazonLinkedExpense,
     AmazonLinkRequest,
     AmazonMatchAllResponse,
     AmazonOrderItem,
@@ -79,7 +80,11 @@ class _IngestResult:
     combined_matched: int
 
 
-def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOrderOut:
+def _order_to_out(
+    order: AmazonOrder,
+    linked_expense_ids: list[str],
+    linked_expenses: list[AmazonLinkedExpense] | None = None,
+) -> AmazonOrderOut:
     items_data = deserialize_items(order.items_json)
     items = [
         AmazonOrderItem(
@@ -119,6 +124,7 @@ def _order_to_out(order: AmazonOrder, linked_expense_ids: list[str]) -> AmazonOr
         category_id=order.category_id,
         imported_at=order.imported_at,
         linked_expense_ids=linked_expense_ids,
+        linked_expenses=linked_expenses or [],
     )
 
 
@@ -127,7 +133,26 @@ async def list_amazon_orders(session: SessionDep) -> list[AmazonOrderOut]:
     repo = AmazonOrderRepository(session)
     orders = await repo.list_all()
     links = await repo.linked_map([order.id for order in orders])
-    return [_order_to_out(order, links.get(order.id, [])) for order in orders]
+    # Resolve every linked expense id (across all orders) once, so the page can
+    # render "Linked to ..." labels without fetching the whole expense table.
+    linked_ids = {eid for ids in links.values() for eid in ids}
+    expense_repo = ExpenseRepository(session)
+    expenses = await expense_repo.get_many(list(linked_ids))
+    label_by_id = {
+        e.id: AmazonLinkedExpense(
+            id=e.id,
+            name=e.name,
+            amount=e.amount,
+            display_name=e.display_name,
+        )
+        for e in expenses
+    }
+    out: list[AmazonOrderOut] = []
+    for order in orders:
+        ids = links.get(order.id, [])
+        labels = [label_by_id[eid] for eid in ids if eid in label_by_id]
+        out.append(_order_to_out(order, ids, labels))
+    return out
 
 
 @router.get("/{order_id}", response_model=AmazonOrderOut)

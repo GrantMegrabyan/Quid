@@ -1139,6 +1139,41 @@ async def test_manual_link_and_unlink(app_client):
     assert unlink.json()["amazonOrderIds"] == []
 
 
+async def test_list_orders_embeds_linked_expense_labels(app_client):
+    """The orders list embeds minimal label data for each linked expense so the
+    ``/amazon`` page can render "Linked to ..." without fetching every expense.
+    Unlinked orders carry an empty ``linkedExpenses`` list."""
+    expense_id = await _seed_categories_and_expense(
+        app_client, name="Amazon Mktp", amount=99.99, date="2026-05-04"
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/import-csv",
+        files=[_upload("exporter.csv", EXPORTER_CSV)],
+    )
+    await app_client.post(
+        "/api/v1/amazon-orders/555-3333333-4444444/link",
+        json={"expenseId": expense_id},
+    )
+
+    listing = await app_client.get("/api/v1/amazon-orders")
+    assert listing.status_code == 200, listing.text
+    orders = {o["id"]: o for o in listing.json()}
+
+    linked = orders["555-3333333-4444444"]
+    assert linked["linkedExpenseIds"] == [expense_id]
+    assert len(linked["linkedExpenses"]) == 1
+    label = linked["linkedExpenses"][0]
+    assert label["id"] == expense_id
+    assert label["name"] == "Amazon Mktp"
+    assert label["amount"] == "99.99"
+    assert "displayName" in label
+
+    # Every other order in the export is unlinked → empty label list.
+    for other in orders.values():
+        if other["id"] != "555-3333333-4444444":
+            assert other["linkedExpenses"] == []
+
+
 async def test_expense_resolved_note_falls_back_to_linked_order_short_name(app_client):
     """``resolvedNote`` on the expense list is the expense's own note, else a
     linked Amazon order's short name (resolved server-side so the client need
