@@ -66,6 +66,30 @@ npm run dev
 Open the URL Vite prints (typically `http://localhost:5173`). The web UI talks to
 the API at `VITE_API_BASE_URL` (default `http://localhost:8000`).
 
+### Run both at once (and from another machine)
+
+`./dev.sh` (repo root) launches the API and webui together and shuts both down on
+a single Ctrl-C. By default it binds **both** servers to `0.0.0.0` and auto-wires
+the cross-machine settings, so you can run it on a devbox/VM and open it from your
+laptop:
+
+```sh
+./dev.sh
+#   → Open  http://<devbox-lan-ip>:5173  from your laptop
+```
+
+It auto-detects the box's primary LAN IP; override with `HOST=devbox.local
+./dev.sh` (or `API_PORT` / `WEB_PORT`). Under the hood it sets, for that `HOST`:
+
+- `--host 0.0.0.0` on both uvicorn and Vite (the defaults are `localhost`-only),
+- `VITE_API_BASE_URL=http://<HOST>:8000` — required because the default
+  `http://localhost:8000` resolves to the **browser's** machine (your laptop),
+  not the devbox, and
+- `QUID_CORS_ORIGIN_REGEX` widened to allow the `http://<HOST>:5173` origin (the
+  dev default only allows `http://localhost`).
+
+The URL to use from your laptop is the **webui**: `http://<HOST>:5173`.
+
 ### Enabling AI features
 
 AI categorisation, AI free-form import, and Amazon short names all call
