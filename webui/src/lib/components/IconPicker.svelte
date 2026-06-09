@@ -46,7 +46,7 @@
 		spellcheck="false"
 		{placeholder}
 		bind:value={query}
-		class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+		class="field w-full"
 	/>
 
 	{#if visible.length === 0}
