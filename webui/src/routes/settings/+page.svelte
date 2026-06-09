@@ -76,7 +76,7 @@
 			<select
 				bind:value={currency}
 				data-testid="settings-currency-select"
-				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+				class="field field-select"
 			>
 				{#each SUPPORTED_CURRENCIES as code}
 					<option value={code}>{code}</option>
@@ -94,7 +94,7 @@
 				autocomplete="off"
 				spellcheck="false"
 				data-testid="settings-categorize-model-input"
-				class="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+				class="field"
 			/>
 			<datalist id="categorisation-model-options">
 				{#each CATEGORISATION_MODELS as model}
