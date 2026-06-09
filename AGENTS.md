@@ -167,6 +167,18 @@ When NOT to commit:
 
 ## Frontend notes
 
+- Form fields share two component classes in `webui/src/app.css` (`@layer
+  components`): `.field` (the canonical input style — `rounded-md` border,
+  `bg-ctp-base`, `px-3 py-2 text-sm`, accent focus ring) for text inputs and
+  textareas, and `.field` + `.field-select` for native `<select>`s
+  (`.field-select` adds `appearance-none` + a custom SVG chevron so selects match
+  inputs). Use these instead of re-pasting inline Tailwind on new fields. Append
+  per-instance modifiers inline (`w-full`, `resize-none`, `pl-9` for a leading
+  icon, `disabled:*`); utilities win over the component layer, so a trailing
+  `text-xs` overrides `.field`'s `text-sm`. Intentionally NOT migrated:
+  checkboxes, file/color inputs, the Amazon in-card pill `<select>` /
+  short-name `<input>`, and the import preview amount editor (conditional error
+  border).
 - Persisted view state (the month being viewed, the active Import tab) uses the
   reusable `persisted<T>(key, initial, validate?)` store in
   `webui/src/lib/stores/persisted.ts` — a `localStorage`-mirrored `writable`
