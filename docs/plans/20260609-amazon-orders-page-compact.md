@@ -44,11 +44,11 @@ Redesign each Amazon order card on `/amazon` from a tall, two-zone card (left co
 **Files:**
 - Modify: `webui/src/routes/amazon/+page.svelte`
 
-- [ ] Make the short-name edit mode render inline within the compact row (input + save/cancel) without expanding row height excessively; preserve `amazon-short-name-input`, the `/save/i` button, cancel, and Enter/Escape handlers.
-- [ ] Keep the inline category editor (`amazon-category-select` + cancel) working in the compact row; preserve `amazon-order-category` / `data-category-id` / `amazon-category-edit`.
-- [ ] Render the `Linked to …` expense line(s) and the unlink button as a compact secondary line under the main row only when linked (preserve the "Linked to" text and unlink aria-label).
-- [ ] Keep the suggestions sub-panel (`Find matches` results + `Link` buttons) below the row, lightly restyled for consistency.
-- [ ] `npm run check` passes.
+- [x] Make the short-name edit mode render inline within the compact row (input + save/cancel) without expanding row height excessively; preserve `amazon-short-name-input`, the `/save/i` button, cancel, and Enter/Escape handlers.
+- [x] Keep the inline category editor (`amazon-category-select` + cancel) working in the compact row; preserve `amazon-order-category` / `data-category-id` / `amazon-category-edit`.
+- [x] Render the `Linked to …` expense line(s) and the unlink button as a compact secondary line under the main row only when linked (preserve the "Linked to" text and unlink aria-label).
+- [x] Keep the suggestions sub-panel (`Find matches` results + `Link` buttons) below the row, lightly restyled for consistency.
+- [x] `npm run check` passes.
 
 ### Task 3: Verify in the browser and update e2e tests
 

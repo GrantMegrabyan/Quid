@@ -151,6 +151,68 @@ test('shows and edits an Amazon order category', async ({ page }) => {
 	}
 });
 
+test('unlinks an order, then finds and re-links a match in the compact row', async ({ page }) => {
+	const orderDate = isoMonthOffset(0, 16);
+	await seedApiState(
+		page,
+		buildSeed({
+			expenses: [
+				{
+					id: 'exp-amz-relink',
+					name: 'AMZN Mktp',
+					amount: '27.30',
+					date: orderDate,
+					categoryId: 'cat-groceries',
+					note: ''
+				}
+			]
+		})
+	);
+
+	const csv =
+		`Order ID,Order Date,Total Owed,Currency,Product Name,Quantity,Item Subtotal,Order Status,Last 4 Digits\n` +
+		`888-2223334-4445556,${orderDate},27.30,GBP,USB Cable,1,27.30,Delivered,4242\n`;
+
+	await page.goto('/amazon');
+	await page.getByTestId('amazon-csv-input').setInputFiles({
+		name: 'orders.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from(csv)
+	});
+
+	// The e2e DB is shared across tests; scope to this order's row by its id.
+	const row = page.getByTestId('amazon-order-row').filter({ hasText: '888-2223334-4445556' });
+	await expect(row).toHaveCount(1);
+
+	// Auto-matched on import: linked status + compact "Linked to ..." secondary line.
+	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
+		'data-link-status',
+		'linked'
+	);
+	await expect(row).toContainText('Linked to AMZN Mktp');
+
+	// Unlink from the compact secondary line.
+	await row.getByRole('button', { name: 'Unlink transaction' }).click();
+	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
+		'data-link-status',
+		'unlinked'
+	);
+	await expect(row).not.toContainText('Linked to AMZN Mktp');
+
+	// Find matches surfaces the suggestion sub-panel below the row.
+	await row.getByRole('button', { name: 'Find matches' }).click();
+	const suggestion = row.getByRole('button', { name: 'Link to this transaction' });
+	await expect(suggestion).toBeVisible();
+
+	// Re-link from the suggestion panel.
+	await suggestion.click();
+	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
+		'data-link-status',
+		'linked'
+	);
+	await expect(row).toContainText('Linked to AMZN Mktp');
+});
+
 test('AI re-categorise button previews suggestions or fails gracefully', async ({ page }) => {
 	// The preview endpoint calls OpenRouter, whose key + output are not
 	// deterministic in CI. This test verifies the UI wiring end-to-end: the
