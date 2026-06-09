@@ -433,11 +433,11 @@
 			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Name</span>
-					<input bind:value={form.name} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.name} class="field" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Priority</span>
-					<input bind:value={form.priority} type="number" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.priority} type="number" class="field" />
 				</label>
 				<label class="flex items-center gap-2 pt-6 text-sm text-ctp-subtext0">
 					<input bind:checked={form.enabled} type="checkbox" class="h-4 w-4 accent-ctp-accent" />
@@ -454,7 +454,7 @@
 			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Name match</span>
-					<select bind:value={form.matchNameOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+					<select bind:value={form.matchNameOp} class="field field-select">
 						<option value="">No name condition</option>
 						<option value="contains">contains</option>
 						<option value="equals">equals</option>
@@ -464,14 +464,14 @@
 				</label>
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
 					<span>Name value</span>
-					<input bind:value={form.matchNameValue} class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.matchNameValue} class="field" />
 				</label>
 			</div>
 
 			<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Amount match</span>
-					<select bind:value={form.matchAmountOp} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+					<select bind:value={form.matchAmountOp} class="field field-select">
 						<option value="">No amount condition</option>
 						<option value="gte">≥</option>
 						<option value="lte">≤</option>
@@ -481,12 +481,12 @@
 				</label>
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Amount</span>
-					<input bind:value={form.matchAmountValue} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.matchAmountValue} type="number" step="0.01" class="field" />
 				</label>
 				{#if form.matchAmountOp === 'between'}
 					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 						<span>Second amount</span>
-						<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+						<input bind:value={form.matchAmountValue2} type="number" step="0.01" class="field" />
 					</label>
 				{/if}
 			</div>
@@ -494,11 +494,11 @@
 			<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Date from</span>
-					<input bind:value={form.matchDateFrom} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.matchDateFrom} type="date" class="field" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Date to</span>
-					<input bind:value={form.matchDateTo} type="date" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none" />
+					<input bind:value={form.matchDateTo} type="date" class="field" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Day of month <span class="text-ctp-overlay0">(1–31)</span></span>
@@ -508,7 +508,7 @@
 						type="text"
 						inputmode="numeric"
 						placeholder="e.g. 1 for monthly payment"
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 				</label>
 			</div>
@@ -522,7 +522,7 @@
 			<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 					<span>Action</span>
-					<select bind:value={form.action} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+					<select bind:value={form.action} class="field field-select">
 						<option value="categorize">Categorize</option>
 						<option value="exclude">Exclude</option>
 					</select>
@@ -530,7 +530,7 @@
 				{#if form.action === 'categorize'}
 					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0 md:col-span-2">
 						<span>Target category</span>
-						<select bind:value={form.targetCategoryId} class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text focus:border-ctp-accent focus:outline-none">
+						<select bind:value={form.targetCategoryId} class="field field-select">
 							<option value="">Choose category</option>
 							{#each $categories as category (category.id)}
 								<option value={category.id}>{category.name}</option>
@@ -544,11 +544,11 @@
 				<div class="mt-3 grid grid-cols-1 gap-3">
 					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 						<span>Set display name <span class="text-ctp-overlay0">(optional)</span></span>
-						<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
+						<input bind:value={form.setDisplayName} type="text" maxlength="200" placeholder="Leave blank to keep merchant name" class="field" />
 					</label>
 					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
 						<span>Set note <span class="text-ctp-overlay0">(optional)</span></span>
-						<input bind:value={form.setNote} data-testid="rule-set-note" type="text" maxlength="500" placeholder="Leave blank to keep imported note" class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none" />
+						<input bind:value={form.setNote} data-testid="rule-set-note" type="text" maxlength="500" placeholder="Leave blank to keep imported note" class="field" />
 					</label>
 				</div>
 			{/if}
