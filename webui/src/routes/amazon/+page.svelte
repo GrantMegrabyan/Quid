@@ -641,7 +641,7 @@
 					bind:value={exportPasteText}
 					rows="4"
 					placeholder={'{ "orders": [ … ] }'}
-					class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 font-mono text-xs text-ctp-text focus:border-ctp-accent focus:outline-none"
+					class="field w-full font-mono text-xs"
 				></textarea>
 				<button
 					type="button"
@@ -827,14 +827,14 @@
 				placeholder="Search orders, items, names…"
 				value={searchText}
 				oninput={(event) => onSearchInput(event.currentTarget.value)}
-				class="w-full rounded-md border border-ctp-surface2 bg-ctp-base py-2 pl-9 pr-3 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+				class="field w-full pl-9 pr-3"
 			/>
 		</div>
 		<select
 			data-testid="amazon-linked-filter"
 			value={linkedFilter}
 			onchange={(event) => onLinkedFilterChange(event.currentTarget.value)}
-			class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+			class="field field-select"
 		>
 			<option value="all">All</option>
 			<option value="linked">Linked</option>
@@ -844,7 +844,7 @@
 			data-testid="amazon-category-filter"
 			value={categoryFilter === undefined ? '__all__' : categoryFilter}
 			onchange={(event) => onCategoryFilterChange(event.currentTarget.value)}
-			class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+			class="field field-select"
 		>
 			<option value="__all__">All categories</option>
 			<option value="">No category</option>
