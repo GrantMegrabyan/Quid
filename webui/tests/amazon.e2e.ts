@@ -152,6 +152,15 @@ test('shows and edits an Amazon order category', async ({ page }) => {
 });
 
 test('unlinks an order, then finds and re-links a match in the compact row', async ({ page }) => {
+	// Guard the compact-row redesign against runtime breakage: capture any console
+	// errors / page errors raised while loading /amazon and driving the row flows
+	// (unlink, find matches, re-link) and assert none occurred at the end.
+	const consoleErrors: string[] = [];
+	page.on('console', (msg) => {
+		if (msg.type() === 'error') consoleErrors.push(msg.text());
+	});
+	page.on('pageerror', (err) => consoleErrors.push(err.message));
+
 	const orderDate = isoMonthOffset(0, 16);
 	await seedApiState(
 		page,
@@ -211,6 +220,8 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 		'linked'
 	);
 	await expect(row).toContainText('Linked to AMZN Mktp');
+
+	expect(consoleErrors).toEqual([]);
 });
 
 test('AI re-categorise button previews suggestions or fails gracefully', async ({ page }) => {

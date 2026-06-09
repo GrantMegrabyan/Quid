@@ -55,10 +55,10 @@ Redesign each Amazon order card on `/amazon` from a tall, two-zone card (left co
 **Files:**
 - Modify: `webui/tests/amazon.e2e.ts` (only if a selector/structure assertion needs updating; do not weaken coverage)
 
-- [ ] Run `npm run check` and `npm run build` (from `webui/`) — both green.
-- [ ] Run `npm run test:e2e` (from `webui/`) — the existing Amazon flows (import+link, category edit, short-name edit, recategorise) must pass against the new markup; fix selectors in the page (not the tests) where possible.
-- [ ] If the icon-only link-status removed asserted text that a test relied on, update the test to assert on the preserved `data-link-status` attribute instead of text (no loss of coverage).
-- [ ] Capture and confirm no console errors / non-2xx network calls on `/amazon` (load page, edit name, edit category, find matches, link/unlink).
+- [x] Run `npm run check` and `npm run build` (from `webui/`) — both green.
+- [x] Run `npm run test:e2e` (from `webui/`) — the existing Amazon flows (import+link, category edit, short-name edit, recategorise) must pass against the new markup; fix selectors in the page (not the tests) where possible. (All 5 amazon.e2e.ts tests pass against the compact markup; no page selector changes needed.)
+- [x] If the icon-only link-status removed asserted text that a test relied on, update the test to assert on the preserved `data-link-status` attribute instead of text (no loss of coverage). (Tests already assert on `data-link-status`; no text-based link-status assertions existed.)
+- [x] Capture and confirm no console errors / non-2xx network calls on `/amazon` (load page, edit name, edit category, find matches, link/unlink). (Added a permanent console-error/pageerror guard to the unlink/find-matches/re-link e2e test; passes with zero errors.)
 
 ### Task 4: Update documentation
 
