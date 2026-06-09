@@ -301,7 +301,7 @@
 						placeholder="e.g. Coffee"
 						bind:value={newName}
 						oninput={() => (newError = '')}
-						class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field w-full"
 					/>
 				</div>
 
@@ -319,7 +319,7 @@
 						maxlength="1000"
 						placeholder="e.g. Daily food shopping. Excludes restaurants."
 						bind:value={newDescription}
-						class="min-h-[80px] w-full flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+						class="field min-h-[80px] w-full flex-1 resize-none"
 					></textarea>
 					<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 				</div>
@@ -508,7 +508,7 @@
 										disabled={isUncategorized}
 										bind:value={editName}
 										oninput={() => (editError = '')}
-										class="w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none disabled:cursor-not-allowed disabled:bg-ctp-surface0 disabled:text-ctp-overlay1"
+										class="field w-full disabled:cursor-not-allowed disabled:bg-ctp-surface0 disabled:text-ctp-overlay1"
 									/>
 								</div>
 
@@ -526,7 +526,7 @@
 										maxlength="1000"
 										placeholder="e.g. Daily food shopping. Excludes restaurants."
 										bind:value={editDescription}
-										class="min-h-[80px] w-full flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none resize-none"
+										class="field min-h-[80px] w-full flex-1 resize-none"
 									></textarea>
 									<p class="text-xs text-ctp-subtext0">Used by AI when categorising transactions. Describe what belongs here and what doesn't.</p>
 								</div>
