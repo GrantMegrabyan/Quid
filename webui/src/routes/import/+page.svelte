@@ -649,7 +649,7 @@
 						<select
 							bind:value={row.selectedCategoryName}
 							disabled={matchedDisabled}
-							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
+							class="field field-select h-10 w-full disabled:opacity-50"
 						>
 							{#each categoryOptions(row) as category (category.id)}
 								<option value={category.name}>{category.name}</option>
@@ -665,7 +665,7 @@
 						<select
 							bind:value={row.selectedImportance}
 							disabled={matchedDisabled}
-							class="h-10 w-full rounded-md border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm text-ctp-text disabled:opacity-50"
+							class="field field-select h-10 w-full disabled:opacity-50"
 						>
 							<option value="essential">Essential</option>
 							<option value="important">Important</option>
@@ -882,7 +882,7 @@
 						autocomplete="off"
 						placeholder="e.g. Starbucks"
 						bind:value={nameInput}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if nameError}
 						<p data-testid="name-error" class="text-sm text-red-600 dark:text-red-400">{nameError}</p>
@@ -902,7 +902,7 @@
 						placeholder="0.00"
 						value={amountInput}
 						oninput={(event) => (amountInput = event.currentTarget.value)}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if amountError}
 						<p data-testid="amount-error" class="text-sm text-red-600 dark:text-red-400">
@@ -919,7 +919,7 @@
 						type="date"
 						autocomplete="off"
 						bind:value={dateInput}
-						class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if dateError}
 						<p data-testid="date-error" class="text-sm text-red-600 dark:text-red-400">{dateError}</p>
@@ -932,7 +932,7 @@
 						id="single-category"
 						data-testid="category-select"
 						bind:value={categoryInput}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field field-select"
 					>
 						<option value="" disabled>Select a category</option>
 						{#each $categories as category (category.id)}
@@ -954,7 +954,7 @@
 						id="single-importance"
 						data-testid="importance-select"
 						bind:value={importanceInput}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field field-select"
 					>
 						<option value="essential">Essential</option>
 						<option value="important">Important</option>
@@ -971,7 +971,7 @@
 						maxlength="200"
 						autocomplete="off"
 						bind:value={noteInput}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					<p class="text-right text-xs text-ctp-overlay1">{noteInput.length}/200</p>
 				</div>
@@ -1003,7 +1003,7 @@
 					rows="6"
 					bind:value={freeformInput}
 					placeholder={'coffee 3.50 yesterday\nTesco 42.10 on the 3rd\nNetflix 12.99'}
-					class="w-full resize-y rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 font-mono text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+					class="field w-full resize-y font-mono"
 				></textarea>
 				<div class="flex justify-end">
 					<button
