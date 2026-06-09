@@ -982,7 +982,7 @@
 									}
 								}}
 								disabled={actionOrderId === order.id}
-								class="shrink-0 rounded-full border border-ctp-surface2 bg-ctp-base px-2 py-0.5 text-xs text-ctp-text focus:border-ctp-accent focus:outline-none disabled:opacity-60"
+								class="min-w-0 max-w-[12rem] shrink-0 rounded-full border border-ctp-surface2 bg-ctp-base px-2 py-0.5 text-xs text-ctp-text focus:border-ctp-accent focus:outline-none disabled:opacity-60"
 							>
 								<option value="">— No category —</option>
 								{#each $categories as cat (cat.id)}
@@ -1008,7 +1008,7 @@
 								data-category-id={category.id}
 								onclick={() => startEditCategory(order)}
 								disabled={actionOrderId === order.id}
-								class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-ctp-surface2 bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-text transition-colors hover:bg-ctp-surface2 disabled:opacity-60"
+								class="inline-flex min-w-0 max-w-[12rem] shrink-0 items-center gap-1.5 rounded-full border border-ctp-surface2 bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-text transition-colors hover:bg-ctp-surface2 disabled:opacity-60"
 								title="Change category"
 							>
 								<span
@@ -1016,12 +1016,12 @@
 									class="h-2 w-2 shrink-0 rounded-full"
 									style="background-color: {category.color || '#9ca3af'};"
 								></span>
-								{category.name}
+								<span class="truncate">{category.name}</span>
 								<Pencil
 									data-testid="amazon-category-edit"
 									size={11}
 									aria-hidden="true"
-									class="text-ctp-overlay0"
+									class="shrink-0 text-ctp-overlay0"
 								/>
 							</button>
 						{:else}
