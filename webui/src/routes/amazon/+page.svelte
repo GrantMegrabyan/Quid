@@ -885,208 +885,182 @@
 				{@const isEditingCategory = categoryEditingOrderId === order.id}
 				{@const category = orderCategory(order)}
 				<div
-					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {isLinked
+					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base px-3 py-2 transition-colors {isLinked
 						? 'border-l-ctp-accent bg-ctp-accent/5'
 						: 'border-l-ctp-surface1'}"
 					data-testid="amazon-order-row"
 				>
-					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div class="min-w-0 flex-1">
-							<div class="mb-2 flex flex-wrap items-center gap-2">
-								{#if isLinked}
-									<span
-										data-testid="amazon-link-status"
-										data-link-status="linked"
-										class="inline-flex items-center gap-1 rounded-full bg-ctp-accent/15 px-2 py-0.5 text-xs font-medium text-ctp-accent"
-									>
-										<Check size={12} aria-hidden="true" />
-										Linked
-									</span>
-								{:else}
-									<span
-										data-testid="amazon-link-status"
-										data-link-status="unlinked"
-										class="inline-flex items-center gap-1 rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-overlay1"
-									>
-										<Link2Off size={12} aria-hidden="true" />
-										Not linked
-									</span>
-								{/if}
-								<span class="rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-semibold text-ctp-text">
-									{formatAmount(order.total, order.currency || $settings.currency)}
-								</span>
+					<div class="flex flex-wrap items-center gap-3">
+						{#if isLinked}
+							<span
+								data-testid="amazon-link-status"
+								data-link-status="linked"
+								title="Linked"
+								class="inline-flex shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 p-1 text-ctp-accent"
+							>
+								<Check size={14} aria-hidden="true" />
+							</span>
+						{:else}
+							<span
+								data-testid="amazon-link-status"
+								data-link-status="unlinked"
+								title="Not linked"
+								class="inline-flex shrink-0 items-center justify-center rounded-full bg-ctp-surface1 p-1 text-ctp-overlay1"
+							>
+								<Link2Off size={14} aria-hidden="true" />
+							</span>
+						{/if}
 
-								{#if isEditingCategory}
-									<select
-										data-testid="amazon-category-select"
-										value={order.categoryId ?? ''}
-										onchange={(event) =>
-											void saveCategory(order.id, event.currentTarget.value)}
-										onkeydown={(event) => {
-											if (event.key === 'Escape') {
-												event.preventDefault();
-												cancelEditCategory();
-											}
-										}}
-										disabled={actionOrderId === order.id}
-										class="rounded-full border border-ctp-surface2 bg-ctp-base px-2 py-0.5 text-xs text-ctp-text focus:border-ctp-accent focus:outline-none disabled:opacity-60"
-									>
-										<option value="">— No category —</option>
-										{#each $categories as cat (cat.id)}
-											{#if cat.id !== UNCATEGORIZED_ID}
-												<option value={cat.id}>{cat.name}</option>
-											{/if}
-										{/each}
-									</select>
-									<button
-										type="button"
-										aria-label="Cancel category"
-										title="Cancel"
-										onclick={cancelEditCategory}
-										disabled={actionOrderId === order.id}
-										class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
-									>
-										<X size={14} aria-hidden="true" />
-									</button>
-								{:else if category}
-									<button
-										type="button"
-										data-testid="amazon-order-category"
-										data-category-id={category.id}
-										onclick={() => startEditCategory(order)}
-										disabled={actionOrderId === order.id}
-										class="inline-flex items-center gap-1.5 rounded-full border border-ctp-surface2 bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-text transition-colors hover:bg-ctp-surface2 disabled:opacity-60"
-										title="Change category"
-									>
-										<span
-											aria-hidden="true"
-											class="h-2 w-2 shrink-0 rounded-full"
-											style="background-color: {category.color || '#9ca3af'};"
-										></span>
-										{category.name}
-										<Pencil
-											data-testid="amazon-category-edit"
-											size={11}
-											aria-hidden="true"
-											class="text-ctp-overlay0"
-										/>
-									</button>
-								{:else}
-									<button
-										type="button"
-										data-testid="amazon-order-category"
-										data-category-id=""
-										onclick={() => startEditCategory(order)}
-										disabled={actionOrderId === order.id}
-										class="inline-flex items-center gap-1.5 rounded-full border border-dashed border-ctp-surface2 px-2 py-0.5 text-xs font-medium text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
-										title="Set category"
-									>
-										<span
-											aria-hidden="true"
-											class="h-2 w-2 shrink-0 rounded-full bg-ctp-overlay0"
-										></span>
-										No category
-										<Pencil
-											data-testid="amazon-category-edit"
-											size={11}
-											aria-hidden="true"
-											class="text-ctp-overlay0"
-										/>
-									</button>
-								{/if}
+						{#if isEditing}
+							<div class="flex min-w-0 flex-1 items-center gap-1.5">
+								<input
+									data-testid="amazon-short-name-input"
+									type="text"
+									maxlength="60"
+									bind:value={shortNameDraft}
+									placeholder={orderSummary(order)}
+									onkeydown={(event) => {
+										if (event.key === 'Enter') {
+											event.preventDefault();
+											void saveShortName(order.id);
+										} else if (event.key === 'Escape') {
+											event.preventDefault();
+											cancelEditShortName();
+										}
+									}}
+									class="min-w-0 flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-2 py-1 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+								/>
+								<button
+									type="button"
+									aria-label="Save name"
+									title="Save name"
+									onclick={() => void saveShortName(order.id)}
+									disabled={actionOrderId === order.id}
+									class="rounded-md p-1.5 text-ctp-accent hover:bg-ctp-surface1 disabled:opacity-60"
+								>
+									<Check size={16} aria-hidden="true" />
+								</button>
+								<button
+									type="button"
+									aria-label="Cancel"
+									title="Cancel"
+									onclick={cancelEditShortName}
+									disabled={actionOrderId === order.id}
+									class="rounded-md p-1.5 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
+								>
+									<X size={16} aria-hidden="true" />
+								</button>
 							</div>
+						{:else}
+							<div class="flex min-w-0 flex-1 items-center gap-1.5">
+								<h2 class="truncate text-sm font-semibold text-ctp-text">{orderHeading(order)}</h2>
+								<button
+									type="button"
+									data-testid="amazon-short-name-edit"
+									aria-label="Edit name"
+									title="Edit name"
+									onclick={() => startEditShortName(order)}
+									disabled={actionOrderId === order.id}
+									class="shrink-0 rounded-md p-1 text-ctp-overlay0 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+								>
+									<Pencil size={14} aria-hidden="true" />
+								</button>
+							</div>
+						{/if}
 
-							{#if isEditing}
-								<div class="flex items-center gap-1.5">
-									<input
-										data-testid="amazon-short-name-input"
-										type="text"
-										maxlength="60"
-										bind:value={shortNameDraft}
-										placeholder={orderSummary(order)}
-										onkeydown={(event) => {
-											if (event.key === 'Enter') {
-												event.preventDefault();
-												void saveShortName(order.id);
-											} else if (event.key === 'Escape') {
-												event.preventDefault();
-												cancelEditShortName();
-											}
-										}}
-										class="min-w-0 flex-1 rounded-md border border-ctp-surface2 bg-ctp-base px-2 py-1 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
-									/>
-									<button
-										type="button"
-										aria-label="Save name"
-										title="Save name"
-										onclick={() => void saveShortName(order.id)}
-										disabled={actionOrderId === order.id}
-										class="rounded-md p-1.5 text-ctp-accent hover:bg-ctp-surface1 disabled:opacity-60"
-									>
-										<Check size={16} aria-hidden="true" />
-									</button>
-									<button
-										type="button"
-										aria-label="Cancel"
-										title="Cancel"
-										onclick={cancelEditShortName}
-										disabled={actionOrderId === order.id}
-										class="rounded-md p-1.5 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
-									>
-										<X size={16} aria-hidden="true" />
-									</button>
-								</div>
-							{:else}
-								<div class="flex items-center gap-1.5">
-									<h2 class="truncate text-sm font-semibold text-ctp-text">{orderHeading(order)}</h2>
-									<button
-										type="button"
-										data-testid="amazon-short-name-edit"
-										aria-label="Edit name"
-										title="Edit name"
-										onclick={() => startEditShortName(order)}
-										disabled={actionOrderId === order.id}
-										class="shrink-0 rounded-md p-1 text-ctp-overlay0 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
-									>
-										<Pencil size={14} aria-hidden="true" />
-									</button>
-								</div>
-							{/if}
+						{#if isEditingCategory}
+							<select
+								data-testid="amazon-category-select"
+								value={order.categoryId ?? ''}
+								onchange={(event) => void saveCategory(order.id, event.currentTarget.value)}
+								onkeydown={(event) => {
+									if (event.key === 'Escape') {
+										event.preventDefault();
+										cancelEditCategory();
+									}
+								}}
+								disabled={actionOrderId === order.id}
+								class="shrink-0 rounded-full border border-ctp-surface2 bg-ctp-base px-2 py-0.5 text-xs text-ctp-text focus:border-ctp-accent focus:outline-none disabled:opacity-60"
+							>
+								<option value="">— No category —</option>
+								{#each $categories as cat (cat.id)}
+									{#if cat.id !== UNCATEGORIZED_ID}
+										<option value={cat.id}>{cat.name}</option>
+									{/if}
+								{/each}
+							</select>
+							<button
+								type="button"
+								aria-label="Cancel category"
+								title="Cancel"
+								onclick={cancelEditCategory}
+								disabled={actionOrderId === order.id}
+								class="shrink-0 rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 disabled:opacity-60"
+							>
+								<X size={14} aria-hidden="true" />
+							</button>
+						{:else if category}
+							<button
+								type="button"
+								data-testid="amazon-order-category"
+								data-category-id={category.id}
+								onclick={() => startEditCategory(order)}
+								disabled={actionOrderId === order.id}
+								class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-ctp-surface2 bg-ctp-surface1 px-2 py-0.5 text-xs font-medium text-ctp-text transition-colors hover:bg-ctp-surface2 disabled:opacity-60"
+								title="Change category"
+							>
+								<span
+									aria-hidden="true"
+									class="h-2 w-2 shrink-0 rounded-full"
+									style="background-color: {category.color || '#9ca3af'};"
+								></span>
+								{category.name}
+								<Pencil
+									data-testid="amazon-category-edit"
+									size={11}
+									aria-hidden="true"
+									class="text-ctp-overlay0"
+								/>
+							</button>
+						{:else}
+							<button
+								type="button"
+								data-testid="amazon-order-category"
+								data-category-id=""
+								onclick={() => startEditCategory(order)}
+								disabled={actionOrderId === order.id}
+								class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-ctp-surface2 px-2 py-0.5 text-xs font-medium text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+								title="Set category"
+							>
+								<span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-ctp-overlay0"></span>
+								No category
+								<Pencil
+									data-testid="amazon-category-edit"
+									size={11}
+									aria-hidden="true"
+									class="text-ctp-overlay0"
+								/>
+							</button>
+						{/if}
 
-							<p class="mt-1 text-xs text-ctp-overlay1">
-								{order.orderDate} · <span class="font-mono">{order.id}</span>
-							</p>
-							{#if isLinked}
-								<div class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
-									{#each order.linkedExpenseIds as expenseId}
-										{@const linkedExpense = expenseById.get(expenseId)}
-										<div class="flex flex-wrap items-center gap-2">
-											<span>
-												Linked to {linkedExpense ? `${linkedExpense.displayName ?? linkedExpense.name} (${formatAmount(linkedExpense.amount, $settings.currency)})` : expenseId}
-											</span>
-											<button
-												type="button"
-												aria-label="Unlink transaction"
-												title="Unlink transaction"
-												onclick={() => void unlink(order.id, expenseId)}
-												disabled={actionOrderId === order.id}
-												class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
-											>
-												<Link2Off size={14} aria-hidden="true" />
-											</button>
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-						<div class="flex flex-wrap items-center gap-1">
+						<span
+							class="shrink-0 rounded-full bg-ctp-surface1 px-2 py-0.5 text-xs font-semibold text-ctp-text"
+						>
+							{formatAmount(order.total, order.currency || $settings.currency)}
+						</span>
+
+						<span class="shrink-0 text-xs text-ctp-overlay1">
+							{order.orderDate} · <span class="font-mono">{order.id}</span>
+						</span>
+
+						<div class="ml-auto flex shrink-0 items-center gap-1">
 							<button
 								type="button"
 								aria-label="Find matches"
 								title="Find matches"
 								onclick={() => void loadSuggestions(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md border border-ctp-surface2 p-2 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+								class="rounded-md border border-ctp-surface2 p-1.5 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
 							>
 								<Search size={16} aria-hidden="true" />
 							</button>
@@ -1096,12 +1070,37 @@
 								title="Delete order"
 								onclick={() => void remove(order.id)}
 								disabled={actionOrderId === order.id}
-								class="rounded-md p-2 text-ctp-red transition-colors hover:bg-ctp-red/10 disabled:opacity-60"
+								class="rounded-md p-1.5 text-ctp-red transition-colors hover:bg-ctp-red/10 disabled:opacity-60"
 							>
 								<Trash2 size={16} aria-hidden="true" />
 							</button>
 						</div>
 					</div>
+
+					{#if isLinked}
+						<div class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
+							{#each order.linkedExpenseIds as expenseId}
+								{@const linkedExpense = expenseById.get(expenseId)}
+								<div class="flex flex-wrap items-center gap-2">
+									<span>
+										Linked to {linkedExpense
+											? `${linkedExpense.displayName ?? linkedExpense.name} (${formatAmount(linkedExpense.amount, $settings.currency)})`
+											: expenseId}
+									</span>
+									<button
+										type="button"
+										aria-label="Unlink transaction"
+										title="Unlink transaction"
+										onclick={() => void unlink(order.id, expenseId)}
+										disabled={actionOrderId === order.id}
+										class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+									>
+										<Link2Off size={14} aria-hidden="true" />
+									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
 
 					{#if suggestions.length > 0}
 						<div class="mt-3 rounded-md border border-ctp-surface1">

@@ -34,10 +34,10 @@ Redesign each Amazon order card on `/amazon` from a tall, two-zone card (left co
 **Files:**
 - Modify: `webui/src/routes/amazon/+page.svelte`
 
-- [ ] Replace the row container padding/structure: change the card from `p-4` two-zone (`flex flex-wrap items-start justify-between gap-4` with `min-w-0 flex-1` left block + right actions) to a single horizontal line `flex flex-wrap items-center gap-3` with reduced padding (`px-3 py-2`), keeping the left accent border + linked tint.
-- [ ] Lay out, left-to-right on one line: (1) compact `amazon-link-status` reduced to an icon-only indicator (Check / Link2Off) keeping `data-testid` and `data-link-status`; (2) order heading `orderHeading(order)` as `truncate min-w-0 flex-1` with the `amazon-short-name-edit` pencil inline; (3) category chip (`amazon-order-category`); (4) amount; (5) date · `order.id` as muted `text-xs` (allowed to truncate/wrap last); (6) the Find-matches + Delete actions pulled inline at the right (no `justify-between` spacer).
-- [ ] Ensure the line wraps gracefully on narrow widths (flex-wrap) instead of forcing a fixed two-zone split.
-- [ ] `npm run check` passes (from `webui/`).
+- [x] Replace the row container padding/structure: change the card from `p-4` two-zone (`flex flex-wrap items-start justify-between gap-4` with `min-w-0 flex-1` left block + right actions) to a single horizontal line `flex flex-wrap items-center gap-3` with reduced padding (`px-3 py-2`), keeping the left accent border + linked tint.
+- [x] Lay out, left-to-right on one line: (1) compact `amazon-link-status` reduced to an icon-only indicator (Check / Link2Off) keeping `data-testid` and `data-link-status`; (2) order heading `orderHeading(order)` as `truncate min-w-0 flex-1` with the `amazon-short-name-edit` pencil inline; (3) category chip (`amazon-order-category`); (4) amount; (5) date · `order.id` as muted `text-xs` (allowed to truncate/wrap last); (6) the Find-matches + Delete actions pulled inline at the right (no `justify-between` spacer).
+- [x] Ensure the line wraps gracefully on narrow widths (flex-wrap) instead of forcing a fixed two-zone split.
+- [x] `npm run check` passes (from `webui/`).
 
 ### Task 2: Keep inline edit modes and linked/suggestion details compact
 
