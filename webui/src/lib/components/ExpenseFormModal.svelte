@@ -211,7 +211,7 @@
 						placeholder="e.g. Starbucks"
 						value={nameInput}
 						oninput={(event) => (nameInput = event.currentTarget.value)}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if nameError}
 						<p
@@ -241,7 +241,7 @@
 						placeholder="0.00"
 						value={amountInput}
 						oninput={(event) => (amountInput = event.currentTarget.value)}
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if amountError}
 						<p
@@ -266,7 +266,7 @@
 						data-testid="date-input"
 						type="date"
 						autocomplete="off"
-						class="h-10 rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					{#if dateError}
 						<p
@@ -289,7 +289,7 @@
 						id="expense-category"
 						bind:value={categoryInput}
 						data-testid="category-select"
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field field-select"
 					>
 						<option value="" disabled>Select a category</option>
 						{#each $categories as category (category.id)}
@@ -317,7 +317,7 @@
 						id="expense-importance"
 						bind:value={importanceInput}
 						data-testid="importance-select"
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+						class="field field-select"
 					>
 						<option value="essential">Essential</option>
 						<option value="important">Important</option>
@@ -339,7 +339,7 @@
 						type="text"
 						maxlength="200"
 						autocomplete="off"
-						class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+						class="field"
 					/>
 					<p class="text-right text-xs text-ctp-overlay1">
 						{noteInput.length}/200
@@ -378,7 +378,7 @@
 							maxlength="200"
 							autocomplete="off"
 							placeholder="Leave blank to use merchant name"
-							class="rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+							class="field"
 						/>
 					</div>
 				{/if}
