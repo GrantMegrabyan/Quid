@@ -138,7 +138,7 @@
 				bind:value={form.text}
 				rows="4"
 				placeholder="Exclude transfers. If a purchase is fully refunded, exclude both rows."
-				class="mt-1 w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none"
+				class="field mt-1 w-full"
 			></textarea>
 		</label>
 
@@ -148,7 +148,7 @@
 				<input
 					type="number"
 					bind:value={form.priority}
-					class="mt-1 w-full rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text focus:border-ctp-accent focus:outline-none"
+					class="field mt-1 w-full"
 				/>
 			</label>
 			<label class="flex items-center gap-2 text-sm font-medium text-ctp-subtext0 sm:mt-7">
