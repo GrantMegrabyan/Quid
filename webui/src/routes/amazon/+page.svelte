@@ -899,6 +899,7 @@
 								class="inline-flex shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 p-1 text-ctp-accent"
 							>
 								<Check size={14} aria-hidden="true" />
+								<span class="sr-only">Linked</span>
 							</span>
 						{:else}
 							<span
@@ -908,6 +909,7 @@
 								class="inline-flex shrink-0 items-center justify-center rounded-full bg-ctp-surface1 p-1 text-ctp-overlay1"
 							>
 								<Link2Off size={14} aria-hidden="true" />
+								<span class="sr-only">Not linked</span>
 							</span>
 						{/if}
 

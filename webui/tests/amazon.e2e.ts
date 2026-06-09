@@ -178,6 +178,26 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 		})
 	);
 
+	// Disable AI short names + categorisation so the import is deterministic and
+	// no AI/network activity runs during the flow we guard with consoleErrors
+	// (the e2e API may have a live OpenRouter key configured).
+	await page.goto('/settings');
+	const aiShortNames = page.getByTestId('settings-ai-short-names-toggle');
+	const aiCategorize = page.getByTestId('settings-ai-categorize-toggle');
+	let toggledSettings = false;
+	if (await aiShortNames.isChecked()) {
+		await aiShortNames.uncheck();
+		toggledSettings = true;
+	}
+	if (await aiCategorize.isChecked()) {
+		await aiCategorize.uncheck();
+		toggledSettings = true;
+	}
+	if (toggledSettings) {
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+	}
+
 	const csv =
 		`Order ID,Order Date,Total Owed,Currency,Product Name,Quantity,Item Subtotal,Order Status,Last 4 Digits\n` +
 		`888-2223334-4445556,${orderDate},27.30,GBP,USB Cable,1,27.30,Delivered,4242\n`;
@@ -222,6 +242,18 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 	await expect(row).toContainText('Linked to AMZN Mktp');
 
 	expect(consoleErrors).toEqual([]);
+
+	// Restore the AI toggles so we don't leak off-state into other tests sharing
+	// the e2e DB (e.g. settings.e2e.ts asserts they default on).
+	if (toggledSettings) {
+		await page.goto('/settings');
+		const restoreShortNames = page.getByTestId('settings-ai-short-names-toggle');
+		const restoreCategorize = page.getByTestId('settings-ai-categorize-toggle');
+		if (!(await restoreShortNames.isChecked())) await restoreShortNames.check();
+		if (!(await restoreCategorize.isChecked())) await restoreCategorize.check();
+		await page.getByTestId('settings-save-button').click();
+		await expect(page.getByTestId('settings-message')).toBeVisible();
+	}
 });
 
 test('AI re-categorise button previews suggestions or fails gracefully', async ({ page }) => {
