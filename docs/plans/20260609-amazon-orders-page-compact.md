@@ -62,5 +62,5 @@ Redesign each Amazon order card on `/amazon` from a tall, two-zone card (left co
 
 ### Task 4: Update documentation
 
-- [ ] Update `webui/README.md` if it describes the Amazon orders row layout to reflect the new compact single-line rows.
-- [ ] No AGENTS.md/CLAUDE.md change expected (no new constraint/gotcha); add a one-line note only if a non-obvious layout constraint emerges.
+- [x] Update `webui/README.md` if it describes the Amazon orders row layout to reflect the new compact single-line rows. (Added a short "compact single-line row" description to the Amazon orders section.)
+- [x] No AGENTS.md/CLAUDE.md change expected (no new constraint/gotcha); add a one-line note only if a non-obvious layout constraint emerges. (Confirmed: data-testids/aria-labels unchanged, pure layout change — no new constraint to record.)

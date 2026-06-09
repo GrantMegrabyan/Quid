@@ -106,7 +106,11 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
 - **Amazon orders** (`/amazon`) — import Amazon orders, see which orders are
   linked vs unlinked, link/unlink to transactions, and edit each order's
   AI-generated **short name** and detected **category** inline (the category
-  chip opens a dropdown; clearing it is allowed). The header's **Re-categorise
+  chip opens a dropdown; clearing it is allowed). Each order renders as a
+  **compact single-line row** (icon link-status indicator, order name, category
+  chip, amount, date · id, then the find-matches / delete actions) that wraps
+  on narrow viewports; linked transactions and find-matches suggestions appear
+  as secondary lines beneath the row. The header's **Re-categorise
   (AI)** button re-runs AI categorisation over all orders against the **current**
   AI rules — useful after editing rules — and opens a preview table: rows whose
   suggestion already matches the current category are hidden behind a **Show
