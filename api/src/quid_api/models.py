@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from decimal import Decimal  # noqa: TC003  SQLAlchemy needs runtime access for Mapped[]
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, inspect, text
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    inspect,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -409,3 +419,21 @@ class AppSettings(Base):
             name="ck_app_settings_currency_len",
         ),
     )
+
+
+class AnalyticsNarrative(Base):
+    """Stored AI narrative for the Analytics page, one row per analysed month.
+
+    Generation is strictly on-demand (user clicks Generate); regenerating the
+    same month replaces that month's row.
+    """
+
+    __tablename__ = "analytics_narratives"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    month: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    generated_at: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint("month", name="uq_analytics_narratives_month"),)
