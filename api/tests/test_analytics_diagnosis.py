@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 from quid_api.models import Category, Expense
 from quid_api.repositories.analytics import AnalyticsRepository
@@ -182,3 +186,53 @@ async def test_diagnosis_overall_totals(session):
     result = await repo.diagnosis(as_of="2026-06-10")
     assert result.total_current == Decimal("80.00")
     assert result.total_baseline == Decimal("50.00")
+
+
+async def _make_cat(client: AsyncClient, name: str) -> dict[str, Any]:
+    res = await client.post("/api/v1/categories", json={"name": name})
+    assert res.status_code == 201
+    return res.json()  # type: ignore[no-any-return]
+
+
+async def _make_expense(
+    client: AsyncClient, *, name: str, amount: str, date: str, category_id: str
+) -> dict[str, Any]:
+    res = await client.post(
+        "/api/v1/expenses",
+        json={"name": name, "amount": amount, "date": date, "categoryId": category_id},
+    )
+    assert res.status_code == 201, res.text
+    return res.json()  # type: ignore[no-any-return]
+
+
+async def test_diagnosis_endpoint_shape(app_client):
+    cat = await _make_cat(app_client, "Groceries")
+    for month in ("2026-03", "2026-04"):
+        await _make_expense(
+            app_client, name="Tesco", amount="50.00", date=f"{month}-10", category_id=cat["id"]
+        )
+    await _make_expense(
+        app_client, name="Waitrose", amount="120.00", date="2026-05-10", category_id=cat["id"]
+    )
+
+    res = await app_client.get("/api/v1/analytics/diagnosis", params={"as_of": "2026-06-10"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["latestMonth"] == "2026-05"
+    assert body["baselineMonthCount"] == 2
+    assert body["totalCurrent"] == "120.00"
+    assert body["totalBaseline"] == "50.00"
+    increase = body["increases"][0]
+    assert increase["categoryName"] == "Groceries"
+    assert increase["delta"] == "70.00"
+    assert increase["isNew"] is False
+    assert increase["contributors"][0]["merchant"] == "Waitrose"
+    assert increase["contributors"][0]["isNew"] is True
+    assert increase["transactions"][0]["amount"] == "120.00"
+    assert body["decreases"] == []
+
+
+async def test_diagnosis_endpoint_bad_as_of(app_client):
+    res = await app_client.get("/api/v1/analytics/diagnosis", params={"as_of": "junk"})
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION"

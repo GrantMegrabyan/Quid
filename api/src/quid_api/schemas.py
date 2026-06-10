@@ -1013,5 +1013,76 @@ class AnalyticsSummaryResponse(_Camel):
         return _money_str(value)
 
 
+class DiagnosisTransactionOut(_Camel):
+    id: str
+    name: str
+    display_name: str | None = None
+    amount: Decimal
+    date: str
+
+    @field_serializer("amount")
+    def _ser_amount(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class DiagnosisContributorOut(_Camel):
+    merchant: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal
+    is_new: bool
+
+    @field_serializer("current", "baseline", "delta")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class DiagnosisIncreaseOut(_Camel):
+    category_id: str
+    category_name: str
+    color: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal
+    percent_change: float | None = None
+    is_new: bool
+    contributors: list[DiagnosisContributorOut] = Field(default_factory=list)
+    transactions: list[DiagnosisTransactionOut] = Field(default_factory=list)
+
+    @field_serializer("current", "baseline", "delta")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class DiagnosisDecreaseOut(_Camel):
+    category_id: str
+    category_name: str
+    color: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal
+
+    @field_serializer("current", "baseline", "delta")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class DiagnosisResponse(_Camel):
+    latest_month: str | None = None
+    baseline_from: str | None = None
+    baseline_to: str | None = None
+    baseline_month_count: int
+    total_current: Decimal
+    total_baseline: Decimal
+    increases: list[DiagnosisIncreaseOut] = Field(default_factory=list)
+    other_increases_total: Decimal
+    other_increases_count: int
+    decreases: list[DiagnosisDecreaseOut] = Field(default_factory=list)
+
+    @field_serializer("total_current", "total_baseline", "other_increases_total")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
 def dump_camel(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_unset=True)

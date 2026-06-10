@@ -25,6 +25,11 @@ from quid_api.schemas import (
     CategoryTrendPointOut,
     CategoryTrendSeriesOut,
     CategoryTrendsResponse,
+    DiagnosisContributorOut,
+    DiagnosisDecreaseOut,
+    DiagnosisIncreaseOut,
+    DiagnosisResponse,
+    DiagnosisTransactionOut,
     DistributionResponse,
     ImportanceBreakdownPointOut,
     ImportanceBreakdownResponse,
@@ -399,4 +404,67 @@ async def summary(
         previous_month_total=previous_total,
         month_over_month_delta=latest_total - previous_total,
         month_over_month_percent=_percent_change(latest_total, previous_total),
+    )
+
+
+@router.get("/diagnosis", response_model=DiagnosisResponse)
+async def diagnosis(
+    session: SessionDep,
+    as_of: Annotated[str, Query(alias="as_of")],
+) -> DiagnosisResponse:
+    repo = AnalyticsRepository(session)
+    result = await repo.diagnosis(as_of=as_of)
+    return DiagnosisResponse(
+        latest_month=result.latest_month,
+        baseline_from=result.baseline_from,
+        baseline_to=result.baseline_to,
+        baseline_month_count=result.baseline_month_count,
+        total_current=result.total_current,
+        total_baseline=result.total_baseline,
+        increases=[
+            DiagnosisIncreaseOut(
+                category_id=c.category_id,
+                category_name=c.category_name,
+                color=c.color,
+                current=c.current,
+                baseline=c.baseline,
+                delta=c.delta,
+                percent_change=c.percent_change,
+                is_new=c.is_new,
+                contributors=[
+                    DiagnosisContributorOut(
+                        merchant=m.merchant,
+                        current=m.current,
+                        baseline=m.baseline,
+                        delta=m.delta,
+                        is_new=m.is_new,
+                    )
+                    for m in c.contributors
+                ],
+                transactions=[
+                    DiagnosisTransactionOut(
+                        id=t.id,
+                        name=t.name,
+                        display_name=t.display_name,
+                        amount=t.amount,
+                        date=t.date,
+                    )
+                    for t in c.transactions
+                ],
+            )
+            for c in result.increases
+        ],
+        other_increases_total=result.other_increases_total,
+        other_increases_count=result.other_increases_count,
+        decreases=[
+            DiagnosisDecreaseOut(
+                category_id=d.category_id,
+                category_name=d.category_name,
+                color=d.color,
+                current=d.current,
+                baseline=d.baseline,
+                delta=d.delta,
+            )
+            for d in result.decreases
+        ],
     )
