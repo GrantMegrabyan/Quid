@@ -115,7 +115,8 @@ trailing **12 complete months**. Thresholds are code constants.
 - **Prompt contract:** 3–6 plain-language sentences; name the biggest driver;
   point at the most concrete saving opportunities; never invent numbers not
   present in the input.
-- **Persistence:** new table `analytics_narratives` (migration `0020`):
+- **Persistence:** new table `analytics_narratives` (migration `0021`; `0020`
+  already exists — `app_settings_categorize_model`):
   `id`, `month` (the analysed complete month, unique), `content`,
   `generated_at`, `model`. Upsert per month on regenerate; `GET` returns the
   newest row (null-shaped 200 when none).
@@ -141,7 +142,7 @@ trailing **12 complete months**. Thresholds are code constants.
   `/diagnosis`, `/savings`, `/narrative` (GET+POST). Dead schemas removed.
 - New `ai_narrative.py` (OpenRouter call, mirrors `ai_freeform.py`).
 - New `repositories/analytics_narrative.py` (get/upsert + commit).
-- Migration `0020_analytics_narratives`.
+- Migration `0021_analytics_narratives`.
 
 ### Frontend
 
@@ -173,7 +174,7 @@ trailing **12 complete months**. Thresholds are code constants.
   header numbers; expand a went-up row to its transactions; assert savings
   findings; narrative strip shows Generate and surfaces the inline error path
   (e2e backend has no OpenRouter key).
-- **Browser verification** per project rules: run migration `0020` against the
+- **Browser verification** per project rules: run migration `0021` against the
   dev DB before the smoke check; load page, exercise expanders + Generate,
   watch network/console.
 
