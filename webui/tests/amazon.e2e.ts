@@ -212,6 +212,14 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 	);
 	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
+	// Find matches on an ALREADY-LINKED order surfaces an inline, at-the-row
+	// notice instead of the old misleading "no matches found" banner: the only
+	// charge that matches is the one already linked to this order.
+	await row.getByRole('button', { name: 'Find matches' }).click();
+	const linkedNotice = row.getByTestId('amazon-match-notice');
+	await expect(linkedNotice).toBeVisible();
+	await expect(linkedNotice).toContainText('Already linked');
+
 	// Unlink from the compact top-line action group.
 	await row.getByRole('button', { name: 'Unlink transaction' }).click();
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(

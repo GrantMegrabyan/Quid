@@ -36,13 +36,27 @@
 		Category,
 		Expense
 	} from '$types';
-	import { Check, Link2, Link2Off, Pencil, Search, Sparkles, Trash2, X } from '@lucide/svelte';
+	import {
+		Check,
+		CircleAlert,
+		CircleCheck,
+		Link2,
+		Link2Off,
+		Pencil,
+		Search,
+		Sparkles,
+		Trash2,
+		X
+	} from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let exportFileInputEl: HTMLInputElement | null = $state(null);
 	let loading = $state(false);
 	let actionOrderId: string | null = $state(null);
 	let suggestionsByOrderId = $state<Record<string, Expense[]>>({});
+	// Per-order inline note shown when "Find matches" returns nothing, so the
+	// feedback lands at the row the user clicked (not a banner off-screen).
+	let matchNoticeByOrderId = $state<Record<string, string>>({});
 	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
 	let editingOrderId: string | null = $state(null);
 	let shortNameDraft = $state('');
@@ -438,6 +452,12 @@
 		}
 	}
 
+	function clearMatchNotice(orderId: string): void {
+		if (matchNoticeByOrderId[orderId] === undefined) return;
+		const { [orderId]: _removed, ...rest } = matchNoticeByOrderId;
+		matchNoticeByOrderId = rest;
+	}
+
 	async function loadSuggestions(orderId: string): Promise<void> {
 		actionOrderId = orderId;
 		banner = null;
@@ -445,7 +465,19 @@
 			const suggestions = await suggestedAmazonMatches(orderId);
 			suggestionsByOrderId = { ...suggestionsByOrderId, [orderId]: suggestions };
 			if (suggestions.length === 0) {
-				banner = { kind: 'success', message: 'No likely transaction matches found for that order.' };
+				// Suggestions only ever lists UNLINKED Amazon charges. An order that
+				// is already linked therefore has no "other" candidate to show — say
+				// so explicitly instead of the misleading "no matches found".
+				const order = $amazonOrders.find((candidate) => candidate.id === orderId);
+				const alreadyLinked = (order?.linkedExpenseIds.length ?? 0) > 0;
+				matchNoticeByOrderId = {
+					...matchNoticeByOrderId,
+					[orderId]: alreadyLinked
+						? 'Already linked. No other unlinked Amazon charge matches this order’s total — unlink first to relink it elsewhere.'
+						: 'No unlinked Amazon transaction matches this order’s total and date (±7 days).'
+				};
+			} else {
+				clearMatchNotice(orderId);
 			}
 		} catch (cause) {
 			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Could not load matches.' };
@@ -461,6 +493,7 @@
 			await linkAmazonOrder(orderId, expenseId);
 			const suggestions = await suggestedAmazonMatches(orderId);
 			suggestionsByOrderId = { ...suggestionsByOrderId, [orderId]: suggestions };
+			clearMatchNotice(orderId);
 			banner = { kind: 'success', message: 'Amazon order linked.' };
 		} catch (cause) {
 			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Link failed.' };
@@ -474,6 +507,7 @@
 		banner = null;
 		try {
 			await unlinkAmazonOrder(orderId, expenseId);
+			clearMatchNotice(orderId);
 			banner = { kind: 'success', message: 'Amazon order unlinked.' };
 		} catch (cause) {
 			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Unlink failed.' };
@@ -576,13 +610,36 @@
 
 	{#if banner}
 		<div
-			data-testid="amazon-banner"
-			data-kind={banner.kind}
-			class="rounded-md border px-4 py-3 text-sm {banner.kind === 'success'
-				? 'border-ctp-accent/40 bg-ctp-accent/10 text-ctp-accent'
-				: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
+			class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-6 sm:justify-end sm:px-6"
 		>
-			{banner.message}
+			<div
+				data-testid="amazon-banner"
+				data-kind={banner.kind}
+				role="status"
+				aria-live="polite"
+				class="amazon-toast pointer-events-auto flex max-w-md items-start gap-2.5 rounded-lg border px-4 py-3 text-sm shadow-lg shadow-ctp-crust/40 backdrop-blur {banner.kind ===
+				'success'
+					? 'border-ctp-accent/40 bg-ctp-accent/10 text-ctp-accent'
+					: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
+			>
+				<span class="mt-px shrink-0" aria-hidden="true">
+					{#if banner.kind === 'success'}
+						<CircleCheck size={16} />
+					{:else}
+						<CircleAlert size={16} />
+					{/if}
+				</span>
+				<p class="min-w-0 flex-1 text-ctp-text">{banner.message}</p>
+				<button
+					type="button"
+					aria-label="Dismiss"
+					title="Dismiss"
+					onclick={() => (banner = null)}
+					class="-mr-1 -mt-0.5 shrink-0 rounded-md p-0.5 opacity-70 transition-opacity hover:opacity-100"
+				>
+					<X size={15} aria-hidden="true" />
+				</button>
+			</div>
 		</div>
 	{/if}
 
@@ -1122,6 +1179,23 @@
 								</div>
 							{/each}
 						</div>
+					{:else if matchNoticeByOrderId[order.id]}
+						<div
+							data-testid="amazon-match-notice"
+							class="mt-3 flex items-start gap-2 rounded-md border border-dashed border-ctp-surface2 bg-ctp-surface0/40 px-3 py-2 text-xs text-ctp-subtext0"
+						>
+							<Search size={14} aria-hidden="true" class="mt-px shrink-0 text-ctp-overlay1" />
+							<span class="min-w-0 flex-1">{matchNoticeByOrderId[order.id]}</span>
+							<button
+								type="button"
+								aria-label="Dismiss"
+								title="Dismiss"
+								onclick={() => clearMatchNotice(order.id)}
+								class="-mr-1 shrink-0 rounded p-0.5 text-ctp-overlay1 transition-colors hover:text-ctp-text"
+							>
+								<X size={13} aria-hidden="true" />
+							</button>
+						</div>
 					{/if}
 				</div>
 			{/each}
@@ -1162,3 +1236,28 @@
 		</div>
 	{/if}
 </section>
+
+<style>
+	/* The action toast slides up from the corner so it reads as transient
+	   feedback rather than a layout element. Disabled under reduced-motion. */
+	.amazon-toast {
+		animation: amazon-toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+
+	@keyframes amazon-toast-in {
+		from {
+			opacity: 0;
+			transform: translateY(12px) scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.amazon-toast {
+			animation: none;
+		}
+	}
+</style>

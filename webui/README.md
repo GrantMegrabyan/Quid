@@ -114,7 +114,12 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   transaction in the top-line action group (the linked transaction's name +
   amount is in the button tooltip), and find-matches suggestions still appear as
   a secondary panel beneath the row — so linked and unlinked rows share the same
-  base height. The header's **Re-categorise
+  base height. **Find matches** only ever lists _unlinked_ Amazon charges; when
+  it finds none it shows an inline note **at the row** (rather than a banner) —
+  worded for context, so an already-linked order reads "Already linked…" instead
+  of a misleading "no matches". Action feedback (import results, link/unlink,
+  errors) appears as a **dismissible toast pinned to the bottom corner** so it
+  stays visible no matter how far you've scrolled. The header's **Re-categorise
   (AI)** button re-runs AI categorisation over all orders against the **current**
   AI rules — useful after editing rules — and opens a preview table: rows whose
   suggestion already matches the current category are hidden behind a **Show
