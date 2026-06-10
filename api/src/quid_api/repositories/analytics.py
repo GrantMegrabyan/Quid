@@ -45,6 +45,25 @@ _MONTH_EXPR = func.substr(Expense.date, 1, 7)
 #: 10-char day prefix, e.g. "2026-05-31".
 _DAY_EXPR = func.substr(Expense.date, 1, 10)
 
+#: Diagnosis baseline: trailing N complete months before the latest complete month.
+_BASELINE_MONTHS = 6
+#: Increases below BOTH floors roll into a single "everything else" line.
+_NOISE_FLOOR_ABS = Decimal("10.00")
+_NOISE_FLOOR_PCT = 10.0
+#: Max contributing merchants returned per increased category.
+_CONTRIBUTOR_LIMIT = 3
+
+
+def _month_add(month: str, delta: int) -> str:
+    """Add ``delta`` calendar months to a ``YYYY-MM`` key."""
+    idx = int(month[:4]) * 12 + int(month[5:7]) - 1 + delta
+    return f"{idx // 12:04d}-{idx % 12 + 1:02d}"
+
+
+def _months_between(a: str, b: str) -> int:
+    """Calendar-month distance ``b - a`` between two ``YYYY-MM`` keys."""
+    return (int(b[:4]) * 12 + int(b[5:7])) - (int(a[:4]) * 12 + int(a[5:7]))
+
 
 def _as_decimal(value: object) -> Decimal:
     """Coerce a SUM() result (which may be None on no rows) to a 2dp Decimal."""
@@ -140,6 +159,62 @@ class WeekdayPoint:
     weekday: int  # 0=Monday .. 6=Sunday
     total: Decimal
     count: int
+
+
+@dataclass(frozen=True)
+class DiagnosisContributor:
+    merchant: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal
+    is_new: bool
+
+
+@dataclass(frozen=True)
+class DiagnosisTransaction:
+    id: str
+    name: str
+    display_name: str | None
+    amount: Decimal
+    date: str
+
+
+@dataclass(frozen=True)
+class DiagnosisIncrease:
+    category_id: str
+    category_name: str
+    color: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal
+    percent_change: float | None  # None when there is no baseline (new spending)
+    is_new: bool
+    contributors: list[DiagnosisContributor]
+    transactions: list[DiagnosisTransaction]
+
+
+@dataclass(frozen=True)
+class DiagnosisDecrease:
+    category_id: str
+    category_name: str
+    color: str
+    current: Decimal
+    baseline: Decimal
+    delta: Decimal  # negative
+
+
+@dataclass(frozen=True)
+class DiagnosisResult:
+    latest_month: str | None
+    baseline_from: str | None
+    baseline_to: str | None
+    baseline_month_count: int
+    total_current: Decimal
+    total_baseline: Decimal
+    increases: list[DiagnosisIncrease]
+    other_increases_total: Decimal
+    other_increases_count: int
+    decreases: list[DiagnosisDecrease]
 
 
 class AnalyticsRepository:
@@ -467,6 +542,219 @@ class AnalyticsRepository:
             by_weekday.get(day, WeekdayPoint(weekday=day, total=_ZERO, count=0)) for day in range(7)
         ]
 
+    async def diagnosis(self, *, as_of: str) -> DiagnosisResult:
+        """'What went up': latest complete month vs the trailing-average baseline.
+
+        The baseline is each category's mean monthly spend over the (up to)
+        ``_BASELINE_MONTHS`` complete months before the latest complete month,
+        dividing by the WINDOW LENGTH so zero-spend months count as 0.
+        """
+        try:
+            current_month = validate_iso_date(as_of)[:7]
+        except ValueError as exc:
+            raise RepositoryError(RepositoryErrorCode.VALIDATION, str(exc)) from exc
+
+        month = _MONTH_EXPR.label("month")
+        month_rows = (
+            (
+                await self.session.execute(
+                    select(month).where(current_month > _MONTH_EXPR).group_by(month).order_by(month)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        months = [str(m) for m in month_rows]
+        if not months:
+            return DiagnosisResult(
+                latest_month=None,
+                baseline_from=None,
+                baseline_to=None,
+                baseline_month_count=0,
+                total_current=_ZERO,
+                total_baseline=_ZERO,
+                increases=[],
+                other_increases_total=_ZERO,
+                other_increases_count=0,
+                decreases=[],
+            )
+
+        latest = months[-1]
+        first_data = months[0]
+        cur_by_cat = await self._category_month_totals(latest, latest)
+        total_current = sum(cur_by_cat.values(), _ZERO)
+
+        base_to = _month_add(latest, -1)
+        base_from = max(_month_add(latest, -_BASELINE_MONTHS), first_data)
+        if base_to < first_data:
+            # Only one complete month of history: nothing to compare against.
+            return DiagnosisResult(
+                latest_month=latest,
+                baseline_from=None,
+                baseline_to=None,
+                baseline_month_count=0,
+                total_current=total_current,
+                total_baseline=_ZERO,
+                increases=[],
+                other_increases_total=_ZERO,
+                other_increases_count=0,
+                decreases=[],
+            )
+        base_count = _months_between(base_from, base_to) + 1
+
+        base_totals = await self._category_month_totals(base_from, base_to)
+        base_div = Decimal(base_count)
+        base_by_cat = {cid: (t / base_div).quantize(_ZERO) for cid, t in base_totals.items()}
+        total_baseline = sum(base_by_cat.values(), _ZERO)
+
+        all_ids = set(cur_by_cat) | set(base_by_cat)
+        names = await self._category_names(list(all_ids))
+
+        kept: list[tuple[str, Decimal, Decimal, Decimal, float | None, bool]] = []
+        other_total = _ZERO
+        other_count = 0
+        decreases: list[DiagnosisDecrease] = []
+        for cid in all_ids:
+            current = cur_by_cat.get(cid, _ZERO)
+            baseline = base_by_cat.get(cid, _ZERO)
+            delta = current - baseline
+            name, color = names.get(cid, (cid, color_for_category_id(cid)))
+            if delta > _ZERO:
+                pct = float(delta / baseline * 100) if baseline > _ZERO else None
+                if delta >= _NOISE_FLOOR_ABS or (pct is not None and pct >= _NOISE_FLOOR_PCT):
+                    kept.append((cid, current, baseline, delta, pct, baseline == _ZERO))
+                else:
+                    other_total += delta
+                    other_count += 1
+            elif delta < _ZERO:
+                decreases.append(
+                    DiagnosisDecrease(
+                        category_id=cid,
+                        category_name=name,
+                        color=color,
+                        current=current,
+                        baseline=baseline,
+                        delta=delta,
+                    )
+                )
+
+        kept.sort(key=lambda item: item[3], reverse=True)
+        decreases.sort(key=lambda d: d.delta)
+
+        kept_ids = [cid for cid, *_ in kept]
+        cur_merchants = await self._merchant_category_totals(latest, latest, kept_ids)
+        base_merchants = await self._merchant_category_totals(base_from, base_to, kept_ids)
+        txns_by_cat = await self._transactions_for_month(latest, kept_ids)
+
+        increases: list[DiagnosisIncrease] = []
+        for cid, current, baseline, delta, pct, is_new in kept:
+            name, color = names.get(cid, (cid, color_for_category_id(cid)))
+            contributors: list[DiagnosisContributor] = []
+            for mkey, (label, cur_total) in cur_merchants.get(cid, {}).items():
+                base_pair = base_merchants.get(cid, {}).get(mkey)
+                m_base = (base_pair[1] / base_div).quantize(_ZERO) if base_pair else _ZERO
+                m_delta = cur_total - m_base
+                if m_delta > _ZERO:
+                    contributors.append(
+                        DiagnosisContributor(
+                            merchant=label,
+                            current=cur_total,
+                            baseline=m_base,
+                            delta=m_delta,
+                            is_new=base_pair is None,
+                        )
+                    )
+            contributors.sort(key=lambda c: c.delta, reverse=True)
+            increases.append(
+                DiagnosisIncrease(
+                    category_id=cid,
+                    category_name=name,
+                    color=color,
+                    current=current,
+                    baseline=baseline,
+                    delta=delta,
+                    percent_change=pct,
+                    is_new=is_new,
+                    contributors=contributors[:_CONTRIBUTOR_LIMIT],
+                    transactions=txns_by_cat.get(cid, []),
+                )
+            )
+
+        return DiagnosisResult(
+            latest_month=latest,
+            baseline_from=base_from,
+            baseline_to=base_to,
+            baseline_month_count=base_count,
+            total_current=total_current,
+            total_baseline=total_baseline,
+            increases=increases,
+            other_increases_total=other_total,
+            other_increases_count=other_count,
+            decreases=decreases,
+        )
+
+    async def _category_month_totals(self, month_from: str, month_to: str) -> dict[str, Decimal]:
+        stmt = (
+            select(Expense.category_id, func.sum(Expense.amount))
+            .where(month_from <= _MONTH_EXPR, month_to >= _MONTH_EXPR)
+            .group_by(Expense.category_id)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {str(cid): _as_decimal(total) for cid, total in rows}
+
+    async def _merchant_category_totals(
+        self, month_from: str, month_to: str, category_ids: list[str]
+    ) -> dict[str, dict[str, tuple[str, Decimal]]]:
+        """category_id -> merchant_key -> (display label, total)."""
+        if not category_ids:
+            return {}
+        key = func.lower(func.trim(Expense.name)).label("merchant_key")
+        stmt = (
+            select(Expense.category_id, key, func.max(Expense.name), func.sum(Expense.amount))
+            .where(
+                month_from <= _MONTH_EXPR,
+                month_to >= _MONTH_EXPR,
+                Expense.category_id.in_(category_ids),
+            )
+            .group_by(Expense.category_id, key)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        out: dict[str, dict[str, tuple[str, Decimal]]] = {}
+        for cid, mkey, label, total in rows:
+            out.setdefault(str(cid), {})[str(mkey)] = (str(label), _as_decimal(total))
+        return out
+
+    async def _transactions_for_month(
+        self, month_key: str, category_ids: list[str]
+    ) -> dict[str, list[DiagnosisTransaction]]:
+        if not category_ids:
+            return {}
+        stmt = (
+            select(
+                Expense.id,
+                Expense.name,
+                Expense.display_name,
+                Expense.amount,
+                Expense.date,
+                Expense.category_id,
+            )
+            .where(_MONTH_EXPR == month_key, Expense.category_id.in_(category_ids))  # noqa: SIM300
+            .order_by(Expense.amount.desc(), Expense.date.desc())
+        )
+        rows = (await self.session.execute(stmt)).all()
+        out: dict[str, list[DiagnosisTransaction]] = {}
+        for rid, name, display_name, amount, date, cid in rows:
+            out.setdefault(str(cid), []).append(
+                DiagnosisTransaction(
+                    id=str(rid),
+                    name=str(name),
+                    display_name=None if display_name is None else str(display_name),
+                    amount=_as_decimal(amount),
+                    date=str(date),
+                )
+            )
+        return out
+
     # ------------------------------------------------------------------ #
     # Internal helpers                                                    #
     # ------------------------------------------------------------------ #
@@ -505,6 +793,11 @@ __all__ = [
     "AnalyticsRepository",
     "CategoryMover",
     "CategoryTrendSeries",
+    "DiagnosisContributor",
+    "DiagnosisDecrease",
+    "DiagnosisIncrease",
+    "DiagnosisResult",
+    "DiagnosisTransaction",
     "ImportancePoint",
     "ImportanceTrendPoint",
     "ImportanceTrendSeries",
