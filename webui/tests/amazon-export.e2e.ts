@@ -1,5 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { buildSeed, isoMonthOffset, seedApiState } from './helpers.js';
+
+// The order id is no longer rendered in the compact row; scope by its
+// `data-order-id` attribute instead (the e2e DB is shared across tests).
+function orderRow(page: Page, orderId: string) {
+	return page.locator(`[data-testid="amazon-order-row"][data-order-id="${orderId}"]`);
+}
 
 /**
  * Drives the "Import from browser" panel end-to-end: uploads a `.json` export
@@ -66,15 +72,13 @@ test('imports orders from a browser-export .json upload and auto-links a seeded 
 		buffer: Buffer.from(JSON.stringify(payload))
 	});
 
-	const row = page
-		.getByTestId('amazon-order-row')
-		.filter({ hasText: '901-1112223-3334445' });
+	const row = orderRow(page, '901-1112223-3334445');
 	await expect(row).toHaveCount(1);
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
 		'data-link-status',
 		'linked'
 	);
-	await expect(row).toContainText('AMZN Mktp');
+	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
 	await expect(page.getByTestId('amazon-banner')).toHaveAttribute('data-kind', 'success');
 
@@ -120,9 +124,7 @@ test('reports skipped orders (missing total) while importing the good ones', asy
 	await page.getByTestId('amazon-export-submit').click();
 
 	// Good order imported.
-	const goodRow = page
-		.getByTestId('amazon-order-row')
-		.filter({ hasText: '902-2223334-4445556' });
+	const goodRow = orderRow(page, '902-2223334-4445556');
 	await expect(goodRow).toHaveCount(1);
 
 	// Skipped list renders the bad order with its reason.

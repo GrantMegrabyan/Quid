@@ -1,5 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { buildSeed, isoMonthOffset, seedApiState } from './helpers.js';
+
+// The order id is no longer rendered in the compact row, so scope to a row by
+// its `data-order-id` attribute (the e2e DB is shared across tests and Amazon
+// orders are not wiped by the seed-state reset).
+function orderRow(page: Page, orderId: string) {
+	return page.locator(`[data-testid="amazon-order-row"][data-order-id="${orderId}"]`);
+}
 
 test('transaction subheading shows date and note on one line', async ({ page }) => {
 	await seedApiState(page, buildSeed());
@@ -54,17 +61,10 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 		buffer: Buffer.from(csv)
 	});
 
-	// The e2e DB is shared across tests and Amazon orders are not wiped by the
-	// seed-state reset, so scope to this order's row by its id.
-	const row = page
-		.getByTestId('amazon-order-row')
-		.filter({ hasText: '123-4567890-1234567' });
+	const row = orderRow(page, '123-4567890-1234567');
 	await expect(row).toHaveCount(1);
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute('data-link-status', 'linked');
-	// The "Linked to ..." label is rendered from the linked-expense label data
-	// embedded in the orders response (the page no longer fetches every expense
-	// just to resolve these labels). Confirm it resolves the id to name+amount.
-	await expect(row).toContainText('Linked to AMZN Mktp');
+	// The compact row shows the order total in its amount pill.
 	await expect(row).toContainText('19.99');
 	// AI short names are disabled above, so the row shows the product-title fallback.
 	await expect(row).toContainText('Wireless Mouse');
@@ -75,9 +75,7 @@ test('imports Amazon order, shows fallback short name, edits it, and reflects on
 	await expect(row).toContainText('Gaming mouse');
 
 	await page.reload();
-	await expect(
-		page.getByTestId('amazon-order-row').filter({ hasText: '123-4567890-1234567' })
-	).toContainText('Gaming mouse');
+	await expect(orderRow(page, '123-4567890-1234567')).toContainText('Gaming mouse');
 
 	await page.goto('/');
 	const expenseRow = page.getByTestId('expense-row').filter({ hasText: 'AMZN Mktp' });
@@ -110,10 +108,7 @@ test('shows and edits an Amazon order category', async ({ page }) => {
 		buffer: Buffer.from(csv)
 	});
 
-	// The e2e DB is shared across tests; scope to this order's row by its id.
-	const row = page
-		.getByTestId('amazon-order-row')
-		.filter({ hasText: '555-1112223-3334445' });
+	const row = orderRow(page, '555-1112223-3334445');
 	await expect(row).toHaveCount(1);
 
 	// Starts uncategorised (AI off).
@@ -132,9 +127,7 @@ test('shows and edits an Amazon order category', async ({ page }) => {
 
 	// Persists across reload.
 	await page.reload();
-	const reloadedRow = page
-		.getByTestId('amazon-order-row')
-		.filter({ hasText: '555-1112223-3334445' });
+	const reloadedRow = orderRow(page, '555-1112223-3334445');
 	await expect(reloadedRow.getByTestId('amazon-order-category')).toHaveAttribute(
 		'data-category-id',
 		'cat-groceries'
@@ -209,24 +202,23 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 		buffer: Buffer.from(csv)
 	});
 
-	// The e2e DB is shared across tests; scope to this order's row by its id.
-	const row = page.getByTestId('amazon-order-row').filter({ hasText: '888-2223334-4445556' });
+	const row = orderRow(page, '888-2223334-4445556');
 	await expect(row).toHaveCount(1);
 
-	// Auto-matched on import: linked status + compact "Linked to ..." secondary line.
+	// Auto-matched on import: linked status + a top-line unlink button.
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
 		'data-link-status',
 		'linked'
 	);
-	await expect(row).toContainText('Linked to AMZN Mktp');
+	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
-	// Unlink from the compact secondary line.
+	// Unlink from the compact top-line action group.
 	await row.getByRole('button', { name: 'Unlink transaction' }).click();
 	await expect(row.getByTestId('amazon-link-status')).toHaveAttribute(
 		'data-link-status',
 		'unlinked'
 	);
-	await expect(row).not.toContainText('Linked to AMZN Mktp');
+	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toHaveCount(0);
 
 	// Find matches surfaces the suggestion sub-panel below the row.
 	await row.getByRole('button', { name: 'Find matches' }).click();
@@ -239,7 +231,7 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 		'data-link-status',
 		'linked'
 	);
-	await expect(row).toContainText('Linked to AMZN Mktp');
+	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
 	expect(consoleErrors).toEqual([]);
 
@@ -275,9 +267,7 @@ test('AI re-categorise button previews suggestions or fails gracefully', async (
 		mimeType: 'text/csv',
 		buffer: Buffer.from(csv)
 	});
-	await expect(
-		page.getByTestId('amazon-order-row').filter({ hasText: '777-8889990-0001112' })
-	).toHaveCount(1);
+	await expect(orderRow(page, '777-8889990-0001112')).toHaveCount(1);
 
 	await page.getByTestId('amazon-recategorize-button').click();
 

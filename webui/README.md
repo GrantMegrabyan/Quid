@@ -108,9 +108,13 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
   AI-generated **short name** and detected **category** inline (the category
   chip opens a dropdown; clearing it is allowed). Each order renders as a
   **compact single-line row** (icon link-status indicator, order name, category
-  chip, amount, date · id, then the find-matches / delete actions) that wraps
-  on narrow viewports; linked transactions and find-matches suggestions appear
-  as secondary lines beneath the row. The header's **Re-categorise
+  chip, amount, date, then the unlink / find-matches / delete actions) that
+  wraps on narrow viewports; an order's full order id is not shown (it carried
+  no useful signal). Linked rows expose one **unlink** button per linked
+  transaction in the top-line action group (the linked transaction's name +
+  amount is in the button tooltip), and find-matches suggestions still appear as
+  a secondary panel beneath the row — so linked and unlinked rows share the same
+  base height. The header's **Re-categorise
   (AI)** button re-runs AI categorisation over all orders against the **current**
   AI rules — useful after editing rules — and opens a preview table: rows whose
   suggestion already matches the current category are hidden behind a **Show

@@ -889,6 +889,7 @@
 						? 'border-l-ctp-accent bg-ctp-accent/5'
 						: 'border-l-ctp-surface1'}"
 					data-testid="amazon-order-row"
+					data-order-id={order.id}
 				>
 					<div class="flex flex-wrap items-center gap-3">
 						{#if isLinked}
@@ -1052,10 +1053,30 @@
 						</span>
 
 						<span class="shrink-0 text-xs text-ctp-overlay1">
-							{order.orderDate} · <span class="font-mono">{order.id}</span>
+							{order.orderDate}
 						</span>
 
 						<div class="ml-auto flex shrink-0 items-center gap-1">
+							{#if isLinked}
+								{#each order.linkedExpenseIds as expenseId}
+									{@const linkedExpense = expenseById.get(expenseId)}
+									<button
+										type="button"
+										aria-label="Unlink transaction"
+										title={linkedExpense
+											? `Unlink ${linkedExpense.displayName ?? linkedExpense.name} (${formatAmount(
+													linkedExpense.amount,
+													$settings.currency
+												)})`
+											: 'Unlink transaction'}
+										onclick={() => void unlink(order.id, expenseId)}
+										disabled={actionOrderId === order.id}
+										class="rounded-md border border-ctp-surface2 p-1.5 text-ctp-subtext0 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
+									>
+										<Link2Off size={16} aria-hidden="true" />
+									</button>
+								{/each}
+							{/if}
 							<button
 								type="button"
 								aria-label="Find matches"
@@ -1078,31 +1099,6 @@
 							</button>
 						</div>
 					</div>
-
-					{#if isLinked}
-						<div class="mt-2 flex flex-col gap-1 text-xs text-ctp-subtext0">
-							{#each order.linkedExpenseIds as expenseId}
-								{@const linkedExpense = expenseById.get(expenseId)}
-								<div class="flex flex-wrap items-center gap-2">
-									<span>
-										Linked to {linkedExpense
-											? `${linkedExpense.displayName ?? linkedExpense.name} (${formatAmount(linkedExpense.amount, $settings.currency)})`
-											: expenseId}
-									</span>
-									<button
-										type="button"
-										aria-label="Unlink transaction"
-										title="Unlink transaction"
-										onclick={() => void unlink(order.id, expenseId)}
-										disabled={actionOrderId === order.id}
-										class="rounded-md p-1 text-ctp-overlay1 hover:bg-ctp-surface1 hover:text-ctp-text disabled:opacity-60"
-									>
-										<Link2Off size={14} aria-hidden="true" />
-									</button>
-								</div>
-							{/each}
-						</div>
-					{/if}
 
 					{#if suggestions.length > 0}
 						<div class="mt-3 rounded-md border border-ctp-surface1">
