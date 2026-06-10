@@ -41,6 +41,9 @@ async def _seed(session, name: str, amount: str, date: str) -> None:
     )
 
 
+# Explicit (NOT autouse): the endpoint tests below must not pull in the
+# file-local `session` fixture, or its open write transaction would deadlock
+# the app_client's separate connections on the same per-test SQLite file.
 @pytest_asyncio.fixture
 async def category(session):
     session.add(Category(id="c1", name="Subs", color="#888888", icon="tag", description=""))
@@ -165,3 +168,9 @@ async def test_savings_endpoint_shape(app_client: AsyncClient):
     assert body["recurringStack"]["monthlyTotal"] == "2.99"
     assert body["recurringStack"]["items"][0]["monthlyEstimate"] == "2.99"
     assert body["habits"] == []
+
+
+async def test_savings_endpoint_bad_as_of(app_client):
+    res = await app_client.get("/api/v1/analytics/savings", params={"as_of": "junk"})
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION"
