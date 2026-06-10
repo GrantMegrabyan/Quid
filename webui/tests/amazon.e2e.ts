@@ -241,6 +241,15 @@ test('unlinks an order, then finds and re-links a match in the compact row', asy
 	);
 	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
+	// Delete with undo: the row hides immediately and an undo toast appears;
+	// Undo restores it without committing the delete.
+	await row.getByRole('button', { name: 'Delete order' }).click();
+	const undoToast = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
+	await expect(undoToast).toBeVisible();
+	await expect(row).toHaveCount(0);
+	await undoToast.getByTestId('toast-undo').click();
+	await expect(row).toHaveCount(1);
+
 	expect(consoleErrors).toEqual([]);
 
 	// Restore the AI toggles so we don't leak off-state into other tests sharing
@@ -283,7 +292,7 @@ test('AI re-categorise button previews suggestions or fails gracefully', async (
 	// valid terminal states; the page must not be left in the "Thinking…" spinner
 	// nor throw.
 	const panel = page.getByTestId('amazon-recategorize-panel');
-	const banner = page.getByTestId('amazon-banner');
+	const banner = page.getByTestId('app-toast');
 	await expect(panel.or(banner).first()).toBeVisible({ timeout: 30_000 });
 
 	// If the panel rendered, its core controls must be present and the toggle

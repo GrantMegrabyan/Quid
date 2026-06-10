@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.ico';
 	import { page } from '$app/stores';
+	import { beforeNavigate } from '$app/navigation';
 	import {
 		LayoutDashboard,
 		BarChart3,
@@ -14,10 +16,22 @@
 		Menu,
 		X
 	} from '@lucide/svelte';
+	import ToastHost from '$lib/components/ToastHost.svelte';
+	import { flushPendingDeletes } from '$lib/stores/toasts';
 
 	let { children } = $props();
 
 	let mobileOpen = $state(false);
+
+	// A deferred (undo-able) delete must not be silently dropped when the user
+	// leaves the page before its window lapses: commit any pending deletes on
+	// client navigation and on a full unload (best-effort).
+	beforeNavigate(() => flushPendingDeletes());
+	onMount(() => {
+		const flush = () => flushPendingDeletes();
+		window.addEventListener('beforeunload', flush);
+		return () => window.removeEventListener('beforeunload', flush);
+	});
 
 	const navLinks = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -146,4 +160,6 @@
 			{@render children()}
 		</main>
 	</div>
+
+	<ToastHost />
 </div>

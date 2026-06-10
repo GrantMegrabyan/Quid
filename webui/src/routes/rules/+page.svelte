@@ -12,6 +12,7 @@
 		refreshImportRules
 	} from '$lib/stores/importRules';
 	import { refreshSettings, settings } from '$lib/stores/settings';
+	import { pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 	import { formatAmount } from '$lib/utils/money';
 	import type {
 		AmountMatchOp,
@@ -293,11 +294,16 @@
 		}
 	}
 
-	async function removeRule(rule: ImportRule): Promise<void> {
-		await deleteImportRule(rule.id);
+	function removeRule(rule: ImportRule): void {
 		if (editingId === rule.id) cancelEdit();
 		delete ruleResults[rule.id];
 		ruleResults = { ...ruleResults };
+		softDelete({
+			kind: 'rule',
+			id: rule.id,
+			message: `Deleted rule “${rule.name}”.`,
+			commit: () => deleteImportRule(rule.id)
+		});
 	}
 
 	// ---- preview (dry-run) ----
@@ -676,7 +682,7 @@
 	{/if}
 
 	<div class="flex flex-col gap-3">
-		{#each $importRules as rule (rule.id)}
+		{#each $importRules.filter((r) => !$pendingDeletes.has(pendingKey('rule', r.id))) as rule (rule.id)}
 			{@const isEditing = editingId === rule.id}
 			{@const result = ruleResults[rule.id]}
 			<div

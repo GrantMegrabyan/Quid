@@ -164,23 +164,41 @@ test.describe('dashboard', () => {
 		await expect(targetRow).toContainText('Updated note');
 	});
 
-	test('delete expense flow: cancel keeps row, confirm removes it', async ({ page }) => {
+	test('delete expense flow: undo restores the row, commit removes it', async ({ page }) => {
 		await page.goto('/');
 
 		const targetRow = page.locator('[data-testid="expense-row"][data-expense-id="exp-seed-2"]');
-		await targetRow.getByTestId('expense-delete-btn').click();
-		await expect(targetRow.getByTestId('expense-delete-cancel-btn')).toBeVisible();
 
-		await targetRow.getByTestId('expense-delete-cancel-btn').click();
-		await expect(targetRow.getByTestId('expense-delete-cancel-btn')).toHaveCount(0);
+		// Delete hides the row immediately and shows an undo toast.
+		await targetRow.getByTestId('expense-delete-btn').click();
+		const toast = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
+		await expect(toast).toBeVisible();
+		await expect(targetRow).toHaveCount(0);
+
+		// Undo brings it back; nothing was deleted.
+		await toast.getByTestId('toast-undo').click();
 		await expect(targetRow).toBeVisible();
+		await expect(page.getByTestId('expense-row')).toHaveCount(2);
 
+		// Delete again and commit now (dismiss the undo toast) — gone for good.
 		await targetRow.getByTestId('expense-delete-btn').click();
-		await targetRow.getByTestId('expense-delete-confirm-btn').click();
+		const toast2 = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
+		await expect(toast2).toBeVisible();
+		// Wait for the actual DELETE to land before reloading, so the persistence
+		// check can't race the deferred commit.
+		const deleted = page.waitForResponse(
+			(r) => r.request().method() === 'DELETE' && /\/expenses\//.test(r.url())
+		);
+		await toast2.getByLabel('Dismiss').click();
+		await deleted;
 
 		await expect(
 			page.locator('[data-testid="expense-row"][data-expense-id="exp-seed-2"]')
 		).toHaveCount(0);
+		await expect(page.getByTestId('expense-row')).toHaveCount(1);
+
+		// Persisted across a reload.
+		await page.reload();
 		await expect(page.getByTestId('expense-row')).toHaveCount(1);
 	});
 });

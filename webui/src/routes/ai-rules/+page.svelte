@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { addAiRule, aiRules, deleteAiRule, editAiRule, refreshAiRules } from '$lib/stores/aiRules';
+	import { pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 	import type { AiRule, AiRuleCreate } from '$types';
 	import { Pencil, Power, Trash2 } from '@lucide/svelte';
 
@@ -78,9 +79,15 @@
 		await editAiRule(rule.id, { enabled: !rule.enabled });
 	}
 
-	async function removeRule(rule: AiRule): Promise<void> {
-		await deleteAiRule(rule.id);
+	function removeRule(rule: AiRule): void {
 		if (editingId === rule.id) cancelEdit();
+		const preview = rule.text.length > 40 ? `${rule.text.slice(0, 39)}…` : rule.text;
+		softDelete({
+			kind: 'ai-rule',
+			id: rule.id,
+			message: `Deleted AI rule “${preview}”.`,
+			commit: () => deleteAiRule(rule.id)
+		});
 	}
 
 	onMount(() => {
@@ -175,7 +182,7 @@
 		</p>
 	{:else}
 		<div class="flex flex-col gap-3">
-			{#each $aiRules as rule (rule.id)}
+			{#each $aiRules.filter((r) => !$pendingDeletes.has(pendingKey('ai-rule', r.id))) as rule (rule.id)}
 				<div
 					class="rounded-lg border border-ctp-surface1 border-l-2 bg-ctp-base p-4 transition-colors {rule.enabled
 						? 'border-l-ctp-accent bg-ctp-accent/5'

@@ -22,6 +22,7 @@
 		updateAmazonShortName
 	} from '$lib/stores/amazonOrders';
 	import { buildBookmarkletHref } from '$lib/amazon/bookmarklet';
+	import { notify, pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { formatAmount } from '$lib/utils/money';
@@ -36,18 +37,7 @@
 		Category,
 		Expense
 	} from '$types';
-	import {
-		Check,
-		CircleAlert,
-		CircleCheck,
-		Link2,
-		Link2Off,
-		Pencil,
-		Search,
-		Sparkles,
-		Trash2,
-		X
-	} from '@lucide/svelte';
+	import { Check, Link2, Link2Off, Pencil, Search, Sparkles, Trash2, X } from '@lucide/svelte';
 
 	let fileInputEl: HTMLInputElement | null = $state(null);
 	let exportFileInputEl: HTMLInputElement | null = $state(null);
@@ -55,9 +45,8 @@
 	let actionOrderId: string | null = $state(null);
 	let suggestionsByOrderId = $state<Record<string, Expense[]>>({});
 	// Per-order inline note shown when "Find matches" returns nothing, so the
-	// feedback lands at the row the user clicked (not a banner off-screen).
+	// feedback lands at the row the user clicked (not off-screen).
 	let matchNoticeByOrderId = $state<Record<string, string>>({});
-	let banner: { kind: 'success' | 'error'; message: string } | null = $state(null);
 	let editingOrderId: string | null = $state(null);
 	let shortNameDraft = $state('');
 	let categoryEditingOrderId: string | null = $state(null);
@@ -121,14 +110,21 @@
 			($amazonOrderQuery.search ?? '') !== ''
 	);
 
+	// Orders awaiting a deferred (undo-able) delete are hidden from the list but
+	// still live in the store until the delete commits, so filter them out here
+	// and keep the visible counts honest.
+	const visibleOrders = $derived(
+		$amazonOrders.filter((order) => !$pendingDeletes.has(pendingKey('amazon', order.id)))
+	);
+	const pendingOrderCount = $derived($amazonOrders.length - visibleOrders.length);
+
 	// Pagination math derived from the active query window + total count.
 	const pageLimit = $derived($amazonOrderQuery.limit ?? AMAZON_ORDERS_PAGE_SIZE);
 	const currentPage = $derived(Math.floor(($amazonOrderQuery.offset ?? 0) / pageLimit));
-	const pageCount = $derived(Math.max(1, Math.ceil($amazonOrdersTotal / pageLimit)));
-	const showingFrom = $derived(
-		$amazonOrders.length === 0 ? 0 : ($amazonOrderQuery.offset ?? 0) + 1
-	);
-	const showingTo = $derived(($amazonOrderQuery.offset ?? 0) + $amazonOrders.length);
+	const visibleTotal = $derived(Math.max(0, $amazonOrdersTotal - pendingOrderCount));
+	const pageCount = $derived(Math.max(1, Math.ceil(visibleTotal / pageLimit)));
+	const showingFrom = $derived(visibleOrders.length === 0 ? 0 : ($amazonOrderQuery.offset ?? 0) + 1);
+	const showingTo = $derived(($amazonOrderQuery.offset ?? 0) + visibleOrders.length);
 
 	// Browser-export import panel.
 	let exportPanelOpen = $state(false);
@@ -186,7 +182,6 @@
 	}
 
 	function startEditShortName(order: AmazonOrder): void {
-		banner = null;
 		editingOrderId = order.id;
 		shortNameDraft = order.shortName ?? '';
 	}
@@ -198,23 +193,18 @@
 
 	async function saveShortName(orderId: string): Promise<void> {
 		actionOrderId = orderId;
-		banner = null;
 		try {
 			await updateAmazonShortName(orderId, shortNameDraft.trim());
 			editingOrderId = null;
 			shortNameDraft = '';
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Could not update name.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Could not update name.');
 		} finally {
 			actionOrderId = null;
 		}
 	}
 
 	function startEditCategory(order: AmazonOrder): void {
-		banner = null;
 		categoryEditingOrderId = order.id;
 	}
 
@@ -225,22 +215,17 @@
 	async function saveCategory(orderId: string, rawValue: string): Promise<void> {
 		const categoryId = rawValue === '' || rawValue === UNCATEGORIZED_ID ? null : rawValue;
 		actionOrderId = orderId;
-		banner = null;
 		try {
 			await updateAmazonOrderCategory(orderId, categoryId);
 			categoryEditingOrderId = null;
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Could not update category.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Could not update category.');
 		} finally {
 			actionOrderId = null;
 		}
 	}
 
 	function openFilePicker(): void {
-		banner = null;
 		fileInputEl?.click();
 	}
 
@@ -251,20 +236,18 @@
 		if (picked.length === 0) return;
 
 		loading = true;
-		banner = null;
 		skippedOrders = [];
 		try {
 			const result = await importAmazonCsv(picked);
 			applyImportResult(result);
 		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Import failed.' };
+			notify('error', cause instanceof Error ? cause.message : 'Import failed.');
 		} finally {
 			loading = false;
 		}
 	}
 
 	function toggleExportPanel(): void {
-		banner = null;
 		exportPanelOpen = !exportPanelOpen;
 	}
 
@@ -273,10 +256,7 @@
 		skippedOrders = report?.skipped ?? [];
 		const skippedNote =
 			skippedOrders.length > 0 ? ` ${skippedOrders.length} skipped (see details).` : '';
-		banner = {
-			kind: 'success',
-			message: `Imported ${result.created}, updated ${result.updated}, auto-linked ${result.autoMatched}. ${result.ambiguous} need review.${skippedNote}`
-		};
+		notify('success', `Imported ${result.created}, updated ${result.updated}, auto-linked ${result.autoMatched}. ${result.ambiguous} need review.${skippedNote}`);
 	}
 
 	function parseExportPayload(raw: string): AmazonExportRequest {
@@ -300,24 +280,19 @@
 
 	async function submitExportPayload(payload: AmazonExportRequest): Promise<void> {
 		loading = true;
-		banner = null;
 		skippedOrders = [];
 		try {
 			const result = await importAmazonExport(payload);
 			applyImportResult(result);
 			exportPasteText = '';
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Import failed.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Import failed.');
 		} finally {
 			loading = false;
 		}
 	}
 
 	function openExportFilePicker(): void {
-		banner = null;
 		exportFileInputEl?.click();
 	}
 
@@ -326,32 +301,24 @@
 		const picked = input.files?.[0] ?? null;
 		input.value = '';
 		if (!picked) return;
-		banner = null;
 		skippedOrders = [];
 		let payload: AmazonExportRequest;
 		try {
 			payload = parseExportPayload(await picked.text());
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Invalid JSON.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Invalid JSON.');
 			return;
 		}
 		await submitExportPayload(payload);
 	}
 
 	async function handleExportPasteSubmit(): Promise<void> {
-		banner = null;
 		skippedOrders = [];
 		let payload: AmazonExportRequest;
 		try {
 			payload = parseExportPayload(exportPasteText);
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Invalid JSON.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Invalid JSON.');
 			return;
 		}
 		await submitExportPayload(payload);
@@ -359,15 +326,11 @@
 
 	async function matchAll(): Promise<void> {
 		loading = true;
-		banner = null;
 		try {
 			const result = await matchAllAmazonOrders();
-			banner = {
-				kind: 'success',
-				message: `Checked ${result.totalOrders} orders, auto-linked ${result.autoMatched}. ${result.ambiguous} remain ambiguous.`
-			};
+			notify('success', `Checked ${result.totalOrders} orders, auto-linked ${result.autoMatched}. ${result.ambiguous} remain ambiguous.`);
 		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Match failed.' };
+			notify('error', cause instanceof Error ? cause.message : 'Match failed.');
 		} finally {
 			loading = false;
 		}
@@ -375,7 +338,6 @@
 
 	async function startRecategorize(): Promise<void> {
 		recategorizing = true;
-		banner = null;
 		recategorizeRows = null;
 		recategorizeSummary = null;
 		showUnchanged = false;
@@ -384,22 +346,13 @@
 			recategorizeRows = result.rows.map((row) => ({ ...row, accept: row.changed }));
 			recategorizeSummary = { changed: result.changed, unchanged: result.unchanged };
 			if (result.eligible === 0) {
-				banner = {
-					kind: 'success',
-					message: 'No orders have enough detail to re-categorise.'
-				};
+				notify('success', 'No orders have enough detail to re-categorise.');
 				recategorizeRows = null;
 			} else if (result.changed === 0) {
-				banner = {
-					kind: 'success',
-					message: 'AI suggests no category changes — everything already matches.'
-				};
+				notify('success', 'AI suggests no category changes — everything already matches.');
 			}
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Could not generate suggestions.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Could not generate suggestions.');
 		} finally {
 			recategorizing = false;
 		}
@@ -421,32 +374,25 @@
 		if (!recategorizeRows) return;
 		const accepted = recategorizeRows.filter((row) => row.accept);
 		if (accepted.length === 0) {
-			banner = { kind: 'error', message: 'Select at least one order to re-categorise.' };
+			notify('error', 'Select at least one order to re-categorise.');
 			return;
 		}
 		confirmingRecategorize = true;
-		banner = null;
 		try {
 			const result = await confirmRecategorizeAmazon(
 				accepted.map((row) => ({ orderId: row.orderId, categoryName: row.suggestedCategoryName }))
 			);
 			recategorizeRows = null;
 			recategorizeSummary = null;
-			banner = {
-				kind: 'success',
-				message: `Re-categorised ${result.updated} order${result.updated === 1 ? '' : 's'}${
+			notify('success', `Re-categorised ${result.updated} order${result.updated === 1 ? '' : 's'}${
 					result.categoriesCreated > 0
 						? `, created ${result.categoriesCreated} categor${result.categoriesCreated === 1 ? 'y' : 'ies'}`
 						: ''
 				}, updated ${result.expensesUpdated} linked transaction${
 					result.expensesUpdated === 1 ? '' : 's'
-				}.`
-			};
+				}.`);
 		} catch (cause) {
-			banner = {
-				kind: 'error',
-				message: cause instanceof Error ? cause.message : 'Re-categorise failed.'
-			};
+			notify('error', cause instanceof Error ? cause.message : 'Re-categorise failed.');
 		} finally {
 			confirmingRecategorize = false;
 		}
@@ -460,7 +406,6 @@
 
 	async function loadSuggestions(orderId: string): Promise<void> {
 		actionOrderId = orderId;
-		banner = null;
 		try {
 			const suggestions = await suggestedAmazonMatches(orderId);
 			suggestionsByOrderId = { ...suggestionsByOrderId, [orderId]: suggestions };
@@ -480,7 +425,7 @@
 				clearMatchNotice(orderId);
 			}
 		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Could not load matches.' };
+			notify('error', cause instanceof Error ? cause.message : 'Could not load matches.');
 		} finally {
 			actionOrderId = null;
 		}
@@ -488,15 +433,14 @@
 
 	async function link(orderId: string, expenseId: string): Promise<void> {
 		actionOrderId = orderId;
-		banner = null;
 		try {
 			await linkAmazonOrder(orderId, expenseId);
 			const suggestions = await suggestedAmazonMatches(orderId);
 			suggestionsByOrderId = { ...suggestionsByOrderId, [orderId]: suggestions };
 			clearMatchNotice(orderId);
-			banner = { kind: 'success', message: 'Amazon order linked.' };
+			notify('success', 'Amazon order linked.');
 		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Link failed.' };
+			notify('error', cause instanceof Error ? cause.message : 'Link failed.');
 		} finally {
 			actionOrderId = null;
 		}
@@ -504,29 +448,28 @@
 
 	async function unlink(orderId: string, expenseId: string): Promise<void> {
 		actionOrderId = orderId;
-		banner = null;
 		try {
 			await unlinkAmazonOrder(orderId, expenseId);
 			clearMatchNotice(orderId);
-			banner = { kind: 'success', message: 'Amazon order unlinked.' };
+			notify('success', 'Amazon order unlinked.');
 		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Unlink failed.' };
+			notify('error', cause instanceof Error ? cause.message : 'Unlink failed.');
 		} finally {
 			actionOrderId = null;
 		}
 	}
 
-	async function remove(orderId: string): Promise<void> {
-		actionOrderId = orderId;
-		banner = null;
-		try {
-			await deleteAmazonOrder(orderId);
-			banner = { kind: 'success', message: 'Amazon order deleted.' };
-		} catch (cause) {
-			banner = { kind: 'error', message: cause instanceof Error ? cause.message : 'Delete failed.' };
-		} finally {
-			actionOrderId = null;
-		}
+	function remove(orderId: string): void {
+		const order = $amazonOrders.find((candidate) => candidate.id === orderId);
+		const label = order ? orderHeading(order) : 'order';
+		const shortLabel = label.length > 40 ? `${label.slice(0, 39)}…` : label;
+		clearMatchNotice(orderId);
+		softDelete({
+			kind: 'amazon',
+			id: orderId,
+			message: `Deleted “${shortLabel}”.`,
+			commit: () => deleteAmazonOrder(orderId)
+		});
 	}
 
 	onMount(() => {
@@ -607,41 +550,6 @@
 			</button>
 		</div>
 	</header>
-
-	{#if banner}
-		<div
-			class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-6 sm:justify-end sm:px-6"
-		>
-			<div
-				data-testid="amazon-banner"
-				data-kind={banner.kind}
-				role="status"
-				aria-live="polite"
-				class="amazon-toast pointer-events-auto flex max-w-md items-start gap-2.5 rounded-lg border px-4 py-3 text-sm shadow-lg shadow-ctp-crust/40 backdrop-blur {banner.kind ===
-				'success'
-					? 'border-ctp-accent/40 bg-ctp-accent/10 text-ctp-accent'
-					: 'border-ctp-red/40 bg-ctp-red/10 text-ctp-red'}"
-			>
-				<span class="mt-px shrink-0" aria-hidden="true">
-					{#if banner.kind === 'success'}
-						<CircleCheck size={16} />
-					{:else}
-						<CircleAlert size={16} />
-					{/if}
-				</span>
-				<p class="min-w-0 flex-1 text-ctp-text">{banner.message}</p>
-				<button
-					type="button"
-					aria-label="Dismiss"
-					title="Dismiss"
-					onclick={() => (banner = null)}
-					class="-mr-1 -mt-0.5 shrink-0 rounded-md p-0.5 opacity-70 transition-opacity hover:opacity-100"
-				>
-					<X size={15} aria-hidden="true" />
-				</button>
-			</div>
-		</div>
-	{/if}
 
 	{#if exportPanelOpen}
 		<div
@@ -913,12 +821,12 @@
 		</select>
 	</div>
 
-	{#if $amazonOrders.length === 0 && !filtersActive && $amazonOrdersTotal === 0}
+	{#if visibleOrders.length === 0 && !filtersActive && visibleTotal === 0}
 		<div class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center">
 			<p class="font-medium text-ctp-text">No Amazon orders imported yet.</p>
 			<p class="mt-1 text-sm text-ctp-overlay1">Upload a CSV export to start matching orders.</p>
 		</div>
-	{:else if $amazonOrders.length === 0}
+	{:else if visibleOrders.length === 0}
 		<div class="rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center">
 			<p class="font-medium text-ctp-text">No orders match your filters.</p>
 			<p class="mt-1 text-sm text-ctp-overlay1">
@@ -935,7 +843,7 @@
 		</div>
 	{:else}
 		<div class="flex flex-col gap-3">
-			{#each $amazonOrders as order (order.id)}
+			{#each visibleOrders as order (order.id)}
 				{@const suggestions = suggestionsByOrderId[order.id] ?? []}
 				{@const isLinked = order.linkedExpenseIds.length > 0}
 				{@const isEditing = editingOrderId === order.id}
@@ -1202,7 +1110,7 @@
 		</div>
 	{/if}
 
-	{#if $amazonOrdersTotal > 0}
+	{#if visibleTotal > 0}
 		<div
 			class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ctp-surface1 bg-ctp-base px-4 py-3 text-sm text-ctp-subtext0"
 		>
@@ -1210,7 +1118,7 @@
 				Showing <span class="font-medium text-ctp-text">{showingFrom}</span>–<span
 					class="font-medium text-ctp-text">{showingTo}</span
 				>
-				of <span class="font-medium text-ctp-text">{$amazonOrdersTotal}</span>
+				of <span class="font-medium text-ctp-text">{visibleTotal}</span>
 			</p>
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-ctp-overlay1">Page {currentPage + 1} of {pageCount}</span>
@@ -1236,28 +1144,3 @@
 		</div>
 	{/if}
 </section>
-
-<style>
-	/* The action toast slides up from the corner so it reads as transient
-	   feedback rather than a layout element. Disabled under reduced-motion. */
-	.amazon-toast {
-		animation: amazon-toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
-	}
-
-	@keyframes amazon-toast-in {
-		from {
-			opacity: 0;
-			transform: translateY(12px) scale(0.98);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.amazon-toast {
-			animation: none;
-		}
-	}
-</style>

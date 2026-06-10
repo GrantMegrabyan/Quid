@@ -7,6 +7,7 @@
 	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses, deleteExpense } from '$lib/stores/expenses';
+	import { pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 	import { categories } from '$lib/stores/categories';
 	import { settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
@@ -38,7 +39,6 @@
 	const SLIDE_DURATION = 220;
 	const IMPORTANCE_ORDER: ExpenseImportance[] = ['essential', 'important', 'discretionary'];
 
-	let confirmingId: string | null = $state(null);
 	let expandedGroups: Set<string> = $state(new Set());
 
 	// Reset expanded groups when groupBy mode changes (IDs no longer comparable).
@@ -67,7 +67,11 @@
 	}
 
 	const visibleExpenses = $derived(
-		$expenses.filter((expense) => monthKey(expense.date) === $selectedMonth)
+		$expenses.filter(
+			(expense) =>
+				monthKey(expense.date) === $selectedMonth &&
+				!$pendingDeletes.has(pendingKey('expense', expense.id))
+		)
 	);
 
 	function groupIdFor(expense: Expense): string {
@@ -168,23 +172,18 @@
 	}
 
 	function handleEdit(expense: Expense): void {
-		confirmingId = null;
 		onedit?.(expense);
 	}
 
-	function requestDelete(id: string): void {
-		confirmingId = id;
-	}
-
-	function cancelDelete(): void {
-		confirmingId = null;
-	}
-
-	async function confirmDelete(id: string): Promise<void> {
-		await deleteExpense(id);
-		if (confirmingId === id) {
-			confirmingId = null;
-		}
+	function deleteWithUndo(expense: Expense): void {
+		const label = expense.displayName ?? expense.name;
+		const shortLabel = label.length > 40 ? `${label.slice(0, 39)}…` : label;
+		softDelete({
+			kind: 'expense',
+			id: expense.id,
+			message: `Deleted “${shortLabel}”.`,
+			commit: () => deleteExpense(expense.id)
+		});
 	}
 
 	function toggleGroup(id: string): void {
@@ -200,60 +199,32 @@
 </script>
 
 {#snippet rowActions(expense: Expense)}
-	{@const isConfirming = confirmingId === expense.id}
-	{#if isConfirming}
-		<div class="flex items-center gap-1.5">
-			<button
-				type="button"
-				data-testid="expense-delete-confirm-btn"
-				onclick={(event) => {
-					event.stopPropagation();
-					void confirmDelete(expense.id);
-				}}
-				class="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-red-700"
-			>
-				Delete
-			</button>
-			<button
-				type="button"
-				data-testid="expense-delete-cancel-btn"
-				onclick={(event) => {
-					event.stopPropagation();
-					cancelDelete();
-				}}
-				class="rounded-md border border-ctp-surface2 px-2.5 py-1 text-xs font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
-			>
-				Cancel
-			</button>
-		</div>
-	{:else}
-		<div class="flex items-center gap-1">
-			<button
-				type="button"
-				data-testid="expense-edit-btn"
-				aria-label="Edit expense"
-				onclick={(event) => {
-					event.stopPropagation();
-					handleEdit(expense);
-				}}
-				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
-			>
-				✎
-			</button>
-			<button
-				type="button"
-				data-testid="expense-delete-btn"
-				aria-label="Delete expense"
-				onclick={(event) => {
-					event.stopPropagation();
-					requestDelete(expense.id);
-				}}
-				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-			>
-				🗑
-			</button>
-		</div>
-	{/if}
+	<div class="flex items-center gap-1">
+		<button
+			type="button"
+			data-testid="expense-edit-btn"
+			aria-label="Edit expense"
+			onclick={(event) => {
+				event.stopPropagation();
+				handleEdit(expense);
+			}}
+			class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
+		>
+			✎
+		</button>
+		<button
+			type="button"
+			data-testid="expense-delete-btn"
+			aria-label="Delete expense"
+			onclick={(event) => {
+				event.stopPropagation();
+				deleteWithUndo(expense);
+			}}
+			class="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs text-ctp-overlay1 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+		>
+			🗑
+		</button>
+	</div>
 {/snippet}
 
 {#if !hasRows}

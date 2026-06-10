@@ -167,6 +167,25 @@ When NOT to commit:
 
 ## Frontend notes
 
+- Transient feedback is global: one `ToastHost` (`webui/src/lib/components/
+  ToastHost.svelte`) mounted in `+layout.svelte`, driven by
+  `webui/src/lib/stores/toasts.ts`. Use `notify('success'|'error', msg)` for
+  banners; do NOT add per-page fixed banners (they overlap the toast host). The
+  toast carries `data-testid="app-toast"` + `data-kind` (e2e assert on those,
+  NOT the old per-page `amazon-banner`/`cascade-notice`, which were removed).
+- Destructive deletes are Gmail-style (immediate + Undo, no confirm dialog) via
+  `softDelete({ kind, id, message, commit })`. It is **deferred execution**: the
+  row is hidden by adding `pendingKey(kind,id)` to the global `pendingDeletes`
+  set (every deletable list filters that set out — Amazon orders, expenses,
+  categories, import rules, AI rules), and the real `commit()` (the API DELETE)
+  runs only when the undo window lapses, the toast is dismissed, or the user
+  navigates/unloads (`beforeNavigate`+`beforeunload` flush in the layout). Undo
+  cancels before any request — so a category cascade is free to reverse; its
+  reassignment count is reported via `notify` only after commit. When adding a
+  new deletable list, add the `pendingDeletes` filter to its `{#each}` AND route
+  its delete through `softDelete` (don't call the store delete directly), or the
+  row won't hide. Confirm-dialog testids (`*-delete-confirm-btn`,
+  `*-delete-cancel-btn`) are gone.
 - Form fields share two component classes in `webui/src/app.css` (`@layer
   components`): `.field` (the canonical input style — `rounded-md` border,
   `bg-ctp-base`, `px-3 py-2 text-sm`, accent focus ring) for text inputs and

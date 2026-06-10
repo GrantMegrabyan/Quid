@@ -80,7 +80,7 @@ test('imports orders from a browser-export .json upload and auto-links a seeded 
 	);
 	await expect(row.getByRole('button', { name: 'Unlink transaction' })).toBeVisible();
 
-	await expect(page.getByTestId('amazon-banner')).toHaveAttribute('data-kind', 'success');
+	await expect(page.getByTestId('app-toast')).toHaveAttribute('data-kind', 'success');
 
 	expect(badResponses, `unexpected 4xx/5xx: ${badResponses.join(', ')}`).toEqual([]);
 	expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
@@ -134,7 +134,7 @@ test('reports skipped orders (missing total) while importing the good ones', asy
 	await expect(skipped.getByTestId('amazon-export-skipped-row')).toHaveCount(1);
 
 	// Success banner mentions the skip.
-	await expect(page.getByTestId('amazon-banner')).toContainText('1 skipped');
+	await expect(page.getByTestId('app-toast')).toContainText('1 skipped');
 });
 
 test('shows an error banner for invalid pasted JSON', async ({ page }) => {
@@ -144,7 +144,7 @@ test('shows an error banner for invalid pasted JSON', async ({ page }) => {
 	await page.getByTestId('amazon-export-textarea').fill('{ not valid json');
 	await page.getByTestId('amazon-export-submit').click();
 
-	const banner = page.getByTestId('amazon-banner');
+	const banner = page.getByTestId('app-toast');
 	await expect(banner).toHaveAttribute('data-kind', 'error');
 	await expect(banner).toContainText('Invalid JSON');
 });

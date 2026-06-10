@@ -216,6 +216,33 @@ The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhos
     eye icon that previews that rule's matches. Both call
     `POST /api/v1/import-rules/preview` and never modify data.
 
+## Action feedback & undo
+
+Transient feedback (success / error / undo) is rendered by a single global
+**toast host** (`src/lib/components/ToastHost.svelte`, mounted once in the root
+layout) and driven by `src/lib/stores/toasts.ts`. Toasts stack in the
+bottom-right corner and stay visible regardless of scroll position. Prefer
+`notify('success' | 'error', message)` over hand-rolling a per-page banner.
+
+**Deletes are Gmail-style: immediate, with an Undo window — no confirm dialog.**
+Every destructive delete in the app (transactions, categories, import rules, AI
+rules, Amazon orders) calls `softDelete({ kind, id, message, commit })`:
+
+- The row is hidden immediately (it is added to a global `pendingDeletes` set;
+  deletable lists filter that set out), and an **Undo** toast appears with a
+  countdown bar.
+- The real `DELETE` request (`commit`) only runs when the countdown lapses, when
+  you dismiss the toast, or when you navigate away / close the tab (a
+  `beforeNavigate` + `beforeunload` flush in the layout). Until then nothing has
+  been deleted server-side.
+- **Undo** cancels before any request is sent — so even the category cascade
+  (which reassigns its expenses to Uncategorized) is free to reverse; its
+  reassignment count is reported in a follow-up toast only once the delete
+  commits. A failed commit re-reveals the row and shows an error toast.
+
+If a full-page reload happens during the undo window, the not-yet-committed
+delete is simply skipped and the row reappears — a deliberately safe failure.
+
 ## Scripts
 
 ```sh

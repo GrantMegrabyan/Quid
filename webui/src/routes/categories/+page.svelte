@@ -9,6 +9,7 @@
 		editCategory,
 		deleteCategoryWithCascade
 	} from '$lib/stores/categories';
+	import { notify, pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 
 	import { UNCATEGORIZED_ID } from '$lib/types';
 	import { colorForCategoryId, UNCATEGORIZED_COLOR } from '$lib/utils/categoryColor';
@@ -16,7 +17,6 @@
 	import type { Category } from '$lib/types';
 
 	const NAME_MAX = 50;
-	const CASCADE_NOTICE_MS = 5000;
 	const FALLBACK_COLOR = '#6b7280';
 
 	let showAddForm = $state(false);
@@ -48,12 +48,6 @@
 	let editError = $state('');
 	let editDescription = $state('');
 	let savingEdit = $state(false);
-
-	let confirmingDeleteId: string | null = $state(null);
-	let deleting = $state(false);
-
-	let cascadeMessage = $state('');
-	let cascadeTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function pickRandomDefaultColor(): string {
 		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -87,17 +81,6 @@
 		return '';
 	}
 
-	function showCascadeNotice(count: number): void {
-		const noun = count === 1 ? 'expense' : 'expenses';
-		cascadeMessage = `${count} ${noun} moved to Uncategorized`;
-		if (cascadeTimer !== null) {
-			clearTimeout(cascadeTimer);
-		}
-		cascadeTimer = setTimeout(() => {
-			cascadeMessage = '';
-			cascadeTimer = null;
-		}, CASCADE_NOTICE_MS);
-	}
 
 	async function handleAdd(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
@@ -132,7 +115,6 @@
 		editIcon = normalizeCategoryIcon(cat.icon);
 		editDescription = cat.description ?? '';
 		editError = '';
-		confirmingDeleteId = null;
 	}
 
 	function cancelEdit(): void {
@@ -188,41 +170,28 @@
 
 	function requestDelete(id: string): void {
 		if (id === UNCATEGORIZED_ID) return;
-		confirmingDeleteId = id;
-		if (editingId === id) {
-			cancelEdit();
-		}
-	}
-
-	function cancelDelete(): void {
-		confirmingDeleteId = null;
-	}
-
-	async function confirmDelete(id: string): Promise<void> {
-		if (deleting || id === UNCATEGORIZED_ID) return;
-		deleting = true;
-		try {
-			// Use the authoritative count returned by the server: the local
-			// `$expenses` store now holds only a scoped window, so a client-side
-			// count would undercount expenses outside the current month window.
-			const { reassigned } = await deleteCategoryWithCascade(id);
-			confirmingDeleteId = null;
-			showCascadeNotice(reassigned);
-		} finally {
-			deleting = false;
-		}
+		if (editingId === id) cancelEdit();
+		const category = $categories.find((candidate) => candidate.id === id);
+		softDelete({
+			kind: 'category',
+			id,
+			message: `Deleted “${category?.name ?? 'category'}”.`,
+			commit: async () => {
+				// Use the authoritative count the server returns: the local
+				// `$expenses` store holds only a scoped window, so a client-side
+				// count would undercount expenses outside the current month.
+				const { reassigned } = await deleteCategoryWithCascade(id);
+				if (reassigned > 0) {
+					const noun = reassigned === 1 ? 'expense' : 'expenses';
+					notify('success', `${reassigned} ${noun} moved to Uncategorized.`);
+				}
+			}
+		});
 	}
 
 	onMount(() => {
 		newColor = pickRandomDefaultColor();
 		void refreshCategories();
-
-		return () => {
-			if (cascadeTimer !== null) {
-				clearTimeout(cascadeTimer);
-				cascadeTimer = null;
-			}
-		};
 	});
 </script>
 
@@ -372,24 +341,12 @@
 	</form>
 	{/if}
 
-	{#if cascadeMessage}
-		<div
-			data-testid="cascade-notice"
-			role="status"
-			aria-live="polite"
-			class="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
-		>
-			{cascadeMessage}
-		</div>
-	{/if}
-
 	<ul
 		class="divide-y divide-ctp-surface1 overflow-hidden rounded-lg border border-ctp-surface1"
 	>
-		{#each $categories as category (category.id)}
+		{#each $categories.filter((c) => !$pendingDeletes.has(pendingKey('category', c.id))) as category (category.id)}
 			{@const isUncategorized = category.id === UNCATEGORIZED_ID}
 			{@const isEditing = editingId === category.id}
-			{@const isConfirmingDelete = confirmingDeleteId === category.id}
 			<li
 				data-testid="category-row"
 				data-category-id={category.id}
@@ -421,27 +378,7 @@
 						</div>
 					</div>
 
-					{#if isConfirmingDelete}
-						<div class="ml-auto flex items-center gap-1.5">
-							<button
-								type="button"
-								data-testid="category-delete-confirm-btn"
-								disabled={deleting}
-								onclick={() => confirmDelete(category.id)}
-								class="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-60"
-							>
-								Delete
-							</button>
-							<button
-								type="button"
-								data-testid="category-delete-cancel-btn"
-								onclick={cancelDelete}
-								class="rounded-md border border-ctp-surface1 px-2.5 py-1 text-xs font-medium text-ctp-subtext0 transition-colors hover:bg-ctp-surface1"
-							>
-								Cancel
-							</button>
-						</div>
-					{:else if !isEditing}
+					{#if !isEditing}
 						<div class="ml-auto flex items-center gap-1">
 							<button
 								type="button"

@@ -76,7 +76,27 @@ test.describe('categories page', () => {
 		await expect(targetRow.getByTestId('category-edit-save-btn')).toHaveCount(0);
 	});
 
-	test('delete cascades expenses to Uncategorized and shows notice', async ({ page }) => {
+	test('delete shows an undo toast; undo restores the category', async ({ page }) => {
+		await page.goto('/categories');
+		const targetRow = page.locator(
+			'[data-testid="category-row"][data-category-id="cat-groceries"]'
+		);
+		await targetRow.getByTestId('category-delete-btn').click();
+
+		// Row hides immediately and an undo toast appears.
+		const toast = page
+			.getByTestId('app-toast')
+			.filter({ has: page.getByTestId('toast-undo') });
+		await expect(toast).toBeVisible();
+		await expect(page.getByTestId('category-row')).toHaveCount(2);
+
+		// Undo brings the category back; nothing was deleted server-side.
+		await toast.getByTestId('toast-undo').click();
+		await expect(targetRow).toBeVisible();
+		await expect(page.getByTestId('category-row')).toHaveCount(3);
+	});
+
+	test('delete commit cascades expenses to Uncategorized', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByTestId('expense-row')).toHaveCount(2);
 
@@ -85,14 +105,18 @@ test.describe('categories page', () => {
 			'[data-testid="category-row"][data-category-id="cat-groceries"]'
 		);
 		await targetRow.getByTestId('category-delete-btn').click();
-		await targetRow.getByTestId('category-delete-confirm-btn').click();
-
-		const notice = page.getByTestId('cascade-notice');
-		await expect(notice).toBeVisible();
-		// Count comes authoritatively from the server (cat-groceries has exactly
-		// one seeded expense), not from the now-scoped client expense store.
-		await expect(notice).toContainText('1 expense moved to Uncategorized');
 		await expect(page.getByTestId('category-row')).toHaveCount(2);
+
+		// Dismiss (X) on the undo toast commits the delete now; the authoritative
+		// cascade count (cat-groceries has exactly one seeded expense) surfaces as
+		// a success toast.
+		const toast = page
+			.getByTestId('app-toast')
+			.filter({ has: page.getByTestId('toast-undo') });
+		await toast.getByLabel('Dismiss').click();
+		await expect(
+			page.getByTestId('app-toast').filter({ hasText: '1 expense moved to Uncategorized' })
+		).toBeVisible();
 
 		await page.goto('/');
 		await expect(page.getByTestId('expense-row')).toHaveCount(2);
