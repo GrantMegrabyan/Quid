@@ -1,6 +1,27 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, Trash2, Undo2, X } from '@lucide/svelte';
-	import { commitNow, dismiss, toasts, undoDelete } from '$lib/stores/toasts';
+	import {
+		commitNow,
+		dismiss,
+		pauseUndo,
+		resumeUndo,
+		toasts,
+		undoDelete
+	} from '$lib/stores/toasts';
+
+	let pausedId = $state<string | null>(null);
+
+	function onEnter(toast: { id: string; variant: string }): void {
+		if (toast.variant !== 'undo') return;
+		pausedId = toast.id;
+		pauseUndo(toast.id);
+	}
+
+	function onLeave(toast: { id: string; variant: string }): void {
+		if (toast.variant !== 'undo') return;
+		if (pausedId === toast.id) pausedId = null;
+		resumeUndo(toast.id);
+	}
 </script>
 
 <div
@@ -14,6 +35,8 @@
 			data-testid="app-toast"
 			data-kind={toast.variant}
 			role={toast.variant === 'error' ? 'alert' : 'status'}
+			onmouseenter={() => onEnter(toast)}
+			onmouseleave={() => onLeave(toast)}
 			class="app-toast pointer-events-auto relative flex w-full max-w-sm items-start gap-2.5 overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-lg shadow-ctp-crust/40 backdrop-blur {toast.variant ===
 			'error'
 				? 'border-ctp-red/40 bg-ctp-red/10'
@@ -68,7 +91,10 @@
 					: toast.variant === 'undo'
 						? 'bg-ctp-overlay0/60'
 						: 'bg-ctp-accent/50'}"
-				style="animation-duration: {toast.durationMs}ms"
+				style="animation-duration: {toast.durationMs}ms; animation-play-state: {pausedId ===
+				toast.id
+					? 'paused'
+					: 'running'}"
 			></span>
 		</div>
 	{/each}

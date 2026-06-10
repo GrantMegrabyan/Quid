@@ -80,6 +80,12 @@ interface PendingDelete {
 	key: string;
 	timer: ReturnType<typeof setTimeout> | null;
 	settled: boolean;
+	/** Lifetime of the undo window in ms (used to recompute remaining time). */
+	ttl: number;
+	/** `Date.now()` when the current countdown segment started, or null when paused. */
+	startedAt: number | null;
+	/** Ms left to run when paused; full `ttl` until the first pause. */
+	remaining: number;
 	commit: () => Promise<void>;
 	undo: () => void;
 }
@@ -155,8 +161,41 @@ export function softDelete(opts: SoftDeleteOptions): void {
 	};
 
 	const timer = browser ? setTimeout(() => void commit(), ttl) : null;
-	pending.set(toastId, { key, timer, settled: false, commit, undo });
+	pending.set(toastId, {
+		key,
+		timer,
+		settled: false,
+		ttl,
+		startedAt: browser ? Date.now() : null,
+		remaining: ttl,
+		commit,
+		undo
+	});
 	push({ id: toastId, variant: 'undo', message: opts.message, durationMs: ttl });
+}
+
+/**
+ * Pause the undo countdown for a toast (mouse enter). Clears the pending commit
+ * timer and banks the remaining time so {@link resumeUndo} can restart it. The
+ * progress bar is frozen separately by the host via `animation-play-state`.
+ */
+export function pauseUndo(toastId: string): void {
+	const record = pending.get(toastId);
+	if (!record || record.settled || record.startedAt === null) return;
+	if (record.timer) clearTimeout(record.timer);
+	record.timer = null;
+	const elapsed = Date.now() - record.startedAt;
+	record.remaining = Math.max(0, record.remaining - elapsed);
+	record.startedAt = null;
+}
+
+/** Resume a paused undo countdown (mouse leave) from the banked remaining time. */
+export function resumeUndo(toastId: string): void {
+	const record = pending.get(toastId);
+	if (!record || record.settled || record.startedAt !== null) return;
+	if (!browser) return;
+	record.startedAt = Date.now();
+	record.timer = setTimeout(() => void record.commit(), record.remaining);
 }
 
 /** Cancel the delete behind an undo toast (the host's Undo button). */

@@ -231,6 +231,10 @@ rules, Amazon orders) calls `softDelete({ kind, id, message, commit })`:
 - The row is hidden immediately (it is added to a global `pendingDeletes` set;
   deletable lists filter that set out), and an **Undo** toast appears with a
   countdown bar.
+- **Hovering the Undo toast pauses the countdown** (the progress bar freezes and
+  the pending `commit` timer is suspended); moving the mouse away resumes it from
+  the remaining time. This gives you as long as you need to decide while the
+  pointer is over the toast.
 - The real `DELETE` request (`commit`) only runs when the countdown lapses, when
   you dismiss the toast, or when you navigate away / close the tab (a
   `beforeNavigate` + `beforeunload` flush in the layout). Until then nothing has

@@ -201,6 +201,44 @@ test.describe('dashboard', () => {
 		await page.reload();
 		await expect(page.getByTestId('expense-row')).toHaveCount(1);
 	});
+
+	test('hovering the undo toast pauses the countdown; leaving resumes it', async ({ page }) => {
+		await page.goto('/');
+
+		const targetRow = page.locator('[data-testid="expense-row"][data-expense-id="exp-seed-2"]');
+		await targetRow.getByTestId('expense-delete-btn').click();
+
+		const toast = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
+		await expect(toast).toBeVisible();
+
+		// The progress bar's animation runs by default.
+		const progress = toast.locator('.toast-progress');
+		await expect(progress).toHaveCSS('animation-play-state', 'running');
+
+		// Hover pauses both the visual progress bar and the underlying commit timer.
+		await toast.hover();
+		await expect(progress).toHaveCSS('animation-play-state', 'paused');
+
+		// Wait well past the 6s undo window: while paused, the DELETE must NOT fire
+		// and the toast must remain.
+		let deleteFired = false;
+		page.on('request', (req) => {
+			if (req.method() === 'DELETE' && /\/expenses\//.test(req.url())) deleteFired = true;
+		});
+		await page.waitForTimeout(7000);
+		expect(deleteFired).toBe(false);
+		await expect(toast).toBeVisible();
+		await expect(progress).toHaveCSS('animation-play-state', 'paused');
+
+		// Leaving resumes the countdown; the commit then lands and the toast clears.
+		const deleted = page.waitForResponse(
+			(r) => r.request().method() === 'DELETE' && /\/expenses\//.test(r.url())
+		);
+		await page.mouse.move(0, 0);
+		await expect(progress).toHaveCSS('animation-play-state', 'running');
+		await deleted;
+		await expect(toast).toHaveCount(0);
+	});
 });
 
 test.describe('empty state', () => {
