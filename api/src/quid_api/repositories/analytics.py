@@ -53,6 +53,22 @@ _NOISE_FLOOR_PCT = 10.0
 #: Max contributing merchants returned per increased category.
 _CONTRIBUTOR_LIMIT = 3
 
+#: Savings detectors scan this many trailing complete months.
+_SAVINGS_WINDOW_MONTHS = 12
+#: A (merchant, amount) group is "recurring" at this many distinct months.
+_RECURRING_MIN_MONTHS = 3
+#: Price creep: the higher amount must appear in at least this many
+#: CONSECUTIVE months after the established group's last month.
+_CREEP_MIN_NEW_MONTHS = 2
+#: New recurring: merchant's first-ever transaction within this many months.
+_NEW_RECURRING_RECENT_MONTHS = 4
+#: Habit spend: >= this many transactions at <= this average ticket.
+_HABIT_MIN_COUNT = 6
+_HABIT_MAX_AVG_TICKET = Decimal("20.00")
+_HABIT_LIMIT = 5
+#: Recurring stack: group counts as active if seen within this many months.
+_STACK_ACTIVE_WITHIN_MONTHS = 2
+
 
 def _month_add(month: str, delta: int) -> str:
     """Add ``delta`` calendar months to a ``YYYY-MM`` key."""
@@ -63,6 +79,10 @@ def _month_add(month: str, delta: int) -> str:
 def _months_between(a: str, b: str) -> int:
     """Calendar-month distance ``b - a`` between two ``YYYY-MM`` keys."""
     return (int(b[:4]) * 12 + int(b[5:7])) - (int(a[:4]) * 12 + int(a[5:7]))
+
+
+def _is_consecutive(months: list[str]) -> bool:
+    return all(_months_between(months[i], months[i + 1]) == 1 for i in range(len(months) - 1))
 
 
 def _as_decimal(value: object) -> Decimal:
@@ -215,6 +235,61 @@ class DiagnosisResult:
     other_increases_total: Decimal
     other_increases_count: int
     decreases: list[DiagnosisDecrease]
+
+
+@dataclass
+class _RecurringGroup:
+    key: str
+    amount: Decimal
+    months: list[str]
+
+
+@dataclass(frozen=True)
+class PriceCreepItem:
+    name: str
+    old_amount: Decimal
+    new_amount: Decimal
+    monthly_delta: Decimal
+    annual_delta: Decimal
+    since_month: str
+
+
+@dataclass(frozen=True)
+class NewRecurringItem:
+    name: str
+    amount: Decimal
+    first_month: str
+    annual_cost: Decimal
+
+
+@dataclass(frozen=True)
+class HabitItem:
+    name: str
+    count: int
+    total: Decimal
+    average: Decimal
+
+
+@dataclass(frozen=True)
+class RecurringStackItem:
+    name: str
+    amount: Decimal
+    months_covered: int
+    first_month: str
+    last_month: str
+    monthly_estimate: Decimal
+
+
+@dataclass(frozen=True)
+class SavingsResult:
+    latest_month: str | None
+    window_from: str | None
+    price_creep: list[PriceCreepItem]
+    new_recurring: list[NewRecurringItem]
+    habits: list[HabitItem]
+    stack_items: list[RecurringStackItem]
+    stack_monthly_total: Decimal
+    stack_annual_total: Decimal
 
 
 class AnalyticsRepository:
@@ -693,6 +768,154 @@ class AnalyticsRepository:
             decreases=decreases,
         )
 
+    async def savings(self, *, as_of: str) -> SavingsResult:
+        """Saving-opportunity detectors over the trailing 12 complete months."""
+        try:
+            current_month = validate_iso_date(as_of)[:7]
+        except ValueError as exc:
+            raise RepositoryError(RepositoryErrorCode.VALIDATION, str(exc)) from exc
+
+        latest_raw = (
+            await self.session.execute(
+                select(func.max(_MONTH_EXPR)).where(_MONTH_EXPR < current_month)  # noqa: SIM300
+            )
+        ).scalar_one_or_none()
+        if latest_raw is None:
+            return SavingsResult(
+                latest_month=None,
+                window_from=None,
+                price_creep=[],
+                new_recurring=[],
+                habits=[],
+                stack_items=[],
+                stack_monthly_total=_ZERO,
+                stack_annual_total=_ZERO,
+            )
+        latest = str(latest_raw)
+        window_from = _month_add(latest, -(_SAVINGS_WINDOW_MONTHS - 1))
+
+        key = func.lower(func.trim(Expense.name)).label("merchant_key")
+        month = _MONTH_EXPR.label("month")
+        group_stmt = (
+            select(key, func.max(Expense.name), Expense.amount, month)
+            .where(_MONTH_EXPR >= window_from, _MONTH_EXPR <= latest)  # noqa: SIM300
+            .group_by(key, Expense.amount, month)
+            .order_by(month)
+        )
+        rows = (await self.session.execute(group_stmt)).all()
+        groups: dict[tuple[str, Decimal], _RecurringGroup] = {}
+        labels: dict[str, str] = {}
+        for mkey, label, amount, month_key in rows:
+            k = str(mkey)
+            amt = _as_decimal(amount)
+            labels[k] = str(label)
+            group = groups.setdefault((k, amt), _RecurringGroup(key=k, amount=amt, months=[]))
+            group.months.append(str(month_key))
+
+        first_stmt = select(key, func.min(_MONTH_EXPR)).group_by(key)
+        first_ever = {str(k): str(m) for k, m in (await self.session.execute(first_stmt)).all()}
+
+        by_merchant: dict[str, list[_RecurringGroup]] = {}
+        for group in groups.values():
+            by_merchant.setdefault(group.key, []).append(group)
+
+        price_creep: list[PriceCreepItem] = []
+        for mkey, merchant_groups in by_merchant.items():
+            established = [g for g in merchant_groups if len(g.months) >= _RECURRING_MIN_MONTHS]
+            best: tuple[_RecurringGroup, _RecurringGroup] | None = None
+            for est in established:
+                for cand in merchant_groups:
+                    if cand.amount <= est.amount:
+                        continue
+                    if len(cand.months) < _CREEP_MIN_NEW_MONTHS:
+                        continue
+                    if cand.months[0] <= est.months[-1]:
+                        continue
+                    if not _is_consecutive(cand.months):
+                        continue
+                    if best is None or cand.months[0] > best[1].months[0]:
+                        best = (est, cand)
+            if best is not None:
+                est, cand = best
+                delta = (cand.amount - est.amount).quantize(_ZERO)
+                price_creep.append(
+                    PriceCreepItem(
+                        name=labels[mkey],
+                        old_amount=est.amount,
+                        new_amount=cand.amount,
+                        monthly_delta=delta,
+                        annual_delta=(delta * 12).quantize(_ZERO),
+                        since_month=cand.months[0],
+                    )
+                )
+        price_creep.sort(key=lambda c: c.annual_delta, reverse=True)
+
+        recent_cutoff = _month_add(latest, -(_NEW_RECURRING_RECENT_MONTHS - 1))
+        new_recurring = [
+            NewRecurringItem(
+                name=labels[g.key],
+                amount=g.amount,
+                first_month=g.months[0],
+                annual_cost=(g.amount * 12).quantize(_ZERO),
+            )
+            for g in groups.values()
+            if len(g.months) >= _RECURRING_MIN_MONTHS and first_ever.get(g.key, "") >= recent_cutoff
+        ]
+        new_recurring.sort(key=lambda n: n.annual_cost, reverse=True)
+
+        habit_stmt = (
+            select(func.max(Expense.name), func.count(), func.sum(Expense.amount))
+            .where(_MONTH_EXPR == latest)  # noqa: SIM300
+            .group_by(key)
+            .having(func.count() >= _HABIT_MIN_COUNT)
+        )
+        habits: list[HabitItem] = []
+        for label, count, total in (await self.session.execute(habit_stmt)).all():
+            total_d = _as_decimal(total)
+            average = (total_d / int(count)).quantize(_ZERO)
+            if average <= _HABIT_MAX_AVG_TICKET:
+                habits.append(
+                    HabitItem(name=str(label), count=int(count), total=total_d, average=average)
+                )
+        habits.sort(key=lambda h: h.total, reverse=True)
+        habits = habits[:_HABIT_LIMIT]
+
+        active_cutoff = _month_add(latest, -(_STACK_ACTIVE_WITHIN_MONTHS - 1))
+        stack_items: list[RecurringStackItem] = []
+        for group in groups.values():
+            if len(group.months) < _RECURRING_MIN_MONTHS:
+                continue
+            if group.months[-1] < active_cutoff:
+                continue
+            span = _months_between(group.months[0], group.months[-1]) + 1
+            estimate = min(
+                group.amount,
+                (group.amount * Decimal(len(group.months)) / Decimal(span)).quantize(_ZERO),
+            )
+            stack_items.append(
+                RecurringStackItem(
+                    name=labels[group.key],
+                    amount=group.amount,
+                    months_covered=len(group.months),
+                    first_month=group.months[0],
+                    last_month=group.months[-1],
+                    monthly_estimate=estimate,
+                )
+            )
+        stack_items.sort(key=lambda s: s.monthly_estimate, reverse=True)
+        stack_monthly_total = sum((s.monthly_estimate for s in stack_items), _ZERO)
+
+        return SavingsResult(
+            latest_month=latest,
+            window_from=window_from,
+            price_creep=price_creep,
+            new_recurring=new_recurring,
+            habits=habits,
+            stack_items=stack_items,
+            stack_monthly_total=stack_monthly_total,
+            stack_annual_total=(stack_monthly_total * 12).quantize(_ZERO),
+        )
+
     async def _category_month_totals(self, month_from: str, month_to: str) -> dict[str, Decimal]:
         stmt = (
             select(Expense.category_id, func.sum(Expense.amount))
@@ -798,12 +1021,17 @@ __all__ = [
     "DiagnosisIncrease",
     "DiagnosisResult",
     "DiagnosisTransaction",
+    "HabitItem",
     "ImportancePoint",
     "ImportanceTrendPoint",
     "ImportanceTrendSeries",
     "LargeTransaction",
     "MonthlyTotal",
+    "NewRecurringItem",
+    "PriceCreepItem",
     "RecurringItem",
+    "RecurringStackItem",
+    "SavingsResult",
     "TopMerchant",
     "WeekdayPoint",
 ]
