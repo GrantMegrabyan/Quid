@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -10,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from quid_api.models import Category, Expense
 from quid_api.repositories.analytics import AnalyticsRepository
+from tests.conftest import make_category, make_expense
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
@@ -36,13 +41,13 @@ async def _seed(session, name: str, amount: str, date: str) -> None:
     )
 
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest_asyncio.fixture
 async def category(session):
     session.add(Category(id="c1", name="Subs", color="#888888", icon="tag", description=""))
     await session.flush()
 
 
-async def test_savings_empty_db(session):
+async def test_savings_empty_db(session, category):
     repo = AnalyticsRepository(session)
     result = await repo.savings(as_of="2026-06-10")
     assert result.latest_month is None
@@ -50,7 +55,7 @@ async def test_savings_empty_db(session):
     assert result.stack_monthly_total == Decimal("0.00")
 
 
-async def test_price_creep_detected(session):
+async def test_price_creep_detected(session, category):
     # Netflix at 10.99 for 4 months, then 12.99 for 3 consecutive months.
     for month in ("2025-11", "2025-12", "2026-01", "2026-02"):
         await _seed(session, "Netflix", "10.99", f"{month}-05")
@@ -69,7 +74,7 @@ async def test_price_creep_detected(session):
     assert item.since_month == "2026-03"
 
 
-async def test_price_creep_requires_consecutive_new_months(session):
+async def test_price_creep_requires_consecutive_new_months(session, category):
     # New amount appears in two NON-consecutive months -> not creep.
     for month in ("2025-11", "2025-12", "2026-01"):
         await _seed(session, "Gym", "32.00", f"{month}-05")
@@ -81,7 +86,7 @@ async def test_price_creep_requires_consecutive_new_months(session):
     assert result.price_creep == []
 
 
-async def test_new_recurring_detected_and_creep_not_double_reported(session):
+async def test_new_recurring_detected_and_creep_not_double_reported(session, category):
     # iCloud: first-ever in March, recurring 3 months -> NEW.
     for month in ("2026-03", "2026-04", "2026-05"):
         await _seed(session, "iCloud", "2.99", f"{month}-05")
@@ -98,7 +103,7 @@ async def test_new_recurring_detected_and_creep_not_double_reported(session):
     assert result.new_recurring[0].first_month == "2026-03"
 
 
-async def test_habit_spend(session):
+async def test_habit_spend(session, category):
     # 7 small Pret visits in the latest complete month (2026-05).
     for day in range(2, 9):
         await _seed(session, "Pret", "3.50", f"2026-05-0{day}")
@@ -118,7 +123,7 @@ async def test_habit_spend(session):
     assert habit.average == Decimal("3.50")
 
 
-async def test_recurring_stack_active_and_estimate_scaling(session):
+async def test_recurring_stack_active_and_estimate_scaling(session, category):
     # Monthly active sub: estimate = amount.
     for month in ("2026-02", "2026-03", "2026-04", "2026-05"):
         await _seed(session, "Spotify", "9.99", f"{month}-05")
@@ -142,3 +147,21 @@ async def test_recurring_stack_active_and_estimate_scaling(session):
     assert spotify.monthly_estimate == Decimal("9.99")
     assert result.stack_monthly_total == Decimal("48.56")
     assert result.stack_annual_total == Decimal("582.72")
+
+
+async def test_savings_endpoint_shape(app_client: AsyncClient):
+    cat = await make_category(app_client, "Subscriptions")
+    for month in ("2026-03", "2026-04", "2026-05"):
+        await make_expense(
+            app_client, name="iCloud", amount="2.99", date=f"{month}-05", category_id=cat["id"]
+        )
+    res = await app_client.get("/api/v1/analytics/savings", params={"as_of": "2026-06-10"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["latestMonth"] == "2026-05"
+    assert body["priceCreep"] == []
+    assert body["newRecurring"][0]["name"] == "iCloud"
+    assert body["newRecurring"][0]["annualCost"] == "35.88"
+    assert body["recurringStack"]["monthlyTotal"] == "2.99"
+    assert body["recurringStack"]["items"][0]["monthlyEstimate"] == "2.99"
+    assert body["habits"] == []

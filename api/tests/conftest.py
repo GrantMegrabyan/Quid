@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -14,6 +14,7 @@ from alembic import command
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -96,3 +97,32 @@ async def app_client(engine: AsyncEngine, database_url: str):
         headers={"X-Testing-Token": "test-token"},
     ) as client:
         yield client
+
+
+# ---------------------------------------------------------------------------
+# Shared seeding helpers (module-level async functions, not fixtures)
+# ---------------------------------------------------------------------------
+
+
+async def make_category(client: AsyncClient, name: str) -> dict[str, Any]:
+    """POST a category and return its JSON body (asserts 201)."""
+    res = await client.post("/api/v1/categories", json={"name": name})
+    assert res.status_code == 201
+    return res.json()  # type: ignore[no-any-return]
+
+
+async def make_expense(
+    client: AsyncClient,
+    *,
+    name: str,
+    amount: str,
+    date: str,
+    category_id: str,
+) -> dict[str, Any]:
+    """POST an expense and return its JSON body (asserts 201)."""
+    res = await client.post(
+        "/api/v1/expenses",
+        json={"name": name, "amount": amount, "date": date, "categoryId": category_id},
+    )
+    assert res.status_code == 201, res.text
+    return res.json()  # type: ignore[no-any-return]

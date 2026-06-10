@@ -1084,5 +1084,72 @@ class DiagnosisResponse(_Camel):
         return _money_str(value)
 
 
+class PriceCreepOut(_Camel):
+    name: str
+    old_amount: Decimal
+    new_amount: Decimal
+    monthly_delta: Decimal
+    annual_delta: Decimal
+    since_month: str
+
+    @field_serializer("old_amount", "new_amount", "monthly_delta", "annual_delta")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class NewRecurringOut(_Camel):
+    name: str
+    amount: Decimal
+    first_month: str
+    annual_cost: Decimal
+
+    @field_serializer("amount", "annual_cost")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class HabitOut(_Camel):
+    name: str
+    count: int
+    total: Decimal
+    average: Decimal
+
+    @field_serializer("total", "average")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class RecurringStackItemOut(_Camel):
+    name: str
+    amount: Decimal
+    months_covered: int
+    first_month: str
+    last_month: str
+    monthly_estimate: Decimal
+
+    @field_serializer("amount", "monthly_estimate")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class RecurringStackOut(_Camel):
+    items: list[RecurringStackItemOut] = Field(default_factory=list)
+    monthly_total: Decimal
+    annual_total: Decimal
+
+    @field_serializer("monthly_total", "annual_total")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class SavingsResponse(_Camel):
+    latest_month: str | None = None
+    window_from: str | None = None
+    price_creep: list[PriceCreepOut] = Field(default_factory=list)
+    new_recurring: list[NewRecurringOut] = Field(default_factory=list)
+    habits: list[HabitOut] = Field(default_factory=list)
+    recurring_stack: RecurringStackOut
+
+
 def dump_camel(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_unset=True)

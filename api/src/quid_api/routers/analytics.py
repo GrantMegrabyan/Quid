@@ -31,6 +31,7 @@ from quid_api.schemas import (
     DiagnosisResponse,
     DiagnosisTransactionOut,
     DistributionResponse,
+    HabitOut,
     ImportanceBreakdownPointOut,
     ImportanceBreakdownResponse,
     ImportanceTrendPointOut,
@@ -40,8 +41,13 @@ from quid_api.schemas import (
     LargeTransactionsResponse,
     MonthlyTotalOut,
     MonthlyTotalsResponse,
+    NewRecurringOut,
+    PriceCreepOut,
     RecurringItemOut,
     RecurringResponse,
+    RecurringStackItemOut,
+    RecurringStackOut,
+    SavingsResponse,
     TopMerchantOut,
     TopMerchantsResponse,
     WeekdayBreakdownPointOut,
@@ -404,6 +410,55 @@ async def summary(
         previous_month_total=previous_total,
         month_over_month_delta=latest_total - previous_total,
         month_over_month_percent=_percent_change(latest_total, previous_total),
+    )
+
+
+@router.get("/savings", response_model=SavingsResponse)
+async def savings(
+    session: SessionDep,
+    as_of: Annotated[str, Query(alias="as_of")],
+) -> SavingsResponse:
+    repo = AnalyticsRepository(session)
+    result = await repo.savings(as_of=as_of)
+    return SavingsResponse(
+        latest_month=result.latest_month,
+        window_from=result.window_from,
+        price_creep=[
+            PriceCreepOut(
+                name=i.name,
+                old_amount=i.old_amount,
+                new_amount=i.new_amount,
+                monthly_delta=i.monthly_delta,
+                annual_delta=i.annual_delta,
+                since_month=i.since_month,
+            )
+            for i in result.price_creep
+        ],
+        new_recurring=[
+            NewRecurringOut(
+                name=i.name, amount=i.amount, first_month=i.first_month, annual_cost=i.annual_cost
+            )
+            for i in result.new_recurring
+        ],
+        habits=[
+            HabitOut(name=i.name, count=i.count, total=i.total, average=i.average)
+            for i in result.habits
+        ],
+        recurring_stack=RecurringStackOut(
+            items=[
+                RecurringStackItemOut(
+                    name=i.name,
+                    amount=i.amount,
+                    months_covered=i.months_covered,
+                    first_month=i.first_month,
+                    last_month=i.last_month,
+                    monthly_estimate=i.monthly_estimate,
+                )
+                for i in result.stack_items
+            ],
+            monthly_total=result.stack_monthly_total,
+            annual_total=result.stack_annual_total,
+        ),
     )
 
 

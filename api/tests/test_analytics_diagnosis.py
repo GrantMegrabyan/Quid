@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-if TYPE_CHECKING:
-    from httpx import AsyncClient
-
 from quid_api.models import Category, Expense
 from quid_api.repositories.analytics import AnalyticsRepository
+from tests.conftest import make_category, make_expense
 
 pytestmark = pytest.mark.asyncio
 
@@ -188,30 +185,13 @@ async def test_diagnosis_overall_totals(session):
     assert result.total_baseline == Decimal("50.00")
 
 
-async def _make_cat(client: AsyncClient, name: str) -> dict[str, Any]:
-    res = await client.post("/api/v1/categories", json={"name": name})
-    assert res.status_code == 201
-    return res.json()  # type: ignore[no-any-return]
-
-
-async def _make_expense(
-    client: AsyncClient, *, name: str, amount: str, date: str, category_id: str
-) -> dict[str, Any]:
-    res = await client.post(
-        "/api/v1/expenses",
-        json={"name": name, "amount": amount, "date": date, "categoryId": category_id},
-    )
-    assert res.status_code == 201, res.text
-    return res.json()  # type: ignore[no-any-return]
-
-
 async def test_diagnosis_endpoint_shape(app_client):
-    cat = await _make_cat(app_client, "Groceries")
+    cat = await make_category(app_client, "Groceries")
     for month in ("2026-03", "2026-04"):
-        await _make_expense(
+        await make_expense(
             app_client, name="Tesco", amount="50.00", date=f"{month}-10", category_id=cat["id"]
         )
-    await _make_expense(
+    await make_expense(
         app_client, name="Waitrose", amount="120.00", date="2026-05-10", category_id=cat["id"]
     )
 
