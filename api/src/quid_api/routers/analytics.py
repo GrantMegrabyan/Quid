@@ -1,4 +1,8 @@
-"""Read-only analytics endpoints (aggregations over expenses).
+"""Analytics endpoints (aggregations over expenses).
+
+Most endpoints are read-only aggregations. The one exception is
+``POST /narrative``, which generates an AI summary via OpenRouter, persists
+it to the ``analytics_narratives`` table, and returns it.
 
 Endpoints accept an optional ``date_from`` / ``date_to`` (inclusive,
 ``YYYY-MM-DD``) window. When omitted they cover all of history. The
@@ -9,15 +13,19 @@ can ask "this month vs last month" or "this quarter vs last quarter".
 from __future__ import annotations
 
 import calendar
+import json
 import math
 from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from quid_api.ai_narrative import generate_narrative as ai_generate_narrative
 from quid_api.datelib import validate_iso_date
 from quid_api.db import get_session
+from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.repositories.analytics import AnalyticsRepository
+from quid_api.repositories.analytics_narrative import AnalyticsNarrativeRepository
 from quid_api.schemas import (
     AnalyticsSummaryResponse,
     CategoryComparisonResponse,
@@ -41,6 +49,9 @@ from quid_api.schemas import (
     LargeTransactionsResponse,
     MonthlyTotalOut,
     MonthlyTotalsResponse,
+    NarrativeGenerateRequest,
+    NarrativeOut,
+    NarrativeResponse,
     NewRecurringOut,
     PriceCreepOut,
     RecurringItemOut,
@@ -53,19 +64,32 @@ from quid_api.schemas import (
     WeekdayBreakdownPointOut,
     WeekdayBreakdownResponse,
 )
+from quid_api.settings import Settings, get_settings
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from quid_api.models import AnalyticsNarrative
+
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
 SessionDep = Annotated["AsyncSession", Depends(get_session)]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 _ZERO = Decimal("0.00")
 
 DateFrom = Annotated[str | None, Query(alias="date_from")]
 DateTo = Annotated[str | None, Query(alias="date_to")]
 AsOf = Annotated[str | None, Query(alias="as_of")]
+
+
+def _narrative_out(row: AnalyticsNarrative) -> NarrativeOut:
+    return NarrativeOut(
+        month=row.month,
+        content=row.content,
+        generated_at=row.generated_at,
+        model=row.model,
+    )
 
 
 def _percent_change(current: Decimal, previous: Decimal) -> float | None:
@@ -523,3 +547,74 @@ async def diagnosis(
             for d in result.decreases
         ],
     )
+
+
+@router.get("/narrative", response_model=NarrativeResponse)
+async def latest_narrative(session: SessionDep) -> NarrativeResponse:
+    row = await AnalyticsNarrativeRepository(session).get_latest()
+    return NarrativeResponse(narrative=None if row is None else _narrative_out(row))
+
+
+@router.post("/narrative", response_model=NarrativeResponse)
+async def generate_narrative(
+    payload: NarrativeGenerateRequest,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> NarrativeResponse:
+    repo = AnalyticsRepository(session)
+    diag = await repo.diagnosis(as_of=payload.as_of)
+    if diag.latest_month is None:
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            "Not enough data: at least one complete month is needed.",
+        )
+    sav = await repo.savings(as_of=payload.as_of)
+    facts = {
+        "month": diag.latest_month,
+        "totalCurrent": str(diag.total_current),
+        "totalBaseline": str(diag.total_baseline),
+        "baselineMonths": diag.baseline_month_count,
+        "increases": [
+            {
+                "category": c.category_name,
+                "current": str(c.current),
+                "baselineAvg": str(c.baseline),
+                "delta": str(c.delta),
+                "isNew": c.is_new,
+                "topMerchants": [
+                    {"name": m.merchant, "delta": str(m.delta), "isNew": m.is_new}
+                    for m in c.contributors
+                ],
+            }
+            for c in diag.increases[:6]
+        ],
+        "decreases": [
+            {"category": d.category_name, "delta": str(d.delta)} for d in diag.decreases[:4]
+        ],
+        "priceCreep": [
+            {
+                "name": i.name,
+                "oldAmount": str(i.old_amount),
+                "newAmount": str(i.new_amount),
+                "annualDelta": str(i.annual_delta),
+            }
+            for i in sav.price_creep
+        ],
+        "newRecurring": [
+            {"name": i.name, "monthly": str(i.amount), "annualCost": str(i.annual_cost)}
+            for i in sav.new_recurring
+        ],
+        "habits": [{"name": i.name, "visits": i.count, "total": str(i.total)} for i in sav.habits],
+        "recurringStackMonthly": str(sav.stack_monthly_total),
+    }
+    content = await ai_generate_narrative(
+        json.dumps(facts),
+        api_key=settings.openrouter_api_key,
+        model=settings.openrouter_model,
+    )
+    nrepo = AnalyticsNarrativeRepository(session)
+    row = await nrepo.upsert(
+        month=diag.latest_month, content=content, model=settings.openrouter_model
+    )
+    await session.commit()
+    return NarrativeResponse(narrative=_narrative_out(row))

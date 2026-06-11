@@ -1151,5 +1151,20 @@ class SavingsResponse(_Camel):
     recurring_stack: RecurringStackOut
 
 
+class NarrativeOut(_Camel):
+    month: str
+    content: str
+    generated_at: str
+    model: str
+
+
+class NarrativeResponse(_Camel):
+    narrative: NarrativeOut | None = None
+
+
+class NarrativeGenerateRequest(_Camel):
+    as_of: str
+
+
 def dump_camel(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_unset=True)
