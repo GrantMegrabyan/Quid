@@ -22,7 +22,11 @@ export default defineConfig({
 			env: {
 				QUID_DATABASE_URL: TEST_DATABASE_URL,
 				QUID_TESTING: '1',
-				QUID_TESTING_TOKEN: TESTING_TOKEN
+				QUID_TESTING_TOKEN: TESTING_TOKEN,
+				// Keep the e2e API hermetic: a dev key in api/.env would otherwise
+				// leak in (env beats .env in pydantic-settings) and make tests hit
+				// the real OpenRouter API. Empty string = "not configured".
+				QUID_OPENROUTER_API_KEY: ''
 			}
 		},
 		{
