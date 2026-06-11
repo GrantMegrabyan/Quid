@@ -483,7 +483,7 @@ export interface AmazonExportRequest {
 /* -------------------------------------------------------------------------- */
 /* All `total`/`amount`/`delta` fields are canonical decimal STRINGS ("19.99")
  * (deltas may be negative, e.g. "-12.00"). Parse with `amountToNumber` for
- * charting/sorting. `percentChange`/`monthOverMonthPercent` are JS numbers
+ * charting/sorting. `percentChange`/`currentMonthPaceVsAverage` are JS numbers
  * (e.g. 25 = +25%) or `null` when there is no previous baseline. `month`
  * values are `YYYY-MM`. */
 
@@ -663,6 +663,7 @@ export interface HabitItem {
 	average: string;
 }
 
+/** Recurring merchant in the savings stack — unlike the legacy RecurringItem it omits the occurrence count and carries a span-scaled monthlyEstimate. */
 export interface RecurringStackItem {
 	name: string;
 	amount: string;

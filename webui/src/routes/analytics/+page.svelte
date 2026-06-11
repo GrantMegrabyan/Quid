@@ -442,7 +442,7 @@
 					<div class="min-w-0 flex-1">
 						<p class="text-xs font-medium text-ctp-subtext0">Avg transaction</p>
 						<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-							{formatAmount('0', $settings.currency)}
+							{formatAmount('0', $settings.currency)}<!-- averagePerTransaction removed from the API; hardcoded glue until the page rewrite -->
 						</p>
 						<p class="text-[11px] text-ctp-overlay0">
 							across {summary?.transactionCount ?? 0} txns
