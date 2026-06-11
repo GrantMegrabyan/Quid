@@ -59,9 +59,12 @@
 			{/if}
 		</button>
 	</div>
+	<!-- The error renders ABOVE any existing narrative (not instead of it), so a
+	     failed Regenerate doesn't blank out a perfectly good stored summary. -->
 	{#if error}
 		<p class="mt-2 text-sm text-ctp-red" data-testid="analytics-narrative-error">{error}</p>
-	{:else if narrative}
+	{/if}
+	{#if narrative}
 		<p class="mt-2 text-sm leading-relaxed text-ctp-subtext0" data-testid="analytics-narrative-content">
 			{narrative.content}
 		</p>
