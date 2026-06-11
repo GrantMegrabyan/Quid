@@ -6,6 +6,9 @@
 
 	let { initial = null }: { initial?: AnalyticsNarrative | null } = $props();
 
+	// Seed-once by design: the prop provides the stored narrative at load;
+	// later updates come only from generate().
+	// svelte-ignore state_referenced_locally
 	let narrative = $state<AnalyticsNarrative | null>(initial);
 	let generating = $state(false);
 	let error = $state<string | null>(null);
