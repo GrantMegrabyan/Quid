@@ -390,7 +390,8 @@ Verification checklist for any user-facing change:
 - Backend surface is exactly: `/summary`, `/monthly-totals` (optional
   date_from/date_to window) and `/diagnosis`, `/savings`, `/narrative`
   (GET+POST), the last three anchored on the latest COMPLETE month via a
-  required `as_of` (the client's today). The old
+  required `as_of` (the client's today; GET `/narrative` is the exception —
+  it just returns the latest stored row, no params). The old
   category-trends/comparison/top-merchants/importance/weekday/recurring/
   large-transactions/distribution endpoints are GONE — don't resurrect them.
 - The aggregation repository (`repositories/analytics.py`) is READ-ONLY (no
