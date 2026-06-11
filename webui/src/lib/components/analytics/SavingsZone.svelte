@@ -29,7 +29,7 @@
 				</p>
 			{:else}
 				<ul class="mt-1.5 flex flex-col gap-1">
-					{#each savings.priceCreep as item (item.name + item.sinceMonth)}
+					{#each savings.priceCreep as item (`${item.name}:${item.sinceMonth}`)}
 						<li class="text-xs text-ctp-subtext0" data-testid="analytics-creep-item">
 							<span class="font-semibold text-ctp-text">{item.name}</span>
 							{formatAmount(item.oldAmount, $settings.currency)} →
@@ -54,7 +54,7 @@
 				<p class="mt-1 text-xs text-ctp-overlay0">No new subscriptions in the last few months.</p>
 			{:else}
 				<ul class="mt-1.5 flex flex-col gap-1">
-					{#each savings.newRecurring as item (item.name + item.firstMonth)}
+					{#each savings.newRecurring as item (`${item.name}:${item.amount}:${item.firstMonth}`)}
 						<li class="text-xs text-ctp-subtext0" data-testid="analytics-newrecurring-item">
 							<span class="font-semibold text-ctp-text">{item.name}</span>
 							{formatAmount(item.amount, $settings.currency)}/mo, first seen
@@ -101,43 +101,51 @@
 
 		<!-- Recurring stack -->
 		<div class="py-3" data-testid="analytics-savings-stack">
-			<button
-				type="button"
-				class="flex w-full items-center gap-2 text-left text-sm font-semibold text-ctp-text"
-				data-testid="analytics-stack-toggle"
-				aria-expanded={stackOpen}
-				onclick={() => (stackOpen = !stackOpen)}
-			>
-				<Repeat class="h-4 w-4 text-ctp-green" />
-				Recurring stack
-				<span class="text-xs font-normal text-ctp-subtext0" data-testid="analytics-stack-total">
-					{formatAmount(savings.recurringStack.monthlyTotal, $settings.currency)}/mo =
-					{formatAmount(savings.recurringStack.annualTotal, $settings.currency)}/yr
-				</span>
-				{#if savings.recurringStack.items.length > 0}
+			{#if savings.recurringStack.items.length === 0}
+				<div class="flex items-center gap-2 text-sm font-semibold text-ctp-text">
+					<Repeat class="h-4 w-4 text-ctp-green" />
+					Recurring stack
+					<span class="text-xs font-normal text-ctp-subtext0" data-testid="analytics-stack-total">
+						{formatAmount(savings.recurringStack.monthlyTotal, $settings.currency)}/mo =
+						{formatAmount(savings.recurringStack.annualTotal, $settings.currency)}/yr
+					</span>
+				</div>
+				<p class="mt-1 text-xs text-ctp-overlay0">No active recurring charges detected.</p>
+			{:else}
+				<button
+					type="button"
+					class="flex w-full items-center gap-2 text-left text-sm font-semibold text-ctp-text"
+					data-testid="analytics-stack-toggle"
+					aria-expanded={stackOpen}
+					onclick={() => (stackOpen = !stackOpen)}
+				>
+					<Repeat class="h-4 w-4 text-ctp-green" />
+					Recurring stack
+					<span class="text-xs font-normal text-ctp-subtext0" data-testid="analytics-stack-total">
+						{formatAmount(savings.recurringStack.monthlyTotal, $settings.currency)}/mo =
+						{formatAmount(savings.recurringStack.annualTotal, $settings.currency)}/yr
+					</span>
 					<ChevronDown
 						class="ml-auto h-4 w-4 text-ctp-overlay0 transition-transform {stackOpen
 							? 'rotate-180'
 							: ''}"
 					/>
+				</button>
+				{#if stackOpen}
+					<ul class="mt-2 flex flex-col gap-1 pl-6" data-testid="analytics-stack-list">
+						{#each savings.recurringStack.items as item (`${item.name}:${item.amount}`)}
+							<li class="flex items-baseline gap-2 text-xs text-ctp-subtext0">
+								<span class="truncate font-semibold text-ctp-text">{item.name}</span>
+								<span class="text-ctp-overlay0">
+									{item.monthsCovered}× since {formatMonthLabel(item.firstMonth)}
+								</span>
+								<span class="ml-auto tabular-nums"
+									>{formatAmount(item.monthlyEstimate, $settings.currency)}/mo</span
+								>
+							</li>
+						{/each}
+					</ul>
 				{/if}
-			</button>
-			{#if savings.recurringStack.items.length === 0}
-				<p class="mt-1 text-xs text-ctp-overlay0">No active recurring charges detected.</p>
-			{:else if stackOpen}
-				<ul class="mt-2 flex flex-col gap-1 pl-6" data-testid="analytics-stack-list">
-					{#each savings.recurringStack.items as item (item.name + item.amount)}
-						<li class="flex items-baseline gap-2 text-xs text-ctp-subtext0">
-							<span class="truncate font-semibold text-ctp-text">{item.name}</span>
-							<span class="text-ctp-overlay0">
-								{item.monthsCovered}× since {formatMonthLabel(item.firstMonth)}
-							</span>
-							<span class="ml-auto tabular-nums"
-								>{formatAmount(item.monthlyEstimate, $settings.currency)}/mo</span
-							>
-						</li>
-					{/each}
-				</ul>
 			{/if}
 		</div>
 	</div>

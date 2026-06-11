@@ -25,7 +25,7 @@
 			.slice(0, 4)
 			.map(
 				(d) =>
-					`${d.categoryName} −${formatAmount(Math.abs(amountToNumber(d.delta)), $settings.currency)}`
+					`${d.categoryName} -${formatAmount(Math.abs(amountToNumber(d.delta)), $settings.currency)}`
 			)
 			.join(' · ')
 	);
@@ -163,7 +163,7 @@
 						{formatAmount(d.current, $settings.currency)} vs
 						{formatAmount(d.baseline, $settings.currency)} avg
 						<span class="font-semibold text-ctp-green"
-							>−{formatAmount(Math.abs(amountToNumber(d.delta)), $settings.currency)}</span
+							>-{formatAmount(Math.abs(amountToNumber(d.delta)), $settings.currency)}</span
 						>
 					</li>
 				{/each}
