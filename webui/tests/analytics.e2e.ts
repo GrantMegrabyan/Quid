@@ -26,6 +26,11 @@ add('Waitrose', '60.00', -1, 12, 'cat-groceries');
 // Transport: £30/mo baseline, absent in -1 -> a decrease.
 for (let m = -7; m <= -2; m++) add('TfL', '30.00', m, 5, 'cat-transport');
 
+// Utilities: £100/mo baseline (months -7..-2), then £105 in -1.
+// +£5 / +5% is under both floors (£10 and 10%) -> rolls into "other increases".
+for (let m = -7; m <= -2; m++) add('Energy Co', '100.00', m, 6, 'cat-utilities');
+add('Energy Co', '105.00', -1, 6, 'cat-utilities');
+
 // Netflix price creep: 10.99 in -7..-4, then 12.99 in -3..-1.
 for (let m = -7; m <= -4; m++) add('Netflix', '10.99', m, 3, 'cat-subs');
 for (let m = -3; m <= -1; m++) add('Netflix', '12.99', m, 3, 'cat-subs');
@@ -42,7 +47,8 @@ const analyticsSeed = buildSeed({
 		{ id: 'cat-groceries', name: 'Groceries', color: '#22c55e', icon: 'shopping-cart' },
 		{ id: 'cat-transport', name: 'Public Transport', color: '#3b82f6', icon: 'train-front' },
 		{ id: 'cat-subs', name: 'Subscriptions', color: '#a855f7', icon: 'repeat' },
-		{ id: 'cat-eating', name: 'Eating Out', color: '#f97316', icon: 'utensils' }
+		{ id: 'cat-eating', name: 'Eating Out', color: '#f97316', icon: 'utensils' },
+		{ id: 'cat-utilities', name: 'Utilities', color: '#eab308', icon: 'zap' }
 	],
 	expenses
 });
@@ -82,6 +88,10 @@ test.describe('analytics page', () => {
 		// What went down: Transport decreased.
 		await expect(page.getByTestId('analytics-wentdown-toggle')).toContainText('Public Transport');
 
+		// Noise-floor rollup: Energy Co +£5/+5% is under both floors → other increases.
+		await expect(page.getByTestId('analytics-wentup-other')).toBeVisible();
+		await expect(page.getByTestId('analytics-wentup-other')).toContainText('1 small increases');
+
 		// Savings: creep, new recurring, habit, stack total.
 		await expect(page.getByTestId('analytics-creep-item')).toContainText('Netflix');
 		await expect(page.getByTestId('analytics-creep-item')).toContainText('£10.99 → £12.99');
@@ -89,6 +99,16 @@ test.describe('analytics page', () => {
 		await expect(page.getByTestId('analytics-habit-item')).toContainText('Pret');
 		await expect(page.getByTestId('analytics-habit-item')).toContainText('7 visits');
 		await expect(page.getByTestId('analytics-stack-total')).toContainText('/mo');
+
+		// Click-through coverage: stack expand shows Netflix.
+		await page.getByTestId('analytics-stack-toggle').click();
+		await expect(page.getByTestId('analytics-stack-list')).toBeVisible();
+		await expect(page.getByTestId('analytics-stack-list')).toContainText('Netflix');
+
+		// Click-through coverage: went-down expand shows Public Transport.
+		await page.getByTestId('analytics-wentdown-toggle').click();
+		await expect(page.getByTestId('analytics-wentdown-list')).toBeVisible();
+		await expect(page.getByTestId('analytics-wentdown-list')).toContainText('Public Transport');
 
 		// Trend chart present.
 		await expect(page.getByTestId('analytics-monthly-trend')).toBeVisible();
@@ -103,8 +123,8 @@ test.describe('analytics page', () => {
 
 		const strip = page.getByTestId('analytics-narrative');
 		await expect(strip).toBeVisible();
-		// Nothing generated yet.
-		await expect(page.getByTestId('analytics-narrative-generate')).toHaveText(/Generate/);
+		// Nothing generated yet — button text is exactly "Generate" (not "Regenerate").
+		await expect(page.getByTestId('analytics-narrative-generate')).toHaveText(/^Generate$/);
 
 		// The e2e API has no OpenRouter key: clicking surfaces the API error inline.
 		await page.getByTestId('analytics-narrative-generate').click();
@@ -113,7 +133,7 @@ test.describe('analytics page', () => {
 		);
 	});
 
-	test('period selector windows the trend chart', async ({ page }) => {
+	test('period selector toggles without errors and persists', async ({ page }) => {
 		const consoleErrors: string[] = [];
 		page.on('console', (msg) => {
 			if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -130,6 +150,10 @@ test.describe('analytics page', () => {
 		await expect(page.getByTestId('analytics-period-all')).toHaveAttribute('aria-pressed', 'true');
 		await expect(page.getByTestId('analytics-monthly-trend')).toBeVisible();
 
+		// Persist: reload should restore the last-selected period from localStorage.
+		await page.reload();
+		await expect(page.getByTestId('analytics-period-all')).toHaveAttribute('aria-pressed', 'true');
+
 		expect(consoleErrors).toEqual([]);
 	});
 
@@ -138,5 +162,9 @@ test.describe('analytics page', () => {
 		await page.goto('/analytics');
 		await expect(page.getByTestId('analytics-empty')).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Import transactions' })).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Import transactions' })).toHaveAttribute(
+			'href',
+			'/import'
+		);
 	});
 });
