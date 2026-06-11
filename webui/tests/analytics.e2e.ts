@@ -90,7 +90,7 @@ test.describe('analytics page', () => {
 
 		// Noise-floor rollup: Energy Co +£5/+5% is under both floors → other increases.
 		await expect(page.getByTestId('analytics-wentup-other')).toBeVisible();
-		await expect(page.getByTestId('analytics-wentup-other')).toContainText('1 small increases');
+		await expect(page.getByTestId('analytics-wentup-other')).toContainText('1 small increase totalling');
 
 		// Savings: creep, new recurring, habit, stack total.
 		await expect(page.getByTestId('analytics-creep-item')).toContainText('Netflix');

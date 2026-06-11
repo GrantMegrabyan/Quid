@@ -136,7 +136,9 @@
 		</ul>
 		{#if diagnosis.otherIncreasesCount > 0}
 			<p class="mt-2 text-xs text-ctp-overlay0" data-testid="analytics-wentup-other">
-				Everything else: {diagnosis.otherIncreasesCount} small increases totalling +{formatAmount(
+				Everything else: {diagnosis.otherIncreasesCount} small {diagnosis.otherIncreasesCount === 1
+					? 'increase'
+					: 'increases'} totalling +{formatAmount(
 					diagnosis.otherIncreasesTotal,
 					$settings.currency
 				)}
