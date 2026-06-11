@@ -9,6 +9,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from quid_api.repositories.analytics_narrative import AnalyticsNarrativeRepository
+from tests.conftest import make_category, make_expense
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -64,8 +65,6 @@ async def test_get_narrative_empty(app_client: AsyncClient) -> None:
 
 async def test_post_narrative_without_key_fails_cleanly(app_client: AsyncClient) -> None:
     # conftest's app_client runs with openrouter_api_key=None.
-    from tests.conftest import make_category, make_expense
-
     cat = await make_category(app_client, "Groceries")
     for month in ("2026-03", "2026-04", "2026-05"):
         await make_expense(
@@ -87,8 +86,6 @@ async def test_post_narrative_no_data_fails(app_client: AsyncClient) -> None:
 async def test_post_narrative_generates_and_persists(
     app_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tests.conftest import make_category, make_expense
-
     cat = await make_category(app_client, "Groceries")
     for month in ("2026-03", "2026-04", "2026-05"):
         await make_expense(

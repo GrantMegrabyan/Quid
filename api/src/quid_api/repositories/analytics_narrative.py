@@ -27,6 +27,7 @@ class AnalyticsNarrativeRepository:
         self.session = session
 
     async def get_latest(self) -> AnalyticsNarrative | None:
+        """Narrative for the latest analysed MONTH (month desc), not the most recently generated."""
         stmt = select(AnalyticsNarrative).order_by(AnalyticsNarrative.month.desc()).limit(1)
         return (await self.session.execute(stmt)).scalar_one_or_none()
 

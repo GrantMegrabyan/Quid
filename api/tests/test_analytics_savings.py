@@ -152,6 +152,33 @@ async def test_recurring_stack_active_and_estimate_scaling(session, category):
     assert result.stack_annual_total == Decimal("582.72")
 
 
+async def test_timestamped_dates_count_in_latest_month(session, category):
+    # Timestamped expense dates share the YYYY-MM prefix, so they must count
+    # toward the latest complete month's detectors like date-only rows do.
+    await _seed(session, "Pret", "3.50", "2026-05-05T14:30:00")
+    for day in range(6, 11):
+        await _seed(session, "Pret", "3.50", f"2026-05-{day:02d}")
+    await session.flush()
+    repo = AnalyticsRepository(session)
+    result = await repo.savings(as_of="2026-06-10")
+    assert result.latest_month == "2026-05"
+    assert [h.name for h in result.habits] == ["Pret"]
+    assert result.habits[0].count == 6
+
+
+async def test_as_of_month_is_excluded(session, category):
+    # Only complete months count: spend inside the as_of month itself must not
+    # become the latest month or feed the habit detector.
+    await _seed(session, "Solo", "5.00", "2026-05-05")
+    for day in range(2, 9):
+        await _seed(session, "Pret", "3.50", f"2026-06-0{day}")
+    await session.flush()
+    repo = AnalyticsRepository(session)
+    result = await repo.savings(as_of="2026-06-10")
+    assert result.latest_month == "2026-05"
+    assert result.habits == []
+
+
 async def test_savings_endpoint_shape(app_client: AsyncClient):
     cat = await make_category(app_client, "Subscriptions")
     for month in ("2026-03", "2026-04", "2026-05"):
