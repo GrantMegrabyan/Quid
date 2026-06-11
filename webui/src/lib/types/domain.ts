@@ -501,80 +501,6 @@ export interface MonthlyTotalsResult {
 	count: number;
 }
 
-export interface CategoryTrendPoint {
-	/** `YYYY-MM`. */
-	month: string;
-	total: string;
-}
-
-export interface CategoryTrendSeries {
-	categoryId: string;
-	categoryName: string;
-	color: string;
-	total: string;
-	/** One point per month in the parent `months` axis (zero-filled, dense). */
-	points: CategoryTrendPoint[];
-}
-
-export interface CategoryTrendsResult {
-	/** Dense ascending `YYYY-MM` axis shared by every series. */
-	months: string[];
-	series: CategoryTrendSeries[];
-}
-
-export interface CategoryMover {
-	categoryId: string;
-	categoryName: string;
-	color: string;
-	current: string;
-	previous: string;
-	delta: string;
-	/** Percent change vs previous period, or `null` when previous was zero. */
-	percentChange: number | null;
-}
-
-export interface CategoryComparisonResult {
-	currentPeriodLabel: string;
-	previousPeriodLabel: string;
-	currentTotal: string;
-	previousTotal: string;
-	/** Sorted by absolute delta descending (biggest movers first). */
-	movers: CategoryMover[];
-}
-
-export interface TopMerchant {
-	merchant: string;
-	total: string;
-	count: number;
-}
-
-export interface TopMerchantsResult {
-	merchants: TopMerchant[];
-}
-
-export interface ImportanceBreakdownPoint {
-	importance: ExpenseImportance;
-	total: string;
-	count: number;
-}
-
-export interface ImportanceBreakdownResult {
-	breakdown: ImportanceBreakdownPoint[];
-	total: string;
-}
-
-export interface WeekdayBreakdownPoint {
-	/** 0 = Monday .. 6 = Sunday. */
-	weekday: number;
-	total: string;
-	count: number;
-}
-
-export interface WeekdayBreakdownResult {
-	/** Always 7 entries, Monday-first, zero-filled. */
-	breakdown: WeekdayBreakdownPoint[];
-}
-
 export interface AnalyticsSummary {
 	total: string;
 	transactionCount: number;
@@ -663,7 +589,7 @@ export interface HabitItem {
 	average: string;
 }
 
-/** Recurring merchant in the savings stack — unlike the legacy RecurringItem it omits the occurrence count and carries a span-scaled monthlyEstimate. */
+/** Recurring merchant in the savings stack — omits the occurrence count and carries a span-scaled monthlyEstimate. */
 export interface RecurringStackItem {
 	name: string;
 	amount: string;
@@ -697,66 +623,4 @@ export interface AnalyticsNarrative {
 
 export interface NarrativeResult {
 	narrative: AnalyticsNarrative | null;
-}
-
-export interface RecurringItem {
-	name: string;
-	amount: string;
-	occurrences: number;
-	monthsCovered: number;
-	firstMonth: string;
-	lastMonth: string;
-	monthlyEstimate: string;
-}
-
-export interface RecurringResult {
-	items: RecurringItem[];
-	monthlyTotal: string;
-	count: number;
-}
-
-export interface LargeTransaction {
-	id: string;
-	name: string;
-	displayName: string | null;
-	amount: string;
-	date: string;
-	categoryId: string | null;
-	categoryName: string | null;
-	categoryColor: string | null;
-}
-
-export interface LargeTransactionsResult {
-	transactions: LargeTransaction[];
-	periodTotal: string;
-	/** Returned txns as a 0-1 fraction of period total; null when period total is 0. */
-	topShare: number | null;
-}
-
-export interface DistributionResult {
-	mean: string;
-	median: string;
-	p90: string;
-	min: string;
-	max: string;
-	count: number;
-}
-
-export interface ImportanceTrendPoint {
-	/** `YYYY-MM`. */
-	month: string;
-	total: string;
-}
-
-export interface ImportanceTrendSeries {
-	importance: ExpenseImportance;
-	total: string;
-	/** Dense, zero-filled points over the parent `months` axis. */
-	points: ImportanceTrendPoint[];
-}
-
-export interface ImportanceTrendResult {
-	/** Dense ascending `YYYY-MM` axis shared by every series. */
-	months: string[];
-	series: ImportanceTrendSeries[];
 }

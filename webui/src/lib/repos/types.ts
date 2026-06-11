@@ -12,20 +12,11 @@ import type {
 	AppSettings,
 	AppSettingsUpdate,
 	Category,
-	CategoryComparisonResult,
-	CategoryTrendsResult,
 	DiagnosisResult,
-	DistributionResult,
 	Expense,
-	ImportanceBreakdownResult,
-	ImportanceTrendResult,
-	LargeTransactionsResult,
 	MonthlyTotalsResult,
 	NarrativeResult,
-	RecurringResult,
 	SavingsResult,
-	TopMerchantsResult,
-	WeekdayBreakdownResult,
 	ImportCsvConfirmRequest,
 	ImportCsvConfirmResult,
 	ImportCsvPreviewResult,
@@ -132,27 +123,10 @@ export interface AnalyticsWindow {
 	dateTo?: string;
 }
 
-/** The two explicit periods compared by `categoryComparison`. */
-export interface CategoryComparisonQuery {
-	currentFrom: string;
-	currentTo: string;
-	previousFrom: string;
-	previousTo: string;
-}
-
 export interface AnalyticsRepository {
 	/** `asOf` (a `YYYY-MM-DD` "today") unlocks complete-month averages + run-rate fields. */
 	summary(window?: AnalyticsWindow & { asOf?: string }): Promise<AnalyticsSummary>;
 	monthlyTotals(window?: AnalyticsWindow): Promise<MonthlyTotalsResult>;
-	categoryTrends(window?: AnalyticsWindow & { limit?: number }): Promise<CategoryTrendsResult>;
-	categoryComparison(query: CategoryComparisonQuery): Promise<CategoryComparisonResult>;
-	topMerchants(window?: AnalyticsWindow & { limit?: number }): Promise<TopMerchantsResult>;
-	importanceBreakdown(window?: AnalyticsWindow): Promise<ImportanceBreakdownResult>;
-	weekdayBreakdown(window?: AnalyticsWindow): Promise<WeekdayBreakdownResult>;
-	recurring(window?: AnalyticsWindow): Promise<RecurringResult>;
-	largeTransactions(window?: AnalyticsWindow & { limit?: number }): Promise<LargeTransactionsResult>;
-	distribution(window?: AnalyticsWindow): Promise<DistributionResult>;
-	importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult>;
 	diagnosis(asOf: string): Promise<DiagnosisResult>;
 	savings(asOf: string): Promise<SavingsResult>;
 	narrative(): Promise<NarrativeResult>;

@@ -1,6 +1,6 @@
 import { persisted } from '$lib/stores/persisted';
-import type { AnalyticsWindow, CategoryComparisonQuery } from '$lib/repos/types';
-import { addMonths, currentMonthKey, monthDateRange, todayIso } from '$utils/dates';
+import type { AnalyticsWindow } from '$lib/repos/types';
+import { addMonths, currentMonthKey, todayIso } from '$utils/dates';
 
 /** The selectable analytics period presets. */
 export type AnalyticsPeriod = '3m' | '6m' | '12m' | 'all';
@@ -44,32 +44,5 @@ export function periodToWindow(period: AnalyticsPeriod): AnalyticsWindow {
 	return {
 		dateFrom: `${fromMonth}-01`,
 		dateTo: todayIso()
-	};
-}
-
-/**
- * The month-over-month comparison query that feeds the category-movers view.
- * Independent of the selected period preset — movers are always a single-month
- * comparison.
- *
- * Pass `referenceMonth` (a `YYYY-MM` key) to anchor the comparison on the LAST
- * COMPLETE month (the API's `summary.latestMonth`, which now excludes the
- * in-progress month when `asOf` is supplied) instead of the literal calendar
- * month. Without this, the comparison would use the current calendar month,
- * which is partial early in a month (or empty when the data lags), making every
- * category read as a fake collapse / "-100%". Defaults to the current calendar
- * month when no reference is given.
- */
-export function monthOverMonthComparisonQuery(
-	referenceMonth?: string | null
-): CategoryComparisonQuery {
-	const anchor = referenceMonth ?? currentMonthKey();
-	const current = monthDateRange(anchor);
-	const previous = monthDateRange(addMonths(anchor, -1));
-	return {
-		currentFrom: current.from,
-		currentTo: current.to,
-		previousFrom: previous.from,
-		previousTo: previous.to
 	};
 }
