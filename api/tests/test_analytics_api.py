@@ -179,3 +179,28 @@ async def test_analytics_validates_bad_date(app_client):
     )
     assert res.status_code == 422
     assert res.json()["code"] == "VALIDATION"
+
+
+async def test_summary_bad_as_of(app_client):
+    res = await app_client.get("/api/v1/analytics/summary", params={"as_of": "junk"})
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION"
+
+
+async def test_summary_as_of_no_current_month_data(app_client):
+    cat = await _make_cat(app_client, "Food")
+    await _make_expense(
+        app_client, name="Feb", amount="50.00", date="2026-02-10", category_id=cat["id"]
+    )
+    await _make_expense(
+        app_client, name="Mar", amount="80.00", date="2026-03-15", category_id=cat["id"]
+    )
+
+    res = await app_client.get("/api/v1/analytics/summary", params={"as_of": "2026-04-10"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["currentMonth"] == "2026-04"
+    assert body["currentMonthToDate"] == "0.00"
+    assert body["currentMonthProjected"] == "0.00"
+    assert body["currentMonthPaceVsAverage"] is None
+    assert body["latestMonth"] == "2026-03"

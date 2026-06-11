@@ -122,7 +122,10 @@ async def summary(
     transaction_count = sum(m.count for m in months)
     months_covered = len(months)
     if as_of is not None:
-        validate_iso_date(as_of)
+        try:
+            validate_iso_date(as_of)
+        except ValueError as exc:
+            raise RepositoryError(RepositoryErrorCode.VALIDATION, str(exc)) from exc
     current_month = as_of[:7] if as_of is not None else None
     complete_months = [m for m in months if m.month != current_month] if current_month else months
     complete_months_covered = len(complete_months)
