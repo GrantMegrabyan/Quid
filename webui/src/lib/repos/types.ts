@@ -14,13 +14,16 @@ import type {
 	Category,
 	CategoryComparisonResult,
 	CategoryTrendsResult,
+	DiagnosisResult,
 	DistributionResult,
 	Expense,
 	ImportanceBreakdownResult,
 	ImportanceTrendResult,
 	LargeTransactionsResult,
 	MonthlyTotalsResult,
+	NarrativeResult,
 	RecurringResult,
+	SavingsResult,
 	TopMerchantsResult,
 	WeekdayBreakdownResult,
 	ImportCsvConfirmRequest,
@@ -150,6 +153,10 @@ export interface AnalyticsRepository {
 	largeTransactions(window?: AnalyticsWindow & { limit?: number }): Promise<LargeTransactionsResult>;
 	distribution(window?: AnalyticsWindow): Promise<DistributionResult>;
 	importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult>;
+	diagnosis(asOf: string): Promise<DiagnosisResult>;
+	savings(asOf: string): Promise<SavingsResult>;
+	narrative(): Promise<NarrativeResult>;
+	generateNarrative(input: { asOf: string }): Promise<NarrativeResult>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

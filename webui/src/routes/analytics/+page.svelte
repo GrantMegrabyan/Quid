@@ -186,13 +186,11 @@
 
 	// --- Month over month ------------------------------------------------------
 	// For expenses, an INCREASE is bad (red/up), a DECREASE is good (green/down).
-	const momDelta = $derived(summary ? amountToNumber(summary.monthOverMonthDelta) : 0);
+	// momDelta / momPercentLabel: fields removed in backend Task 8; hardcoded as
+	// throwaway glue until Task 12 rewrites this page.
+	const momDelta = $derived(0);
 	const momIsUp = $derived(momDelta > 0);
-	const momPercentLabel = $derived.by(() => {
-		if (!summary || summary.monthOverMonthPercent === null) return null;
-		const sign = summary.monthOverMonthPercent > 0 ? '+' : '';
-		return `${sign}${Math.round(summary.monthOverMonthPercent)}%`;
-	});
+	const momPercentLabel = $derived<string | null>(null);
 
 	// --- "What changed" attribution -------------------------------------------
 	// Reframe the movers as the explanation of the MoM KPI: net delta + the top
@@ -444,7 +442,7 @@
 					<div class="min-w-0 flex-1">
 						<p class="text-xs font-medium text-ctp-subtext0">Avg transaction</p>
 						<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-							{formatAmount(summary?.averagePerTransaction ?? '0', $settings.currency)}
+							{formatAmount('0', $settings.currency)}
 						</p>
 						<p class="text-[11px] text-ctp-overlay0">
 							across {summary?.transactionCount ?? 0} txns

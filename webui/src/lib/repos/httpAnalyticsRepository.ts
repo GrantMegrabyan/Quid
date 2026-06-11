@@ -2,12 +2,15 @@ import type {
 	AnalyticsSummary,
 	CategoryComparisonResult,
 	CategoryTrendsResult,
+	DiagnosisResult,
 	DistributionResult,
 	ImportanceBreakdownResult,
 	ImportanceTrendResult,
 	LargeTransactionsResult,
 	MonthlyTotalsResult,
+	NarrativeResult,
 	RecurringResult,
+	SavingsResult,
 	TopMerchantsResult,
 	WeekdayBreakdownResult
 } from '$types';
@@ -103,6 +106,29 @@ export class HttpAnalyticsRepository implements AnalyticsRepository {
 	async importanceTrend(window?: AnalyticsWindow): Promise<ImportanceTrendResult> {
 		return this.client.request<ImportanceTrendResult>('api/v1/analytics/importance-trend', {
 			query: windowQuery(window)
+		});
+	}
+
+	async diagnosis(asOf: string): Promise<DiagnosisResult> {
+		return this.client.request<DiagnosisResult>('api/v1/analytics/diagnosis', {
+			query: { as_of: asOf }
+		});
+	}
+
+	async savings(asOf: string): Promise<SavingsResult> {
+		return this.client.request<SavingsResult>('api/v1/analytics/savings', {
+			query: { as_of: asOf }
+		});
+	}
+
+	async narrative(): Promise<NarrativeResult> {
+		return this.client.request<NarrativeResult>('api/v1/analytics/narrative');
+	}
+
+	async generateNarrative(input: { asOf: string }): Promise<NarrativeResult> {
+		return this.client.request<NarrativeResult>('api/v1/analytics/narrative', {
+			method: 'POST',
+			body: { asOf: input.asOf }
 		});
 	}
 }

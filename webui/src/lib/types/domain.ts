@@ -579,31 +579,123 @@ export interface AnalyticsSummary {
 	total: string;
 	transactionCount: number;
 	monthsCovered: number;
-	averagePerMonth: string;
-	/** Months in the window EXCLUDING the in-progress current month (when `asOf` given). */
 	completeMonthsCovered: number;
-	/** Honest baseline: total of complete months / completeMonthsCovered. */
 	averagePerCompleteMonth: string;
-	averagePerTransaction: string;
-	busiestMonth: string | null;
-	busiestMonthTotal: string;
-	/** The in-progress month (`YYYY-MM`) when `asOf` is supplied and it has spend. */
-	currentMonth: string | null;
-	/** Spend so far in `currentMonth`. */
-	currentMonthToDate: string;
-	/** Linear projection of `currentMonth` spend to end of month. */
-	currentMonthProjected: string;
-	/** Percent change of the projection vs `averagePerCompleteMonth`; null with no baseline. */
-	currentMonthPaceVsAverage: number | null;
-	topCategoryId: string | null;
-	topCategoryName: string | null;
-	topCategoryTotal: string;
-	/** Last COMPLETE month (in-progress month excluded when `asOf` given). */
 	latestMonth: string | null;
 	latestMonthTotal: string;
-	previousMonthTotal: string;
-	monthOverMonthDelta: string;
-	monthOverMonthPercent: number | null;
+	currentMonth: string | null;
+	currentMonthToDate: string;
+	currentMonthProjected: string;
+	currentMonthPaceVsAverage: number | null;
+}
+
+export interface DiagnosisTransaction {
+	id: string;
+	name: string;
+	displayName: string | null;
+	amount: string;
+	date: string;
+}
+
+export interface DiagnosisContributor {
+	merchant: string;
+	current: string;
+	baseline: string;
+	delta: string;
+	isNew: boolean;
+}
+
+export interface DiagnosisIncrease {
+	categoryId: string;
+	categoryName: string;
+	color: string;
+	current: string;
+	baseline: string;
+	delta: string;
+	percentChange: number | null;
+	isNew: boolean;
+	contributors: DiagnosisContributor[];
+	transactions: DiagnosisTransaction[];
+}
+
+export interface DiagnosisDecrease {
+	categoryId: string;
+	categoryName: string;
+	color: string;
+	current: string;
+	baseline: string;
+	delta: string;
+}
+
+export interface DiagnosisResult {
+	latestMonth: string | null;
+	baselineFrom: string | null;
+	baselineTo: string | null;
+	baselineMonthCount: number;
+	totalCurrent: string;
+	totalBaseline: string;
+	increases: DiagnosisIncrease[];
+	otherIncreasesTotal: string;
+	otherIncreasesCount: number;
+	decreases: DiagnosisDecrease[];
+}
+
+export interface PriceCreepItem {
+	name: string;
+	oldAmount: string;
+	newAmount: string;
+	monthlyDelta: string;
+	annualDelta: string;
+	sinceMonth: string;
+}
+
+export interface NewRecurringItem {
+	name: string;
+	amount: string;
+	firstMonth: string;
+	annualCost: string;
+}
+
+export interface HabitItem {
+	name: string;
+	count: number;
+	total: string;
+	average: string;
+}
+
+export interface RecurringStackItem {
+	name: string;
+	amount: string;
+	monthsCovered: number;
+	firstMonth: string;
+	lastMonth: string;
+	monthlyEstimate: string;
+}
+
+export interface RecurringStack {
+	items: RecurringStackItem[];
+	monthlyTotal: string;
+	annualTotal: string;
+}
+
+export interface SavingsResult {
+	latestMonth: string | null;
+	windowFrom: string | null;
+	priceCreep: PriceCreepItem[];
+	newRecurring: NewRecurringItem[];
+	habits: HabitItem[];
+	recurringStack: RecurringStack;
+}
+
+export interface AnalyticsNarrative {
+	month: string;
+	content: string;
+	generatedAt: string;
+	model: string;
+}
+
+export interface NarrativeResult {
+	narrative: AnalyticsNarrative | null;
 }
 
 export interface RecurringItem {
