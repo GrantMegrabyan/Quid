@@ -381,33 +381,48 @@ Verification checklist for any user-facing change:
 
 ## Analytics context
 
-- The **Analytics** page (`webui/src/routes/analytics/+page.svelte`, nav link in
-  `+layout.svelte`) is backed by a READ-ONLY `/api/v1/analytics/*` router
-  (`routers/analytics.py` + `repositories/analytics.py`). No schema/migration —
-  it only aggregates existing `expenses`. There is intentionally NO repository
-  write path here; keep it read-only (no `commit`).
-- Aggregations group on the date string's prefix: month = `substr(date,1,7)`
-  (`YYYY-MM`), day = `substr(date,1,10)`. This works for BOTH date-only and
-  timestamped expense dates. The date window is half-open
-  (`>= date_from`, `< date_to + 1 day`) so a boundary-day `...T23:59:59` row is
-  kept — mirror this if you add an endpoint (helper: `AnalyticsRepository._window`).
-- Weekday breakdown uses SQLite `strftime('%w', …)` (0=Sun..6=Sat) REMAPPED to a
-  Monday-first week (0=Mon..6=Sun) and always returns 7 zero-filled rows. If you
-  ever support a non-SQLite backend, that strftime call needs a portable rewrite.
-- There is no merchant column; `top-merchants` groups on `lower(trim(name))` and
-  shows a representative original-cased name (`max(name)`).
-- **Movers gotcha:** the "Biggest movers" card does NOT compare the literal
-  current calendar month. The frontend anchors the month-over-month comparison on
-  `summary.latestMonth` (the most recent month that has data) so it doesn't read
-  "-100% everywhere" early in a month / when data lags. The page therefore fetches
-  `summary` first, then `category-comparison` using that month
-  (`monthOverMonthComparisonQuery(latestMonth)` in `stores/analyticsPeriod.ts`);
-  the rest of the loads stay parallel. Keep that ordering if you touch the page.
-- Period presets (3M/6M/12M/All) live in the persisted `analyticsPeriod` store
-  (`quid:analytics-period:v1`, default `6m`). `periodToWindow` builds the API
-  window; `'all'` is an empty window (whole history).
-- Charts reuse the existing chart.js + Catppuccin theme-observer pattern (see
-  `CumulativeChart.svelte`). In DEV, svelte-chartjs emits benign
-  `state_snapshot_uncloneable` WARNINGS for the tooltip `callbacks.label` function
-  inside the `$derived` chart options — these are warnings only (stripped in prod
-  builds), not errors; the e2e suite asserts on console ERRORS, so they don't fail.
+- The **Analytics** page (`webui/src/routes/analytics/+page.svelte`) is
+  insight-first: verdict header → on-demand AI narrative strip → "What went
+  up" (diagnosis) → "Where you can save" (savings detectors) → monthly trend
+  chart (the only thing the persisted 3M/6M/12M/All period selector affects —
+  and it windows CLIENT-SIDE from all-history monthly totals; one parallel
+  load on mount, no reload on period change).
+- Backend surface is exactly: `/summary`, `/monthly-totals` (optional
+  date_from/date_to window) and `/diagnosis`, `/savings`, `/narrative`
+  (GET+POST), the last three anchored on the latest COMPLETE month via a
+  required `as_of` (the client's today). The old
+  category-trends/comparison/top-merchants/importance/weekday/recurring/
+  large-transactions/distribution endpoints are GONE — don't resurrect them.
+- The aggregation repository (`repositories/analytics.py`) is READ-ONLY (no
+  commit). The ONE analytics write path is the stored AI narrative:
+  `repositories/analytics_narrative.py` (one row per month, upsert on
+  regenerate; table `analytics_narratives`, migration `0021`), written by
+  `POST /analytics/narrative` which builds a JSON facts payload from
+  diagnosis+savings and calls `ai_narrative.generate_narrative` (OpenRouter,
+  `QUID_OPENROUTER_*`, 422 without a key). Generation is strictly on-demand —
+  never generate automatically.
+- Diagnosis semantics: latest complete month vs each category's trailing
+  ≤6-complete-month average where zero-spend months count as £0 (divide by
+  window length, not months-with-spend). Increases below £10 AND 10%
+  (`_NOISE_FLOOR_*`) roll into "everything else"; new categories have
+  `percentChange=null`. Contributors compare each merchant
+  (`lower(trim(name))`) to its own baseline, top 3 by delta.
+- Savings detectors (constants in `repositories/analytics.py`): scan trailing
+  12 complete months on the (merchant, exact amount, ≥3 distinct months)
+  recurring grouping. Price creep = established group then a HIGHER amount in
+  ≥2 CONSECUTIVE months after it. New recurring = recurring group whose
+  merchant's first-EVER transaction is within the last 4 months (this is what
+  stops a price change double-reporting as new). Habits = ≥6 txns at ≤£20 avg
+  in the latest month. Stack estimate = `amount × monthsCovered ÷ span`
+  (capped at amount) so quarterly bills don't read as monthly.
+- Month grouping uses the `YYYY-MM` prefix of the date string (works for both
+  date-only and timestamped dates). `_month_add`/`_months_between` do calendar
+  month arithmetic on `YYYY-MM` keys.
+- Charts: only `MonthlyTrendChart` survives on this page (chart.js +
+  theme-observer pattern; `CumulativeChart` still serves the dashboard). The
+  e2e spec is `webui/tests/analytics.e2e.ts`; it asserts on
+  `analytics-verdict*`, `analytics-wentup*`, `analytics-creep-item`,
+  `analytics-newrecurring-item`, `analytics-habit-item`, `analytics-stack-*`,
+  `analytics-narrative*` testids.
+- The narrative POST holds its read transaction open across the OpenRouter call (up to ~60s); harmless single-user, but if a concurrent writer ever deadlocks here, rollback before the AI call is the fix.
+- The e2e Playwright harness pins QUID_OPENROUTER_API_KEY='' for the e2e API (webui/playwright.config.ts) so e2e runs are hermetic — env beats api/.env in pydantic-settings. Don't remove that override; AI-path e2e tests rely on the deterministic missing-key 422.
