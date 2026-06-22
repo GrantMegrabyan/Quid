@@ -139,7 +139,10 @@ The API ships as a container built from `api/Dockerfile` (`python:3.12-slim` +
   the schema is upgraded to head before the server answers requests.
 - **Data volume.** The SQLite DB and log file live under `/app/.data`
   (`QUID_DATABASE_URL` defaults to `./.data/quid.db`); mount it as a volume to
-  persist data across container restarts.
+  persist data across container restarts. The server runs as non-root (uid
+  1001), so prefer a **named volume** (Docker seeds it with the image's
+  ownership). A host **bind mount** is root-owned by default and must be
+  `chown 1001:1001`'d first, or startup fails with a `PermissionError`.
 - **Healthcheck.** `curl -f http://localhost:8000/health` (curl is installed for
   this).
 - **Production env.** The image is meant to run with `QUID_ENVIRONMENT=production`,

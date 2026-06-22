@@ -95,7 +95,11 @@ When NOT to commit:
   image CMD is `quid-api migrate && quid-api serve --host 0.0.0.0 --port 8000`. The
   Dockerfile installs the project **editable** (uv default) so `quid_api.cli`'s
   `REPO_ROOT = parents[2]` resolves to `/app` and finds `/app/alembic.ini`. SQLite
-  DB + logs persist via a `/app/.data` volume.
+  DB + logs persist via a `/app/.data` volume. The API runs as **non-root**
+  (uid 1001), so the compose uses a **named volume** (`quid-data`) — Docker seeds
+  it with the image's ownership. A host **bind mount** would be root-owned and
+  fail with `PermissionError: '/app/.data/quid.log'` until `chown 1001:1001`'d
+  (the homelab LXC deploy uses a bind mount at `/opt/quid/data` and needed that).
 - **UI API URL is RUNTIME, not build-time.** `webui` uses `@sveltejs/adapter-node`
   (`node build`); `httpClient.ts` reads `PUBLIC_API_BASE_URL` via
   `$env/dynamic/public` (the `PUBLIC_` prefix is mandatory to reach the browser).

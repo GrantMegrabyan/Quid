@@ -177,4 +177,5 @@ docker compose up --build
 - `QUID_OPENROUTER_API_KEY` — optional, enables the AI features.
 
 The API container runs `quid-api migrate` before serving (the app does **not**
-auto-migrate), and persists the SQLite DB + logs to `./api/.data` via a volume.
+auto-migrate), and persists the SQLite DB + logs in the `quid-data` named volume
+(used instead of a host bind mount because the API runs as non-root).

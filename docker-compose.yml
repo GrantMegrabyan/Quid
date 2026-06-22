@@ -18,8 +18,12 @@ services:
       - TZ=Europe/London
     volumes:
       # SQLite database + logs persist here (QUID_DATABASE_URL defaults to
-      # ./.data/quid.db, i.e. /app/.data inside the container).
-      - ./api/.data:/app/.data
+      # ./.data/quid.db, i.e. /app/.data inside the container). A named volume
+      # (not a host bind mount) is used on purpose: the API runs as non-root
+      # (uid 1001), and Docker initialises a fresh named volume with the image's
+      # /app/.data ownership, so it is writable out of the box. A host bind mount
+      # would be root-owned and need a manual `chown 1001:1001` first.
+      - quid-data:/app/.data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -49,6 +53,9 @@ services:
     networks:
       - quid-network
     restart: unless-stopped
+
+volumes:
+  quid-data:
 
 networks:
   quid-network:
