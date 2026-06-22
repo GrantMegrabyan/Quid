@@ -30,7 +30,7 @@ HOST_RE="${HOST//./\\.}"
 # Frontend: bind all interfaces; point the laptop's browser at the devbox API.
 (
   cd webui
-  VITE_API_BASE_URL="http://${HOST}:${API_PORT}" \
+  PUBLIC_API_BASE_URL="http://${HOST}:${API_PORT}" \
     npm run dev -- --host 0.0.0.0 --port "$WEB_PORT"
 ) &
 
