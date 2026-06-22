@@ -83,6 +83,30 @@ When NOT to commit:
 - Default API database: `api/.data/quid.db` via `QUID_DATABASE_URL=sqlite+aiosqlite:///./.data/quid.db`.
 - E2E tests use `api/.data/quid-e2e.db`; do not point e2e runs at the dev/default database.
 
+## Deployment
+
+- The stack containerises as two images (`api/Dockerfile`, `webui/Dockerfile`),
+  orchestrated by the repo-root `docker-compose.yml` (`pull_policy: build` — compose
+  builds locally; the GHCR images at `ghcr.io/grantmegrabyan/quid-{api,webui}` are
+  for distribution). `.github/workflows/`: `ci.yml` (backend lint/mypy/pytest +
+  frontend `npm run check`), `build-api.yml` + `build-webui.yml` (multi-arch
+  `amd64`+`arm64` push to GHCR on push to `main`, path-filtered).
+- **API container migrates on start.** `create_app` does NOT run migrations, so the
+  image CMD is `quid-api migrate && quid-api serve --host 0.0.0.0 --port 8000`. The
+  Dockerfile installs the project **editable** (uv default) so `quid_api.cli`'s
+  `REPO_ROOT = parents[2]` resolves to `/app` and finds `/app/alembic.ini`. SQLite
+  DB + logs persist via a `/app/.data` volume.
+- **UI API URL is RUNTIME, not build-time.** `webui` uses `@sveltejs/adapter-node`
+  (`node build`); `httpClient.ts` reads `PUBLIC_API_BASE_URL` via
+  `$env/dynamic/public` (the `PUBLIC_` prefix is mandatory to reach the browser).
+  Set it in compose `environment:` — no rebuild, image is environment-agnostic. The
+  old build-time `VITE_API_BASE_URL` is gone (also renamed in `dev.sh`,
+  `playwright.config.ts`, `webui/.env.example`). It must be the **browser-reachable**
+  API origin, not the internal compose hostname.
+- Deployed stack runs `QUID_ENVIRONMENT=production`, which fails fast unless
+  `QUID_ALLOWED_HOSTS` and `QUID_CORS_ALLOWED_ORIGINS` are set (no `*`); the latter
+  must include the UI origin. Root `.env` (gitignored) feeds compose.
+
 ## Backend notes
 
 - The `/api/v1/testing/*` router (`routers/testing.py`) is DESTRUCTIVE (wipes all

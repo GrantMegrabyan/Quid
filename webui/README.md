@@ -24,7 +24,19 @@ Then run the web UI:
 npm run dev
 ```
 
-The webui reads `VITE_API_BASE_URL` from `.env`; the default is `http://localhost:8000`.
+The webui reads `PUBLIC_API_BASE_URL` (the browser-reachable API origin) at
+**runtime** via SvelteKit's `$env/dynamic/public`; the default is
+`http://localhost:8000`. In dev it comes from `.env`; in the Docker image it is
+set by the container environment (see _Deployment_), so the same build works in
+any environment with no rebuild.
+
+## Deployment
+
+The UI ships as a container built from `Dockerfile` (multi-stage `node:22-alpine`,
+using `@sveltejs/adapter-node` → `node build`). Because `PUBLIC_API_BASE_URL` is
+read at runtime, the image carries no baked API URL — set it via the
+`environment:` block in the repo-root `docker-compose.yml`. See the root README
+and `docker-compose.yml` for the full stack (API + UI).
 
 ## Pages
 

@@ -129,6 +129,28 @@ QUID_DATABASE_URL="sqlite+aiosqlite:///./.data/quid.db" \
 Multiple hosts/origins are comma-separated, e.g.
 `QUID_CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"`.
 
+## Docker / deployment
+
+The API ships as a container built from `api/Dockerfile` (`python:3.12-slim` +
+`uv`). Key points:
+
+- **Migrations run on container start, not in `create_app`.** The image's entry
+  command is `quid-api migrate && quid-api serve --host 0.0.0.0 --port 8000`, so
+  the schema is upgraded to head before the server answers requests.
+- **Data volume.** The SQLite DB and log file live under `/app/.data`
+  (`QUID_DATABASE_URL` defaults to `./.data/quid.db`); mount it as a volume to
+  persist data across container restarts.
+- **Healthcheck.** `curl -f http://localhost:8000/health` (curl is installed for
+  this).
+- **Production env.** The image is meant to run with `QUID_ENVIRONMENT=production`,
+  which **requires** `QUID_ALLOWED_HOSTS` and `QUID_CORS_ALLOWED_ORIGINS` (no
+  `*`); `QUID_TESTING` must stay false. Set `QUID_OPENROUTER_API_KEY` to enable
+  the AI features.
+
+The repo-root `docker-compose.yml` runs this alongside the web UI; CI builds and
+pushes the image to `ghcr.io/grantmegrabyan/quid-api` on push to `main`. See the
+root `README.md` for the full stack.
+
 ## Testing endpoints
 
 > [!WARNING]

@@ -31,6 +31,10 @@ webui/.env
 webui/.env.*
 !webui/.env.example
 !webui/.env.test
+
+# docker-compose runtime config (root)
+/.env
+!/.env.example
 webui/vite.config.js.timestamp-*
 webui/vite.config.ts.timestamp-*
 

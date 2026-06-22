@@ -64,7 +64,8 @@ npm run dev
 ```
 
 Open the URL Vite prints (typically `http://localhost:5173`). The web UI talks to
-the API at `VITE_API_BASE_URL` (default `http://localhost:8000`).
+the API at `PUBLIC_API_BASE_URL` (default `http://localhost:8000`), read at
+runtime via SvelteKit's `$env/dynamic/public`.
 
 ### Run both at once (and from another machine)
 
@@ -82,7 +83,7 @@ It auto-detects the box's primary LAN IP; override with `HOST=devbox.local
 ./dev.sh` (or `API_PORT` / `WEB_PORT`). Under the hood it sets, for that `HOST`:
 
 - `--host 0.0.0.0` on both uvicorn and Vite (the defaults are `localhost`-only),
-- `VITE_API_BASE_URL=http://<HOST>:8000` — required because the default
+- `PUBLIC_API_BASE_URL=http://<HOST>:8000` — required because the default
   `http://localhost:8000` resolves to the **browser's** machine (your laptop),
   not the devbox, and
 - `QUID_CORS_ORIGIN_REGEX` widened to allow the `http://<HOST>:5173` origin (the
@@ -146,3 +147,34 @@ Backend data is stored in `api/.data/quid.db` by default; schema changes go thro
 [Alembic](https://alembic.sqlalchemy.org/) migrations under `api/alembic/versions/`.
 The Playwright suite boots its own isolated API and database, so it's safe to run
 repeatedly.
+
+## Deployment
+
+The stack ships as two container images (`ghcr.io/grantmegrabyan/quid-api` and
+`…/quid-webui`), built and pushed to GHCR by GitHub Actions on every push to
+`main` (`.github/workflows/build-{api,webui}.yml`, multi-arch `amd64`+`arm64`).
+A `ci.yml` workflow runs backend lint/types/tests and the frontend type-check on
+every PR and push.
+
+Run the stack with the repo-root `docker-compose.yml` (it builds both images
+locally — `pull_policy: build`):
+
+```sh
+cp .env.example .env   # then edit it
+docker compose up --build
+#   UI  → http://localhost:3001
+#   API → http://localhost:8001  (health at /health)
+```
+
+`.env` (read by compose) holds the deploy config:
+
+- `PUBLIC_API_BASE_URL` — the **browser-reachable** API origin, read by the UI at
+  **runtime** via `$env/dynamic/public`. Change it and restart the `ui` container
+  — no rebuild. The image is environment-agnostic.
+- `QUID_ALLOWED_HOSTS` and `QUID_CORS_ALLOWED_ORIGINS` — **required** in
+  production mode (the API fails fast if unset / wildcarded); the latter must
+  include the UI origin.
+- `QUID_OPENROUTER_API_KEY` — optional, enables the AI features.
+
+The API container runs `quid-api migrate` before serving (the app does **not**
+auto-migrate), and persists the SQLite DB + logs to `./api/.data` via a volume.

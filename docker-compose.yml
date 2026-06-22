@@ -1,0 +1,55 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    pull_policy: build
+    image: ghcr.io/grantmegrabyan/quid-api:latest
+    container_name: quid-api
+    ports:
+      - "8001:8000"
+    environment:
+      - QUID_ENVIRONMENT=production
+      # Required in production (fail-fast otherwise). No '*' allowed.
+      - QUID_ALLOWED_HOSTS=${QUID_ALLOWED_HOSTS}
+      - QUID_CORS_ALLOWED_ORIGINS=${QUID_CORS_ALLOWED_ORIGINS}
+      # Optional: needed only for the AI features (categorisation, short names).
+      - QUID_OPENROUTER_API_KEY=${QUID_OPENROUTER_API_KEY:-}
+      - TZ=Europe/London
+    volumes:
+      # SQLite database + logs persist here (QUID_DATABASE_URL defaults to
+      # ./.data/quid.db, i.e. /app/.data inside the container).
+      - ./api/.data:/app/.data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - quid-network
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ./webui
+      dockerfile: Dockerfile
+    pull_policy: build
+    image: ghcr.io/grantmegrabyan/quid-webui:latest
+    container_name: quid-webui
+    ports:
+      - "3001:3000"
+    environment:
+      # Browser-reachable API origin, read at runtime via $env/dynamic/public.
+      # Change it here and restart `ui` — no rebuild needed.
+      - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL:-http://localhost:8001}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - quid-network
+    restart: unless-stopped
+
+networks:
+  quid-network:
+    driver: bridge
