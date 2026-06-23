@@ -39,6 +39,24 @@ def test_csv_fields_parse_from_string():
     assert s.cors_allowed_origins == ["https://x.com", "https://y.com"]
 
 
+def test_csv_fields_parse_from_env(monkeypatch: pytest.MonkeyPatch):
+    # Regression: pydantic-settings JSON-decodes list fields from env BEFORE the
+    # validator runs, so a plain comma-separated value (or a single bare token)
+    # used to crash startup. NoDecode on these fields routes the raw string to
+    # _coerce_csv instead. This must go through the real env source, not kwargs.
+    monkeypatch.setenv("QUID_ALLOWED_HOSTS", "192.168.1.195,localhost")
+    monkeypatch.setenv("QUID_CORS_ALLOWED_ORIGINS", "http://192.168.1.195:3001")
+    s = Settings()
+    assert s.allowed_hosts == ["192.168.1.195", "localhost"]
+    assert s.cors_allowed_origins == ["http://192.168.1.195:3001"]
+
+
+def test_single_host_from_env_is_not_json_parsed(monkeypatch: pytest.MonkeyPatch):
+    # A single bare hostname is not valid JSON; it must still parse to a 1-list.
+    monkeypatch.setenv("QUID_ALLOWED_HOSTS", "api.example.com")
+    assert Settings().allowed_hosts == ["api.example.com"]
+
+
 def test_default_is_development_not_production():
     s = Settings()
     assert s.is_production is False

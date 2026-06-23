@@ -35,7 +35,7 @@ export default defineConfig({
 			reuseExistingServer: false,
 			timeout: 120_000,
 			env: {
-				VITE_API_BASE_URL: API_URL
+				PUBLIC_API_BASE_URL: API_URL
 			}
 		}
 	],

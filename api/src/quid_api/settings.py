@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class ProductionConfigError(RuntimeError):
@@ -85,11 +87,14 @@ class Settings(BaseSettings):
     environment: str = "development"
     # Hosts allowed via TrustedHostMiddleware (comma-separated in env). Empty
     # means "any host", which is fine for local dev but rejected in production.
-    allowed_hosts: list[str] = []
+    # NoDecode disables pydantic-settings' default JSON decoding of list fields
+    # so a plain comma-separated env value reaches _coerce_csv (otherwise a bare
+    # value like "localhost" or "a,b" fails JSON parsing at startup).
+    allowed_hosts: Annotated[list[str], NoDecode] = []
     # Exact CORS origins allowed in production (comma-separated in env). In
     # development cors_origin_regex governs CORS instead; in production this
     # explicit allow-list is required and the regex is ignored.
-    cors_allowed_origins: list[str] = []
+    cors_allowed_origins: Annotated[list[str], NoDecode] = []
     # Expose FastAPI /docs, /redoc and /openapi.json. Off by default in
     # production (see is_docs_enabled), always on in development.
     docs_enabled: bool = False

@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/public';
 import { RepositoryError, type RepositoryErrorCode } from './types.js';
 
 const REPOSITORY_ERROR_CODES: ReadonlySet<RepositoryErrorCode> = new Set([
@@ -12,8 +13,7 @@ interface ErrorBody {
 }
 
 function defaultBaseUrl(): string {
-	const env = (import.meta.env ?? {}) as Record<string, string | undefined>;
-	return env.VITE_API_BASE_URL?.trim() || 'http://localhost:8000';
+	return env.PUBLIC_API_BASE_URL?.trim() || 'http://localhost:8000';
 }
 
 function isErrorBody(value: unknown): value is ErrorBody {
