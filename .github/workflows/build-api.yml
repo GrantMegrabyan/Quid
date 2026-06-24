@@ -32,6 +32,9 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: [test]
+    # The arm64 image is built via QEMU emulation; cap it so an intermittent
+    # emulation hang fails fast instead of burning the full 6-hour job ceiling.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
