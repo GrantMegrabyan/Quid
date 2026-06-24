@@ -119,6 +119,8 @@ async def test_summary_empty(app_client):
     assert body["latestMonth"] is None
     assert body["currentMonth"] is None
     assert body["currentMonthPaceVsAverage"] is None
+    assert body["trailing12Total"] == "0.00"
+    assert body["trailing12Months"] == 0
 
 
 async def test_summary_headline_numbers(app_client):
@@ -145,6 +147,26 @@ async def test_summary_headline_numbers(app_client):
     assert body["latestMonthTotal"] == "100.00"
     assert body["currentMonth"] is None
     assert body["currentMonthToDate"] == "0.00"
+    # Only three months of data: trailing-12 covers all of it.
+    assert body["trailing12Total"] == "130.00"
+    assert body["trailing12Months"] == 3
+
+
+async def test_summary_trailing_12_caps_at_12_months(app_client):
+    cat = await _make_cat(app_client, "Food")
+    # 13 consecutive months, £10 each: the oldest must fall outside the window.
+    for i in range(13):
+        month = f"2025-{i + 1:02d}" if i < 12 else "2026-01"
+        await _make_expense(
+            app_client, name=f"M{i}", amount="10.00", date=f"{month}-05", category_id=cat["id"]
+        )
+
+    res = await app_client.get("/api/v1/analytics/summary")
+    body = res.json()
+    assert body["monthsCovered"] == 13
+    # Window holds the most recent 12 months only -> £120, not £130.
+    assert body["trailing12Months"] == 12
+    assert body["trailing12Total"] == "120.00"
 
 
 async def test_summary_as_of_uses_complete_month_baseline(app_client):

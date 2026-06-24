@@ -121,6 +121,12 @@ async def summary(
     total = sum((m.total for m in months), _ZERO)
     transaction_count = sum(m.count for m in months)
     months_covered = len(months)
+
+    # Rolling 12-month spend: the most recent 12 month-rows (ascending order),
+    # including the current partial month. Self-rolling — no date arithmetic.
+    trailing_window = months[-12:]
+    trailing_12_total = sum((m.total for m in trailing_window), _ZERO)
+    trailing_12_months = len(trailing_window)
     if as_of is not None:
         try:
             validate_iso_date(as_of)
@@ -163,6 +169,8 @@ async def summary(
         current_month_to_date=current_month_to_date,
         current_month_projected=current_month_projected,
         current_month_pace_vs_average=current_month_pace_vs_average,
+        trailing_12_total=trailing_12_total,
+        trailing_12_months=trailing_12_months,
     )
 
 

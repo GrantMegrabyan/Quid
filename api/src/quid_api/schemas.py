@@ -792,6 +792,11 @@ class AnalyticsSummaryResponse(_Camel):
     current_month_to_date: Decimal = Decimal("0.00")
     current_month_projected: Decimal = Decimal("0.00")
     current_month_pace_vs_average: float | None = None
+    # Rolling spend over the most recent 12 month-rows (includes the current,
+    # possibly-partial month). ``trailing_12_months`` is < 12 until a year of
+    # history exists.
+    trailing_12_total: Decimal = Decimal("0.00")
+    trailing_12_months: int = 0
 
     @field_serializer(
         "total",
@@ -799,6 +804,7 @@ class AnalyticsSummaryResponse(_Camel):
         "latest_month_total",
         "current_month_to_date",
         "current_month_projected",
+        "trailing_12_total",
     )
     def _ser_money(self, value: Decimal) -> str:
         return _money_str(value)
