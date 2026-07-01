@@ -49,10 +49,17 @@ and `docker-compose.yml` for the full stack (API + UI).
   total once at least 3 days have elapsed). Below them, the cumulative
   spending-trend chart sits beside an always-visible **By category** breakdown —
   a ranked bar list with per-category totals and % shares (top 6, expandable).
-  The transaction list has a **search box** (filters by merchant name/display
-  name/note, with a match count + total) and a Group-by selector. Each
-  transaction's subheading shows the date and, when present, its note (a linked
-  Amazon order's short name is used as the note when the expense has none). The
+  The transaction list is a **register**: on desktop, flat view buckets rows
+  under per-day headers with a daily subtotal, and each row spreads into aligned
+  columns (icon, merchant, category pill, note, amount, hover-revealed
+  edit/delete). Grouped views (merchant/category/importance) render each group
+  header with a proportional share bar + % of the month, and expand into child
+  rows using the same columns (a date column replaces the icon; the category
+  pill is omitted when grouping by category). On mobile, rows fall back to a
+  compact stacked layout (day headers included). A **search box** filters by
+  merchant name/display name/note (with a match count + total) next to the
+  Group-by selector. A transaction's note is the expense's own note or, for a
+  linked Amazon order without one, the order's short name. The
   **selected month** and Group-by choice are remembered across reloads/updates
   in `localStorage`, so the view doesn't snap back to the current month after a
   refresh; it defaults to the current month on first visit.

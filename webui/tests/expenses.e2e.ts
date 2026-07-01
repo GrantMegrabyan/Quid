@@ -31,6 +31,30 @@ test.describe('dashboard', () => {
 		await expect(rows.filter({ hasText: 'Whole Foods' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: 'Uber' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: '£42.50' })).toHaveCount(1);
+
+		// Flat view is bucketed by day with a subtotal per day header.
+		const dayHeaders = page.getByTestId('expense-day-header');
+		await expect(dayHeaders).toHaveCount(2);
+		await expect(dayHeaders.first()).toContainText('£42.50');
+		await expect(dayHeaders.last()).toContainText('£12.00');
+	});
+
+	test('grouped view shows share bars and expandable child rows', async ({ page }) => {
+		await page.goto('/');
+
+		await page.locator('select').selectOption('category');
+
+		// Groups sorted by amount desc: Groceries (£42.50) before Public Transport.
+		const groups = page.getByTestId('expense-group-toggle');
+		await expect(groups).toHaveCount(2);
+		await expect(groups.first()).toContainText('Groceries');
+		await expect(page.getByTestId('expense-group-amount').first()).toHaveText('£42.50');
+
+		await groups.first().click();
+		const nested = page.getByTestId('expense-nested-row');
+		await expect(nested).toHaveCount(1);
+		await expect(nested).toContainText('Whole Foods');
+		await expect(nested.getByTestId('expense-note')).toHaveText('Weekly groceries');
 	});
 
 	test('month selector scopes the list and cumulative chart', async ({ page }) => {
@@ -278,7 +302,10 @@ test.describe('dashboard', () => {
 		const toast = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
 		await expect(toast).toBeVisible();
 
-		// The progress bar's animation runs by default.
+		// The progress bar's animation runs by default. Park the mouse away first:
+		// the delete button can land exactly where the toast pops up, which would
+		// count as an (unintended) hover and pause it immediately.
+		await page.mouse.move(0, 0);
 		const progress = toast.locator('.toast-progress');
 		await expect(progress).toHaveCSS('animation-play-state', 'running');
 
