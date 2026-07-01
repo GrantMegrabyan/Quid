@@ -6,22 +6,55 @@ test.describe('dashboard', () => {
 		await seedApiState(page, buildSeed());
 	});
 
-	test('renders cumulative chart and hides optional charts by default', async ({ page }) => {
+	test('renders the trend chart and category breakdown', async ({ page }) => {
 		await page.goto('/');
 
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		await expect(page.getByTestId('category-chart')).toHaveCount(0);
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£54.50');
 		await expect(page.getByTestId('top-category-name')).toHaveText('Groceries');
 		await expect(page.getByText('Track spending by month.')).toHaveCount(0);
 		await expect(page.getByText('Cumulative monthly expenses')).toHaveCount(0);
 
+		// Category breakdown is always visible, ranked by spend (no toggle).
+		const breakdownRows = page.getByTestId('category-breakdown-row');
+		await expect(breakdownRows).toHaveCount(2);
+		await expect(breakdownRows.first()).toContainText('Groceries');
+		await expect(breakdownRows.first()).toContainText('£42.50');
+		await expect(breakdownRows.last()).toContainText('Public Transport');
+
+		// No previous-month data seeded → the delta chip must not render.
+		await expect(page.getByTestId('month-delta')).toHaveCount(0);
+
 		const rows = page.getByTestId('expense-row');
 		await expect(rows).toHaveCount(2);
 		await expect(rows.filter({ hasText: 'Whole Foods' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: 'Uber' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: '£42.50' })).toHaveCount(1);
+
+		// Flat view is bucketed by day with a subtotal per day header.
+		const dayHeaders = page.getByTestId('expense-day-header');
+		await expect(dayHeaders).toHaveCount(2);
+		await expect(dayHeaders.first()).toContainText('£42.50');
+		await expect(dayHeaders.last()).toContainText('£12.00');
+	});
+
+	test('grouped view shows share bars and expandable child rows', async ({ page }) => {
+		await page.goto('/');
+
+		await page.locator('select').selectOption('category');
+
+		// Groups sorted by amount desc: Groceries (£42.50) before Public Transport.
+		const groups = page.getByTestId('expense-group-toggle');
+		await expect(groups).toHaveCount(2);
+		await expect(groups.first()).toContainText('Groceries');
+		await expect(page.getByTestId('expense-group-amount').first()).toHaveText('£42.50');
+
+		await groups.first().click();
+		const nested = page.getByTestId('expense-nested-row');
+		await expect(nested).toHaveCount(1);
+		await expect(nested).toContainText('Whole Foods');
+		await expect(nested.getByTestId('expense-note')).toHaveText('Weekly groceries');
 	});
 
 	test('month selector scopes the list and cumulative chart', async ({ page }) => {
@@ -133,19 +166,77 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(-1));
 	});
 
-	test('optional charts can be enabled and stay enabled after reload', async ({ page }) => {
+	test('shows the spend delta against the previous month', async ({ page }) => {
+		await seedApiState(
+			page,
+			buildSeed({
+				expenses: [
+					{
+						id: 'exp-current',
+						name: 'Current Coffee',
+						amount: '10.00',
+						date: isoMonthOffset(0, 2),
+						categoryId: 'cat-groceries',
+						note: ''
+					},
+					{
+						id: 'exp-previous',
+						name: 'Previous Train',
+						amount: '20.00',
+						date: isoMonthOffset(-1, 2),
+						categoryId: 'cat-public-transport',
+						note: ''
+					}
+				]
+			})
+		);
+
 		await page.goto('/');
 
-		await expect(page.getByTestId('category-chart')).toHaveCount(0);
+		// £10 this month vs £20 last month → 50% down.
+		const delta = page.getByTestId('month-delta');
+		await expect(delta).toContainText('50%');
+		await expect(delta).toContainText(`vs ${monthLabelOffset(-1)}`);
+	});
 
-		await page.getByTestId('toggle-category-chart').check();
+	test('Today button jumps back to the current month', async ({ page }) => {
+		await page.goto('/');
 
-		await expect(page.getByTestId('category-chart')).toBeVisible();
+		// Not shown while already on the current month.
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByTestId('month-current')).toHaveCount(0);
 
-		await page.reload();
+		await page.getByTestId('month-prev').click();
+		await page.getByTestId('month-prev').click();
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-2));
 
-		await expect(page.getByTestId('category-chart')).toBeVisible();
-		await expect(page.getByTestId('toggle-category-chart')).toBeChecked();
+		await page.getByTestId('month-current').click();
+		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
+		await expect(page.getByTestId('month-current')).toHaveCount(0);
+	});
+
+	test('search filters the transaction list', async ({ page }) => {
+		await page.goto('/');
+
+		await expect(page.getByTestId('expense-row')).toHaveCount(2);
+
+		await page.getByTestId('expense-search').fill('uber');
+		await expect(page.getByTestId('expense-row')).toHaveCount(1);
+		await expect(page.getByTestId('expense-row')).toContainText('Uber');
+		await expect(page.getByTestId('search-summary')).toHaveText('1 transaction matching · £12.00');
+
+		// Notes are searchable too.
+		await page.getByTestId('expense-search').fill('weekly groceries');
+		await expect(page.getByTestId('expense-row')).toHaveCount(1);
+		await expect(page.getByTestId('expense-row')).toContainText('Whole Foods');
+
+		// No matches → search-specific empty state (not the month empty state).
+		await page.getByTestId('expense-search').fill('zzz-no-match');
+		await expect(page.getByTestId('expense-row')).toHaveCount(0);
+		await expect(page.getByTestId('empty-state')).toContainText('No transactions match');
+
+		await page.getByTestId('expense-search').fill('');
+		await expect(page.getByTestId('expense-row')).toHaveCount(2);
 	});
 
 	test('edit expense flow updates the row in place', async ({ page }) => {
@@ -211,7 +302,10 @@ test.describe('dashboard', () => {
 		const toast = page.getByTestId('app-toast').filter({ has: page.getByTestId('toast-undo') });
 		await expect(toast).toBeVisible();
 
-		// The progress bar's animation runs by default.
+		// The progress bar's animation runs by default. Park the mouse away first:
+		// the delete button can land exactly where the toast pops up, which would
+		// count as an (unintended) hover and pause it immediately.
+		await page.mouse.move(0, 0);
 		const progress = toast.locator('.toast-progress');
 		await expect(progress).toHaveCSS('animation-play-state', 'running');
 
@@ -251,8 +345,9 @@ test.describe('empty state', () => {
 
 		await expect(page.getByTestId('empty-state')).toBeVisible();
 		await expect(page.getByTestId('expense-row')).toHaveCount(0);
-		await page.getByTestId('toggle-category-chart').check();
-		await expect(page.getByTestId('category-chart')).toContainText('No expenses for this month');
+		await expect(page.getByTestId('category-breakdown')).toContainText(
+			'No expenses for this month'
+		);
 	});
 });
 
@@ -266,8 +361,9 @@ test.describe('mobile layout', () => {
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		await page.getByTestId('toggle-category-chart').check();
-		await expect(page.getByTestId('category-chart')).toBeVisible();
+		// The category breakdown is desktop-only (xl+): stacked on mobile it eats
+		// vertical space, and Group by → Category covers the same need.
+		await expect(page.getByTestId('category-breakdown')).toBeHidden();
 		await page.waitForFunction(
 			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth
 		);

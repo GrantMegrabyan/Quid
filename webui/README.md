@@ -40,15 +40,31 @@ and `docker-compose.yml` for the full stack (API + UI).
 
 ## Pages
 
-- **Dashboard** (`/`) — summary stat cards (this month's total with
-  month-over-month change, transaction count, the top spending category for the
-  month, and average per transaction), plus the transaction list and charts.
-  Each transaction's subheading shows the date and, when present, its note (a
-  linked Amazon order's short name is used as the note when the expense has
-  none). The **selected month** (plus the chart toggles and Group-by choice) is
-  remembered across reloads/updates in `localStorage`, so the view doesn't snap
-  back to the current month after a refresh; it defaults to the current month on
-  first visit.
+- **Dashboard** (`/`) — a single-month spending view headed by the selected
+  month and a month selector (with a **Today** button to jump back to the
+  current month). Four stat cards: total spent (with a % change vs the previous
+  month, fetched from the analytics monthly-totals endpoint), transaction count
+  (with the average per transaction), top category (with its share of the
+  month), and daily average (for the current month, with a projected month-end
+  total once at least 3 days have elapsed). Below them, the cumulative
+  spending-trend chart sits beside a **By category** breakdown — a ranked bar
+  list with per-category totals and % shares (top 6, expandable). The breakdown
+  only renders on wide screens (`xl+`, where it fits beside the chart); on
+  smaller screens use Group by → Category for the same view.
+  The transaction list is a **register**: on desktop, flat view buckets rows
+  under per-day headers with a daily subtotal, and each row spreads into aligned
+  columns (icon, merchant, category pill, note, amount, hover-revealed
+  edit/delete). Grouped views (merchant/category/importance) render each group
+  header with a proportional share bar + % of the month, and expand into child
+  rows using the same columns (a date column replaces the icon; the category
+  pill is omitted when grouping by category). On mobile, rows fall back to a
+  compact stacked layout (day headers included). A **search box** filters by
+  merchant name/display name/note (with a match count + total) next to the
+  Group-by selector. A transaction's note is the expense's own note or, for a
+  linked Amazon order without one, the order's short name. The
+  **selected month** and Group-by choice are remembered across reloads/updates
+  in `localStorage`, so the view doesn't snap back to the current month after a
+  refresh; it defaults to the current month on first visit.
 - **Analytics** (`/analytics`) — insight-first review of your spending, anchored
   on the latest **complete** month (the in-progress month is never the
   headline). Top to bottom:

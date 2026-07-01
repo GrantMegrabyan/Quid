@@ -15,7 +15,13 @@
 			selectedMonth.set(nextMonthKey($selectedMonth));
 		}
 	}
+
+	function goCurrent(): void {
+		selectedMonth.set(currentKey);
+	}
 </script>
+
+<div class="flex items-center gap-2">
 
 <div
 	class="inline-flex items-center overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base text-sm shadow-sm"
@@ -46,4 +52,16 @@
 	>
 		›
 	</button>
+</div>
+
+{#if canGoNext}
+	<button
+		type="button"
+		data-testid="month-current"
+		onclick={goCurrent}
+		class="rounded-lg border border-ctp-surface1 bg-ctp-base px-3 py-2 text-sm font-medium text-ctp-subtext0 shadow-sm transition-colors hover:bg-ctp-surface1 hover:text-ctp-text"
+	>
+		Today
+	</button>
+{/if}
 </div>
