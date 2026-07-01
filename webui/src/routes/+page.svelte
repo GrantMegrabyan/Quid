@@ -4,7 +4,7 @@
 	import ExpenseFormModal from '$components/ExpenseFormModal.svelte';
 	import MonthSelector from '$components/MonthSelector.svelte';
 	import CumulativeChart from '$components/CumulativeChart.svelte';
-	import CategoryDoughnutChart from '$components/CategoryDoughnutChart.svelte';
+	import CategoryBreakdown from '$components/CategoryBreakdown.svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
@@ -12,23 +12,43 @@
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { selectedMonth } from '$lib/stores/ui';
-	import { formatMonthLabel, monthKey } from '$utils/dates';
+	import { persisted } from '$lib/stores/persisted';
+	import { analyticsRepository } from '$lib/repos';
+	import {
+		currentMonthKey,
+		daysInMonth,
+		formatMonthLabel,
+		monthDateRange,
+		monthKey,
+		previousMonthKey,
+		todayIso
+	} from '$utils/dates';
 	import { amountToNumber, formatAmount } from '$utils/money';
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
-	import { Wallet, Receipt, TrendingUp } from '@lucide/svelte';
+	import {
+		Wallet,
+		Receipt,
+		TrendingUp,
+		TrendingDown,
+		CalendarDays,
+		Search
+	} from '@lucide/svelte';
 	import type { Expense } from '$types';
 
 	let modalOpen = $state(false);
 	let editingExpense: Expense | undefined = $state(undefined);
-	let showCategoryChart = $state(false);
-	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
-	let expenseGroupBy = $state<ExpenseGroupBy>('transaction');
+	let searchQuery = $state('');
 
-	const CHART_PREFS_KEY = 'expense-tracker:dashboard-charts:v1';
-	const GROUP_BY_KEY = 'expense-tracker:expense-group-by:v1';
+	type ExpenseGroupBy = 'transaction' | 'merchant' | 'category' | 'importance';
 	const GROUP_BY_VALUES: ExpenseGroupBy[] = ['transaction', 'merchant', 'category', 'importance'];
-	let groupByLoaded = $state(false);
+	const expenseGroupBy = persisted<ExpenseGroupBy>(
+		'quid:expense-group-by:v1',
+		'transaction',
+		(value) => GROUP_BY_VALUES.includes(value)
+	);
+
 	const selectedMonthLabel = $derived(formatMonthLabel($selectedMonth));
+	const isCurrentMonth = $derived($selectedMonth === currentMonthKey());
 	const monthExpenses = $derived(
 		$expenses.filter((expense) => monthKey(expense.date) === $selectedMonth)
 	);
@@ -44,11 +64,59 @@
 		transactionCount > 0 ? selectedMonthTotal / transactionCount : 0
 	);
 
+	// Daily average over elapsed days (current month) or the whole month (past
+	// months); the projection extrapolates that pace to month end.
+	const elapsedDays = $derived.by(() => {
+		const total = daysInMonth($selectedMonth);
+		if (!isCurrentMonth) return total;
+		return Math.min(Number(todayIso().slice(8, 10)), total);
+	});
+	const dailyAverage = $derived(elapsedDays > 0 ? selectedMonthTotal / elapsedDays : 0);
+	const projectedTotal = $derived(dailyAverage * daysInMonth($selectedMonth));
+	// A one-or-two-day sample extrapolates to nonsense (one big shop reads as a
+	// five-figure month); hold the projection back until there's some signal.
+	const showProjection = $derived(isCurrentMonth && elapsedDays >= 3 && selectedMonthTotal > 0);
+
+	// Previous month's total for the "vs last month" delta. Fetched via the
+	// analytics monthly-totals endpoint (a single aggregate row), NOT by loading
+	// another month of expenses — the expense store stays strictly single-month.
+	let prevMonthTotal: number | null = $state(null);
+	let prevMonthRequest = 0;
+	$effect(() => {
+		const month = $selectedMonth;
+		const requestId = ++prevMonthRequest;
+		prevMonthTotal = null;
+		const prev = previousMonthKey(month);
+		const { from, to } = monthDateRange(prev);
+		analyticsRepository
+			.monthlyTotals({ dateFrom: from, dateTo: to })
+			.then((result) => {
+				if (requestId !== prevMonthRequest) return;
+				const entry = result.months.find((m) => m.month === prev);
+				prevMonthTotal = entry ? amountToNumber(entry.total) : 0;
+			})
+			.catch(() => {
+				// The delta is decorative; a failed lookup just hides it.
+				if (requestId === prevMonthRequest) prevMonthTotal = null;
+			});
+	});
+
+	const monthDelta = $derived.by(() => {
+		if (prevMonthTotal === null || prevMonthTotal <= 0) return null;
+		const diff = selectedMonthTotal - prevMonthTotal;
+		return {
+			up: diff > 0,
+			percent: Math.round(Math.abs(diff / prevMonthTotal) * 100),
+			label: formatMonthLabel(previousMonthKey($selectedMonth))
+		};
+	});
+
 	type TopCategory = {
 		name: string;
 		total: number;
 		color: string;
 		icon?: string;
+		share: number;
 	} | null;
 
 	const topCategory = $derived.by<TopCategory>(() => {
@@ -74,7 +142,8 @@
 			name: category?.name ?? 'Uncategorized',
 			total: topTotal,
 			color: category?.color ?? UNCATEGORIZED_COLOR,
-			icon: category?.icon
+			icon: category?.icon,
+			share: selectedMonthTotal > 0 ? topTotal / selectedMonthTotal : 0
 		};
 	});
 
@@ -98,37 +167,16 @@
 		void refreshExpenses();
 	});
 
+	// Searching within a month you just navigated to is rarely what you want;
+	// clear the query on month change so counts always match the visible month.
+	$effect(() => {
+		void $selectedMonth;
+		searchQuery = '';
+	});
+
 	onMount(() => {
 		void refreshCategories();
 		void refreshSettings();
-
-		const savedGroupBy = localStorage.getItem(GROUP_BY_KEY);
-		if (savedGroupBy && GROUP_BY_VALUES.includes(savedGroupBy as ExpenseGroupBy)) {
-			expenseGroupBy = savedGroupBy as ExpenseGroupBy;
-		}
-		groupByLoaded = true;
-
-		const saved = localStorage.getItem(CHART_PREFS_KEY);
-		if (saved) {
-			const prefs = JSON.parse(saved) as {
-				category?: boolean;
-			};
-			showCategoryChart = Boolean(prefs.category);
-		}
-	});
-
-	$effect(() => {
-		localStorage.setItem(
-			CHART_PREFS_KEY,
-			JSON.stringify({
-				category: showCategoryChart
-			})
-		);
-	});
-
-	$effect(() => {
-		if (!groupByLoaded) return;
-		localStorage.setItem(GROUP_BY_KEY, expenseGroupBy);
 	});
 </script>
 
@@ -137,18 +185,34 @@
 </svelte:head>
 
 <section class="flex flex-col gap-6">
+	<!-- Page header: month context first -->
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<div>
+			<h1
+				data-testid="selected-month-heading"
+				class="text-2xl font-bold tracking-tight text-ctp-text"
+			>
+				{selectedMonthLabel}
+			</h1>
+			<p class="mt-0.5 text-sm text-ctp-overlay1">
+				{isCurrentMonth ? 'Spending so far this month' : 'Spending overview'}
+			</p>
+		</div>
+		<MonthSelector />
+	</div>
+
 	<!-- Stat cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-		<!-- This month total -->
+		<!-- Total spent -->
 		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
 			<div class="flex items-center gap-3">
-				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 text-ctp-accent">
+				<span
+					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 text-ctp-accent"
+				>
 					<Wallet class="h-[18px] w-[18px]" />
 				</span>
 				<div class="min-w-0 flex-1">
-					<div class="flex min-h-5 items-center gap-2">
-						<p class="text-xs font-medium text-ctp-subtext0">This month</p>
-					</div>
+					<p class="text-xs font-medium text-ctp-subtext0">Total spent</p>
 					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
 						<TweenedAmount
 							value={selectedMonthTotal}
@@ -158,22 +222,44 @@
 					</p>
 				</div>
 			</div>
-			<p data-testid="selected-month-heading" class="sr-only">
-				{selectedMonthLabel}
-			</p>
+			{#if monthDelta}
+				<p
+					data-testid="month-delta"
+					class="mt-2 flex items-center gap-1 text-xs {monthDelta.up
+						? 'text-ctp-red'
+						: 'text-ctp-green'}"
+				>
+					{#if monthDelta.up}
+						<TrendingUp class="h-3.5 w-3.5" />
+					{:else}
+						<TrendingDown class="h-3.5 w-3.5" />
+					{/if}
+					<span class="font-semibold">{monthDelta.percent}%</span>
+					<span class="text-ctp-overlay1">vs {monthDelta.label}</span>
+				</p>
+			{/if}
 		</div>
 
 		<!-- Transactions -->
 		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
 			<div class="flex items-center gap-3">
-				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-blue/15 text-ctp-blue">
+				<span
+					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-blue/15 text-ctp-blue"
+				>
 					<Receipt class="h-[18px] w-[18px]" />
 				</span>
 				<div class="min-w-0">
 					<p class="text-xs font-medium text-ctp-subtext0">Transactions</p>
-					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">{transactionCount}</p>
+					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
+						{transactionCount}
+					</p>
 				</div>
 			</div>
+			{#if transactionCount > 0}
+				<p class="mt-2 text-xs text-ctp-overlay1">
+					{formatAmount(avgPerTransaction, $settings.currency)} avg per transaction
+				</p>
+			{/if}
 		</div>
 
 		<!-- Top category -->
@@ -196,16 +282,9 @@
 				<div class="min-w-0 flex-1">
 					<p class="text-xs font-medium text-ctp-subtext0">Top category</p>
 					{#if topCategory}
-						<p class="flex items-baseline gap-1.5 leading-tight">
-							<span
-								class="truncate text-xl font-bold tracking-tight text-ctp-text"
-								data-testid="top-category-name"
-								title={topCategory.name}
-							>
+						<p class="truncate text-xl font-bold leading-tight tracking-tight text-ctp-text">
+							<span data-testid="top-category-name" title={topCategory.name}>
 								{topCategory.name}
-							</span>
-							<span class="shrink-0 text-xs text-ctp-overlay0">
-								{formatAmount(topCategory.total, $settings.currency)}
 							</span>
 						</p>
 					{:else}
@@ -213,64 +292,73 @@
 					{/if}
 				</div>
 			</div>
+			{#if topCategory}
+				<p class="mt-2 text-xs text-ctp-overlay1">
+					{formatAmount(topCategory.total, $settings.currency)} · {Math.round(
+						topCategory.share * 100
+					)}% of total
+				</p>
+			{/if}
 		</div>
 
-		<!-- Avg per transaction -->
+		<!-- Daily average -->
 		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
 			<div class="flex items-center gap-3">
-				<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-mauve/15 text-ctp-mauve">
-					<TrendingUp class="h-[18px] w-[18px]" />
+				<span
+					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-mauve/15 text-ctp-mauve"
+				>
+					<CalendarDays class="h-[18px] w-[18px]" />
 				</span>
 				<div class="min-w-0">
-					<p class="text-xs font-medium text-ctp-subtext0">Avg / transaction</p>
+					<p class="text-xs font-medium text-ctp-subtext0">Daily average</p>
 					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-						{formatAmount(avgPerTransaction, $settings.currency)}
+						{formatAmount(dailyAverage, $settings.currency)}
 					</p>
 				</div>
 			</div>
+			{#if showProjection}
+				<p data-testid="projected-total" class="mt-2 text-xs text-ctp-overlay1">
+					On pace for {formatAmount(projectedTotal, $settings.currency)} this month
+				</p>
+			{/if}
 		</div>
 	</div>
 
-	<!-- Month selector + chart toggles -->
-	<div class="flex flex-wrap items-center justify-between gap-3">
-		<MonthSelector />
-		<div class="flex flex-wrap items-center gap-2 text-sm">
-			<span class="text-ctp-overlay1">Charts</span>
-			<label class="inline-flex items-center gap-2 rounded-full border border-ctp-surface1 bg-ctp-base px-3 py-1.5 text-ctp-subtext0">
-				<input
-					type="checkbox"
-					data-testid="toggle-category-chart"
-					bind:checked={showCategoryChart}
-					class="h-4 w-4 accent-ctp-accent"
-				/>
-				By category
-			</label>
+	<!-- Charts: trend + category breakdown side by side on wide screens -->
+	<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+		<div
+			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6 xl:col-span-2"
+		>
+			<h2 class="mb-4 text-base font-semibold text-ctp-text">Spending this month</h2>
+			<CumulativeChart />
+		</div>
+
+		<div
+			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
+		>
+			<h2 class="mb-4 text-base font-semibold text-ctp-text">By category</h2>
+			<CategoryBreakdown />
 		</div>
 	</div>
 
-	<!-- Spending chart card -->
-	<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6">
-		<h2 class="mb-4 text-base font-semibold text-ctp-text">Spending this month</h2>
-		<CumulativeChart />
-	</div>
-
-	{#if showCategoryChart}
-	<div
-		class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
-	>
-		<h2 class="mb-4 text-base font-semibold text-ctp-text">By category</h2>
-		<CategoryDoughnutChart />
-	</div>
-	{/if}
-
-	<div class="flex flex-wrap items-center justify-between gap-3">
+	<!-- Transactions -->
+	<div class="flex flex-wrap items-center gap-3">
 		<h2 class="text-base font-semibold text-ctp-text">Transactions</h2>
+		<div class="relative ml-auto w-full sm:w-64">
+			<Search
+				class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ctp-overlay0"
+			/>
+			<input
+				type="search"
+				data-testid="expense-search"
+				placeholder="Search transactions…"
+				bind:value={searchQuery}
+				class="field w-full pl-9"
+			/>
+		</div>
 		<label class="inline-flex items-center gap-2 text-sm text-ctp-overlay1">
 			Group by
-			<select
-				bind:value={expenseGroupBy}
-				class="field field-select"
-			>
+			<select bind:value={$expenseGroupBy} class="field field-select">
 				<option value="transaction">Transaction</option>
 				<option value="merchant">Merchant</option>
 				<option value="category">Category</option>
@@ -279,7 +367,7 @@
 		</label>
 	</div>
 
-	<ExpenseList groupBy={expenseGroupBy} onedit={openEdit} />
+	<ExpenseList groupBy={$expenseGroupBy} {searchQuery} onedit={openEdit} />
 </section>
 
 <ExpenseFormModal open={modalOpen} expense={editingExpense} on:close={closeModal} />

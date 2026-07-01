@@ -26,8 +26,11 @@
 		importance?: ExpenseImportance;
 	};
 
-	let { groupBy = 'transaction', onedit }: { groupBy?: ExpenseGroupBy; onedit?: EditCallback } =
-		$props();
+	let {
+		groupBy = 'transaction',
+		searchQuery = '',
+		onedit
+	}: { groupBy?: ExpenseGroupBy; searchQuery?: string; onedit?: EditCallback } = $props();
 
 	const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 		year: 'numeric',
@@ -66,13 +69,31 @@
 		return expense.resolvedNote ?? expense.note ?? '';
 	}
 
+	const normalizedQuery = $derived(searchQuery.trim().toLowerCase());
+
+	function matchesQuery(expense: Expense): boolean {
+		if (!normalizedQuery) return true;
+		const haystack =
+			`${expense.displayName ?? ''} ${expense.name} ${noteFor(expense)}`.toLowerCase();
+		return haystack.includes(normalizedQuery);
+	}
+
 	const visibleExpenses = $derived(
 		$expenses.filter(
 			(expense) =>
 				monthKey(expense.date) === $selectedMonth &&
-				!$pendingDeletes.has(pendingKey('expense', expense.id))
+				!$pendingDeletes.has(pendingKey('expense', expense.id)) &&
+				matchesQuery(expense)
 		)
 	);
+
+	const searchTotal = $derived.by(() => {
+		let total = 0;
+		for (const expense of visibleExpenses) {
+			total += amountToNumber(expense.amount);
+		}
+		return total;
+	});
 
 	function groupIdFor(expense: Expense): string {
 		if (groupBy === 'merchant') return expense.displayName ?? expense.name;
@@ -150,7 +171,11 @@
 		}
 	});
 
-	const emptyMessage = $derived(`No expenses for ${formatMonthLabel($selectedMonth)}.`);
+	const emptyMessage = $derived(
+		normalizedQuery
+			? `No transactions match “${searchQuery.trim()}”.`
+			: `No expenses for ${formatMonthLabel($selectedMonth)}.`
+	);
 	const isGrouped = $derived(groupBy !== 'transaction');
 	const hasRows = $derived(
 		isGrouped ? groupedExpenses.length > 0 : visibleExpenses.length > 0
@@ -233,14 +258,27 @@
 		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center"
 	>
 		<p class="text-base font-medium text-ctp-text">{emptyMessage}</p>
-		<p class="text-sm text-ctp-overlay1">
-			Add transactions from the <a
-				href="/import"
-				class="font-medium text-ctp-accent hover:underline">Import</a
-			> page.
-		</p>
+		{#if normalizedQuery}
+			<p class="text-sm text-ctp-overlay1">Try a different search.</p>
+		{:else}
+			<p class="text-sm text-ctp-overlay1">
+				Add transactions from the <a
+					href="/import"
+					class="font-medium text-ctp-accent hover:underline">Import</a
+				> page.
+			</p>
+		{/if}
 	</div>
 {:else}
+	{#if normalizedQuery}
+		<p data-testid="search-summary" class="-mt-3 text-sm text-ctp-overlay1">
+			{visibleExpenses.length}
+			{visibleExpenses.length === 1 ? 'transaction' : 'transactions'} matching · {formatAmount(
+				searchTotal,
+				$settings.currency
+			)}
+		</p>
+	{/if}
 	<ul
 		class="overflow-hidden rounded-lg border border-ctp-surface1 bg-ctp-base"
 	>
