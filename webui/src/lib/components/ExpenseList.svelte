@@ -398,10 +398,12 @@
 									<p class="truncate text-sm font-medium leading-tight text-ctp-text">
 										{expense.displayName ?? expense.name}
 									</p>
-									<!-- Mobile-only subline: note (the day header carries the date). -->
-									{#if noteText}
-										<p class="mt-0.5 truncate text-xs text-ctp-overlay1 lg:hidden">{noteText}</p>
-									{/if}
+									<!-- Mobile-only subline: date · note, like the pre-register list. -->
+									<p class="mt-0.5 truncate text-xs text-ctp-overlay1 lg:hidden">
+										{formatDate(expense.date)}{#if noteText}<span class="text-ctp-overlay0"
+												>&nbsp;·&nbsp;</span
+											>{noteText}{/if}
+									</p>
 									{#if $settings.showImportanceBadge}
 										<div class="mt-1 flex flex-wrap items-center gap-1.5 lg:hidden">
 											<ImportanceBadge importance={expense.importance} />
