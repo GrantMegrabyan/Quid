@@ -47,8 +47,10 @@ and `docker-compose.yml` for the full stack (API + UI).
   (with the average per transaction), top category (with its share of the
   month), and daily average (for the current month, with a projected month-end
   total once at least 3 days have elapsed). Below them, the cumulative
-  spending-trend chart sits beside an always-visible **By category** breakdown —
-  a ranked bar list with per-category totals and % shares (top 6, expandable).
+  spending-trend chart sits beside a **By category** breakdown — a ranked bar
+  list with per-category totals and % shares (top 6, expandable). The breakdown
+  only renders on wide screens (`xl+`, where it fits beside the chart); on
+  smaller screens use Group by → Category for the same view.
   The transaction list is a **register**: on desktop, flat view buckets rows
   under per-day headers with a daily subtotal, and each row spreads into aligned
   columns (icon, merchant, category pill, note, amount, hover-revealed

@@ -333,8 +333,11 @@
 			<CumulativeChart />
 		</div>
 
+		<!-- Only shown when it fits beside the chart: stacked under it on
+		     narrower screens it eats vertical space, and the same view is
+		     available via Group by → Category. -->
 		<div
-			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6"
+			class="hidden rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6 xl:block"
 		>
 			<h2 class="mb-4 text-base font-semibold text-ctp-text">By category</h2>
 			<CategoryBreakdown />

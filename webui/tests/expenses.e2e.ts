@@ -361,7 +361,9 @@ test.describe('mobile layout', () => {
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		await expect(page.getByTestId('category-breakdown')).toBeVisible();
+		// The category breakdown is desktop-only (xl+): stacked on mobile it eats
+		// vertical space, and Group by → Category covers the same need.
+		await expect(page.getByTestId('category-breakdown')).toBeHidden();
 		await page.waitForFunction(
 			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth
 		);

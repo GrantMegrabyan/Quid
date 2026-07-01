@@ -237,7 +237,8 @@ When NOT to commit:
   (the old raw-string `expense-tracker:expense-group-by:v1` key is orphaned, not
   read); the chart-toggle pref is gone — the category breakdown panel
   (`CategoryBreakdown.svelte`, a ranked bar list that replaced the doughnut
-  chart) is always visible. NOTE: persisting a value the e2e
+  chart) has no toggle and renders only at `xl+`, where it sits beside the
+  trend chart. NOTE: persisting a value the e2e
   suite relies on resetting between tests can cause cross-test bleed — keep
   persisted keys to genuinely user-facing view state.
 - Run frontend commands from `webui/`.
