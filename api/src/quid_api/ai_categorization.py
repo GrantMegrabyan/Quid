@@ -6,8 +6,14 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
+from quid_api.ai_openrouter import (
+    MAX_PARSE_ATTEMPTS,
+    OPENROUTER_CHAT_COMPLETIONS_URL,
+    UnparseableCompletion,
+    parse_completion,
+)
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 
 if TYPE_CHECKING:
@@ -16,8 +22,6 @@ if TYPE_CHECKING:
     from quid_api.repositories.expenses import BulkItem
 
 logger = logging.getLogger(__name__)
-
-OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 DEFAULT_CHUNK_SIZE = 25
 
@@ -226,36 +230,12 @@ def _request_body(
 
 
 def _parse_response(payload: object) -> _CategoryResponse:
-    if not isinstance(payload, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid response."
-        )
-    choices = payload.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise RepositoryError(RepositoryErrorCode.VALIDATION, "OpenRouter returned no choices.")
-    first = choices[0]
-    if not isinstance(first, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid choice."
-        )
-    message = first.get("message")
-    if not isinstance(message, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid message."
-        )
-    content = message.get("content")
-    if not isinstance(content, str) or content.strip() == "":
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an empty message."
-        )
-    try:
-        decoded = json.loads(content)
-        return _CategoryResponse.model_validate(decoded)
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION,
-            "OpenRouter returned categories in an unexpected format.",
-        ) from exc
+    return parse_completion(
+        payload,
+        _CategoryResponse,
+        format_error="OpenRouter returned categories in an unexpected format.",
+        log_prefix="ai.categorize",
+    )
 
 
 # Stopwords + surrounding punctuation that carry no categorical meaning, so
@@ -315,6 +295,28 @@ async def _categorize_chunk(
     client: httpx.AsyncClient,
 ) -> _CategoryResponse:
     body = _request_body(model, chunk, existing_categories, ai_rules, prior_decisions)
+    last_message = "OpenRouter returned categories in an unexpected format."
+    for attempt in range(1, MAX_PARSE_ATTEMPTS + 1):
+        try:
+            return await _post_and_parse(body, api_key=api_key, client=client)
+        except UnparseableCompletion as exc:
+            last_message = exc.message
+            logger.warning(
+                "ai.categorize.parse_retry attempt=%d/%d items=%d reason=%s",
+                attempt,
+                MAX_PARSE_ATTEMPTS,
+                len(chunk),
+                exc.message,
+            )
+    raise RepositoryError(RepositoryErrorCode.VALIDATION, last_message)
+
+
+async def _post_and_parse(
+    body: dict[str, object],
+    *,
+    api_key: str,
+    client: httpx.AsyncClient,
+) -> _CategoryResponse:
     try:
         response = await client.post(
             OPENROUTER_CHAT_COMPLETIONS_URL,

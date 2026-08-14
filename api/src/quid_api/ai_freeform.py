@@ -12,16 +12,20 @@ rows are recorded in the import log so a user can see what was parsed.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
-from quid_api.ai_categorization import OPENROUTER_CHAT_COMPLETIONS_URL
+from quid_api.ai_openrouter import (
+    MAX_PARSE_ATTEMPTS,
+    OPENROUTER_CHAT_COMPLETIONS_URL,
+    UnparseableCompletion,
+    parse_completion,
+)
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 
 logger = logging.getLogger(__name__)
@@ -135,36 +139,48 @@ def _request_body(model: str, text: str, today: str) -> dict[str, object]:
 
 
 def _parse_response(payload: object) -> _FreeformResponse:
-    if not isinstance(payload, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid response."
-        )
-    choices = payload.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise RepositoryError(RepositoryErrorCode.VALIDATION, "OpenRouter returned no choices.")
-    first = choices[0]
-    if not isinstance(first, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid choice."
-        )
-    message = first.get("message")
-    if not isinstance(message, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid message."
-        )
-    content = message.get("content")
-    if not isinstance(content, str) or content.strip() == "":
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an empty message."
-        )
+    return parse_completion(
+        payload,
+        _FreeformResponse,
+        format_error="OpenRouter returned transactions in an unexpected format.",
+        log_prefix="ai.freeform",
+    )
+
+
+async def _post_and_parse(
+    body: dict[str, object],
+    *,
+    api_key: str,
+    client: httpx.AsyncClient,
+) -> _FreeformResponse:
     try:
-        decoded = json.loads(content)
-        return _FreeformResponse.model_validate(decoded)
-    except (json.JSONDecodeError, ValidationError) as exc:
+        response = await client.post(
+            OPENROUTER_CHAT_COMPLETIONS_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/grant/quid",
+                "X-OpenRouter-Title": "Quid",
+            },
+            json=body,
+        )
+    except httpx.HTTPError as exc:
+        logger.warning("ai.freeform.http_error err=%s", exc)
         raise RepositoryError(
             RepositoryErrorCode.VALIDATION,
-            "OpenRouter returned transactions in an unexpected format.",
+            f"AI free-form parsing request failed: {exc}",
         ) from exc
+    if response.status_code >= 400:
+        logger.warning(
+            "ai.freeform.bad_status status=%d body=%r",
+            response.status_code,
+            response.text[:500],
+        )
+        raise RepositoryError(
+            RepositoryErrorCode.VALIDATION,
+            f"AI free-form parsing failed with HTTP {response.status_code}.",
+        )
+    return _parse_response(response.json())
 
 
 async def parse_freeform_transactions(
@@ -203,38 +219,29 @@ async def parse_freeform_transactions(
     owns_client = client is None
     active_client = client or httpx.AsyncClient(timeout=60)
     logger.info("ai.freeform.request chars=%d model=%s", len(cleaned), model)
+    parsed: _FreeformResponse | None = None
+    last_message = "OpenRouter returned transactions in an unexpected format."
     try:
-        try:
-            response = await active_client.post(
-                OPENROUTER_CHAT_COMPLETIONS_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com/grant/quid",
-                    "X-OpenRouter-Title": "Quid",
-                },
-                json=body,
-            )
-        except httpx.HTTPError as exc:
-            logger.warning("ai.freeform.http_error err=%s", exc)
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                f"AI free-form parsing request failed: {exc}",
-            ) from exc
-        if response.status_code >= 400:
-            logger.warning(
-                "ai.freeform.bad_status status=%d body=%r",
-                response.status_code,
-                response.text[:500],
-            )
-            raise RepositoryError(
-                RepositoryErrorCode.VALIDATION,
-                f"AI free-form parsing failed with HTTP {response.status_code}.",
-            )
-        parsed = _parse_response(response.json())
+        # Resample a garbled completion rather than making the user re-paste
+        # their text and pay for the whole prompt again.
+        for attempt in range(1, MAX_PARSE_ATTEMPTS + 1):
+            try:
+                parsed = await _post_and_parse(body, api_key=api_key, client=active_client)
+                break
+            except UnparseableCompletion as exc:
+                last_message = exc.message
+                logger.warning(
+                    "ai.freeform.parse_retry attempt=%d/%d reason=%s",
+                    attempt,
+                    MAX_PARSE_ATTEMPTS,
+                    exc.message,
+                )
     finally:
         if owns_client:
             await active_client.aclose()
+
+    if parsed is None:
+        raise RepositoryError(RepositoryErrorCode.VALIDATION, last_message)
 
     items = [
         item

@@ -365,6 +365,107 @@ async def test_http_error_status_raises_repository_error():
             )
 
 
+def _suggestion(index: int, category: str) -> dict[str, Any]:
+    return {
+        "index": index,
+        "category": category,
+        "importance": "important",
+        "exclude": False,
+        "confidence": 0.9,
+    }
+
+
+async def test_unparseable_completion_is_retried_once():
+    contents = ["Sure! Here you go — but no JSON at all."]
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if contents:
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": contents.pop(0)}}]}
+            )
+        return httpx.Response(200, json=_response(categories=[_suggestion(0, "Coffee")]))
+
+    async with _make_client(handler) as client:
+        result = await categorize_transactions(
+            [_item("Pret")],
+            existing_categories=[],
+            ai_rules=[],
+            api_key="key",
+            model="x",
+            client=client,
+        )
+
+    assert len(calls) == 2
+    assert result.items[0].category == "Coffee"
+
+
+async def test_unparseable_completion_raises_after_retry_exhausted():
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "not json"}}]})
+
+    async with _make_client(handler) as client:
+        with pytest.raises(RepositoryError, match="unexpected format"):
+            await categorize_transactions(
+                [_item("Pret")],
+                existing_categories=[],
+                ai_rules=[],
+                api_key="key",
+                model="x",
+                client=client,
+            )
+
+    assert len(calls) == 2
+
+
+async def test_fenced_json_content_is_parsed():
+    fenced = (
+        "```json\n"
+        + json.dumps({"categories": [_suggestion(0, "Coffee")]})
+        + "\n```\nHope that helps!"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": fenced}}]})
+
+    async with _make_client(handler) as client:
+        result = await categorize_transactions(
+            [_item("Pret")],
+            existing_categories=[],
+            ai_rules=[],
+            api_key="key",
+            model="x",
+            client=client,
+        )
+
+    assert result.items[0].category == "Coffee"
+
+
+async def test_http_error_status_is_not_retried():
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(500, text="server boom")
+
+    async with _make_client(handler) as client:
+        with pytest.raises(RepositoryError):
+            await categorize_transactions(
+                [_item("Pret")],
+                existing_categories=[],
+                ai_rules=[],
+                api_key="key",
+                model="x",
+                client=client,
+            )
+
+    assert len(calls) == 1
+
+
 async def test_chunk_size_zero_clamps_to_one_chunk_per_item():
     items = [_item("A"), _item("B")]
     requests: list[dict[str, Any]] = []

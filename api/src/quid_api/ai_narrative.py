@@ -12,7 +12,7 @@ import logging
 
 import httpx
 
-from quid_api.ai_categorization import OPENROUTER_CHAT_COMPLETIONS_URL
+from quid_api.ai_openrouter import OPENROUTER_CHAT_COMPLETIONS_URL
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 
 logger = logging.getLogger(__name__)

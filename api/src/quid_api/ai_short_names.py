@@ -15,9 +15,14 @@ import logging
 from dataclasses import dataclass
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
-from quid_api.ai_categorization import OPENROUTER_CHAT_COMPLETIONS_URL
+from quid_api.ai_openrouter import (
+    MAX_PARSE_ATTEMPTS,
+    OPENROUTER_CHAT_COMPLETIONS_URL,
+    UnparseableCompletion,
+    parse_completion,
+)
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 
 logger = logging.getLogger(__name__)
@@ -125,36 +130,12 @@ def _request_body(model: str, chunk: list[ShortNameInput]) -> dict[str, object]:
 
 
 def _parse_response(payload: object) -> _ShortNameResponse:
-    if not isinstance(payload, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid response."
-        )
-    choices = payload.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise RepositoryError(RepositoryErrorCode.VALIDATION, "OpenRouter returned no choices.")
-    first = choices[0]
-    if not isinstance(first, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid choice."
-        )
-    message = first.get("message")
-    if not isinstance(message, dict):
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an invalid message."
-        )
-    content = message.get("content")
-    if not isinstance(content, str) or content.strip() == "":
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION, "OpenRouter returned an empty message."
-        )
-    try:
-        decoded = json.loads(content)
-        return _ShortNameResponse.model_validate(decoded)
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise RepositoryError(
-            RepositoryErrorCode.VALIDATION,
-            "OpenRouter returned short names in an unexpected format.",
-        ) from exc
+    return parse_completion(
+        payload,
+        _ShortNameResponse,
+        format_error="OpenRouter returned short names in an unexpected format.",
+        log_prefix="ai.short_names",
+    )
 
 
 async def _short_names_chunk(
@@ -165,6 +146,30 @@ async def _short_names_chunk(
     client: httpx.AsyncClient,
 ) -> _ShortNameResponse:
     body = _request_body(model, chunk)
+    last_message = "OpenRouter returned short names in an unexpected format."
+    # Resample a garbled completion before giving up: the fallback is a crude
+    # title-derived label, so a retry is worth it to keep the AI name.
+    for attempt in range(1, MAX_PARSE_ATTEMPTS + 1):
+        try:
+            return await _post_and_parse(body, api_key=api_key, client=client)
+        except UnparseableCompletion as exc:
+            last_message = exc.message
+            logger.warning(
+                "ai.short_names.parse_retry attempt=%d/%d orders=%d reason=%s",
+                attempt,
+                MAX_PARSE_ATTEMPTS,
+                len(chunk),
+                exc.message,
+            )
+    raise RepositoryError(RepositoryErrorCode.VALIDATION, last_message)
+
+
+async def _post_and_parse(
+    body: dict[str, object],
+    *,
+    api_key: str,
+    client: httpx.AsyncClient,
+) -> _ShortNameResponse:
     response = await client.post(
         OPENROUTER_CHAT_COMPLETIONS_URL,
         headers={
