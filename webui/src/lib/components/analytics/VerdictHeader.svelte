@@ -50,14 +50,14 @@
 </script>
 
 <div
-	class="rounded-xl border-2 border-ctp-accent/50 bg-gradient-to-br from-ctp-accent/[0.07] to-ctp-base p-4 shadow-lg shadow-black/20"
+	class="card rounded-lg border-ctp-accent/40 bg-gradient-to-br from-ctp-accent/[0.06] to-ctp-base p-4 sm:p-5"
 	data-testid="analytics-verdict"
 >
 	{#if diagnosis.latestMonth}
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="flex items-start gap-3">
 				<span
-					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ctp-accent/20 text-ctp-accent"
+					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ctp-accent/15 text-ctp-accent"
 				>
 					<CalendarCheck class="h-5 w-5" />
 				</span>
@@ -66,7 +66,7 @@
 						{formatMonthLabel(diagnosis.latestMonth)} — your last complete month
 					</p>
 					<p
-						class="text-3xl font-bold leading-tight tracking-tight text-ctp-text"
+						class="numeral text-3xl font-bold leading-tight text-ctp-text"
 						data-testid="analytics-verdict-total"
 					>
 						{formatAmount(diagnosis.totalCurrent, $settings.currency)}

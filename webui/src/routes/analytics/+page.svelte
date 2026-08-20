@@ -92,7 +92,7 @@
 
 <section class="flex flex-col gap-6">
 	<div>
-		<h1 class="text-2xl font-bold tracking-tight text-ctp-text">Analytics</h1>
+		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Analytics</h1>
 		<p class="text-sm text-ctp-subtext0">What went up, and where you can claw it back.</p>
 	</div>
 
@@ -105,7 +105,7 @@
 		</div>
 	{:else if !loaded}
 		<div
-			class="flex items-center justify-center gap-3 rounded-xl border border-ctp-surface1 bg-ctp-base p-12 text-sm text-ctp-subtext0 shadow-lg shadow-black/20"
+			class="flex items-center justify-center gap-3 card rounded-lg border border-ctp-surface1 bg-ctp-base p-12 text-sm text-ctp-subtext0"
 			data-testid="analytics-loading"
 		>
 			<span
@@ -115,7 +115,7 @@
 		</div>
 	{:else if isEmpty}
 		<div
-			class="flex flex-col items-center justify-center gap-3 rounded-xl border border-ctp-surface1 bg-ctp-base p-12 text-center shadow-lg shadow-black/20"
+			class="flex flex-col items-center justify-center gap-3 card rounded-lg border border-ctp-surface1 bg-ctp-base p-12 text-center"
 			data-testid="analytics-empty"
 		>
 			<span
@@ -155,7 +155,7 @@
 				<div class="flex items-center justify-between gap-3">
 					<h2 class="text-xs font-bold uppercase tracking-wider text-ctp-subtext0">Context</h2>
 					<div
-						class="inline-flex items-center gap-1 rounded-full border border-ctp-surface1 bg-ctp-base p-1 shadow-lg shadow-black/20"
+						class="inline-flex items-center gap-1 rounded-full border border-ctp-surface1 bg-ctp-base p-1"
 						data-testid="analytics-period-selector"
 						role="group"
 						aria-label="Select trend period"

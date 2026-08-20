@@ -85,7 +85,8 @@
 		void themeVersion;
 		const s = browser ? getComputedStyle(document.documentElement) : null;
 		const accent = s?.getPropertyValue('--ctp-accent').trim() || '#a6e3a1';
-		const blue = s?.getPropertyValue('--ctp-blue').trim() || '#89b4fa';
+		// The 3-month average is a supporting series: sage, not a second accent.
+		const blue = s?.getPropertyValue('--ctp-chart-2').trim() || '#7e9f8c';
 		const inProg = inProgressIndex;
 		return {
 			labels,
@@ -94,7 +95,7 @@
 					label: 'Monthly spend',
 					data: values,
 					borderColor: accent,
-					backgroundColor: accent + '26',
+					backgroundColor: accent + '1f',
 					fill: true,
 					tension: 0.3,
 					pointRadius: values.map((_, i) => (i === inProg ? 5 : 3)),
@@ -163,7 +164,7 @@
 </script>
 
 <div
-	class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20 sm:p-5"
+	class="card rounded-lg border border-ctp-surface1 bg-ctp-base p-4 sm:p-5"
 	data-testid="analytics-monthly-trend"
 >
 	<h2 class="mb-1 text-base font-semibold text-ctp-text">Monthly spend</h2>

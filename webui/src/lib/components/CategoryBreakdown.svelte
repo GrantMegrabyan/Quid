@@ -84,8 +84,8 @@
 			{#each visibleRows as row (row.id)}
 				<li data-testid="category-breakdown-row" class="flex items-center gap-3">
 					<div
-						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-sm"
-						style="background-color: {row.color};"
+						class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+						style="--cat: {row.color};"
 						aria-hidden="true"
 					>
 						<CategoryIcon name={row.icon ?? '•'} size={14} />
@@ -100,8 +100,8 @@
 						<div class="mt-1 flex items-center gap-2">
 							<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-ctp-surface1">
 								<div
-									class="h-full rounded-full transition-[width] duration-300 ease-out"
-									style="width: {maxTotal > 0 ? (row.total / maxTotal) * 100 : 0}%; background-color: {row.color};"
+									class="cat-bar h-full rounded-full transition-[width] duration-300 ease-out"
+									style="--cat: {row.color}; width: {maxTotal > 0 ? (row.total / maxTotal) * 100 : 0}%;"
 								></div>
 							</div>
 							<span class="w-9 shrink-0 text-right text-xs tabular-nums text-ctp-overlay1">

@@ -1,41 +1,110 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@400;700;900&display=swap');
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── Dasher dark palette (single theme) ──────────────────────────── */
+/* ── Paper palette (Flexoki) ──────────────────────────────────────
+   A warm, ink-on-paper theme: the page is unbleached paper, cards sit a
+   shade darker than the page (not lighter, as on a dark UI), and colour is
+   spent sparingly — text is near-black ink, the accent is a deep forest
+   green, and data colours are muted earth tones rather than neon.
+
+   The token NAMES are inherited from the previous dark theme so every
+   component keeps working; only their meaning is re-pointed:
+
+     mantle  = page background      base     = card surface
+     crust   = sidebar / rail       surface0 = hover fill
+     surface1= hairline border      surface2 = stronger border / field edge
+     text    = ink                  subtext* = secondary ink
+     overlay*= faint ink / icons
+   ------------------------------------------------------------------ */
 :root {
+	color-scheme: light;
+
 	/* Surfaces */
-	--ctp-base: #161b28; /* card surface */
-	--ctp-mantle: #0e121c; /* app background */
-	--ctp-crust: #0b0f19; /* deepest background */
-	--ctp-surface0: #1a2030;
-	--ctp-surface1: #232a3b;
-	--ctp-surface2: #2d3548;
+	--ctp-mantle: #fffcf0; /* paper */
+	--ctp-base: #f7f4e7; /* card */
+	--ctp-crust: #fffcf0; /* sidebar shares the page ground */
+	--ctp-surface0: #f2f0e5; /* hover */
+	--ctp-surface1: #e6e4d9; /* hairline */
+	--ctp-surface2: #dad8ce; /* field edge */
 
-	/* Overlays / muted text */
-	--ctp-overlay0: #6b7280;
-	--ctp-overlay1: #9ca3af;
-	--ctp-subtext0: #9ca3af;
-	--ctp-subtext1: #d1d5db;
-	--ctp-text: #f3f4f6;
+	/* Ink */
+	--ctp-text: #100f0f;
+	--ctp-subtext1: #403e3c;
+	--ctp-subtext0: #6f6e69;
+	--ctp-overlay1: #878580;
+	--ctp-overlay0: #b7b5ac;
 
-	/* Data / named colors */
-	--ctp-blue: #3b82f6;
-	--ctp-sapphire: #38bdf8;
-	--ctp-teal: #2dd4bf;
-	--ctp-green: #22c55e;
-	--ctp-red: #ef4444;
-	--ctp-peach: #f59e0b;
-	--ctp-yellow: #fbbf24;
-	--ctp-mauve: #a78bfa;
-	--ctp-pink: #ec4899;
-	--ctp-lavender: #818cf8;
+	/* Data colours — Flexoki 600s: saturated enough to read, never neon */
+	--ctp-blue: #205ea6;
+	--ctp-sapphire: #3171b2;
+	--ctp-teal: #24837b;
+	--ctp-green: #66800b;
+	--ctp-red: #af3029;
+	--ctp-peach: #bc5215;
+	--ctp-yellow: #ad8301;
+	--ctp-mauve: #5e409d;
+	--ctp-pink: #a02f6f;
+	--ctp-lavender: #735eb5;
 
-	/* Brand accent (emerald) */
-	--ctp-accent: #22c55e;
-	--ctp-on-accent: #0b0f19;
-	--ctp-accent-hover: #16a34a;
+	/* Brand accent — deep forest, the one colour the chrome is allowed */
+	--ctp-accent: #355c4c;
+	--ctp-on-accent: #fffcf0;
+	--ctp-accent-hover: #2a4a3d;
+
+	/* Chart series: forest / sage / sand / clay / plum / stone */
+	--ctp-chart-1: #355c4c;
+	--ctp-chart-2: #7e9f8c;
+	--ctp-chart-3: #cbba8c;
+	--ctp-chart-4: #c08a5f;
+	--ctp-chart-5: #9a7e92;
+	--ctp-chart-6: #b1aa9a;
+
+	/* Elevation: paper barely lifts */
+	--ctp-shadow: 0 1px 2px rgb(16 15 15 / 0.05);
+}
+
+.dark {
+	color-scheme: dark;
+
+	--ctp-mantle: #100f0f;
+	--ctp-base: #1c1b1a;
+	--ctp-crust: #100f0f;
+	--ctp-surface0: #282726;
+	--ctp-surface1: #343331;
+	--ctp-surface2: #403e3c;
+
+	--ctp-text: #cecdc3;
+	--ctp-subtext1: #b7b5ac;
+	--ctp-subtext0: #878580;
+	--ctp-overlay1: #6f6e69;
+	--ctp-overlay0: #575653;
+
+	/* Flexoki 400s read on ink the way the 600s read on paper */
+	--ctp-blue: #4385be;
+	--ctp-sapphire: #66a0c8;
+	--ctp-teal: #3aa99f;
+	--ctp-green: #879a39;
+	--ctp-red: #d14d41;
+	--ctp-peach: #da702c;
+	--ctp-yellow: #d0a215;
+	--ctp-mauve: #8b7ec8;
+	--ctp-pink: #ce5d97;
+	--ctp-lavender: #a699d0;
+
+	--ctp-accent: #6ba98f;
+	--ctp-on-accent: #100f0f;
+	--ctp-accent-hover: #86bda6;
+
+	--ctp-chart-1: #6ba98f;
+	--ctp-chart-2: #7e9f8c;
+	--ctp-chart-3: #cbba8c;
+	--ctp-chart-4: #c08a5f;
+	--ctp-chart-5: #9a7e92;
+	--ctp-chart-6: #8f8b7e;
+
+	--ctp-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 /* ── Tailwind v4 theme tokens ────────────────────────────────────── */
@@ -66,11 +135,13 @@
 	--color-ctp-accent-hover: var(--ctp-accent-hover);
 
 	--font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-serif: 'Merriweather', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
 }
 
 /* ── Base styles ─────────────────────────────────────────────────── */
 html {
 	font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	background-color: var(--ctp-mantle);
 }
 
 body {
@@ -80,19 +151,73 @@ body {
 	-moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Form field component classes ────────────────────────────────── */
+/* ── Component classes ───────────────────────────────────────────── */
 @layer components {
 	.field {
-		@apply rounded-md border border-ctp-surface2 bg-ctp-base px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none;
+		@apply rounded-md border border-ctp-surface2 bg-ctp-mantle px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay0 focus:border-ctp-accent focus:outline-none;
 	}
 
 	/* Native <select>: drop the browser arrow and draw a custom chevron
-	   (stroke = --ctp-overlay1 / #9ca3af) so selects read as proper fields. */
+	   (stroke = --ctp-overlay1) so selects read as proper fields. */
 	.field-select {
 		@apply appearance-none pr-9;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23878580' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 		background-repeat: no-repeat;
 		background-position: right 0.75rem center;
 		background-size: 1rem 1rem;
 	}
+
+	/* A card: paper on paper. One hairline, a whisper of shadow — depth comes
+	   from the tonal step, not from a glow. */
+	.card {
+		@apply rounded-lg border border-ctp-surface1 bg-ctp-base;
+		box-shadow: var(--ctp-shadow);
+	}
+
+	/* ── Category colour, toned ────────────────────────────────────
+	   Categories carry user-chosen hex (often a saturated Apple colour). Left
+	   raw they shout against paper, so every surface mixes the hue toward the
+	   page's ink/ground instead of printing it neat. Set `--cat: <hex>` on the
+	   element and pick a role class; the mix flips with the theme for free.
+	   ------------------------------------------------------------------- */
+	.cat-chip {
+		background-color: color-mix(in oklch, var(--cat) 15%, var(--ctp-mantle));
+		color: color-mix(in oklch, var(--cat) 62%, var(--ctp-text));
+	}
+
+	.cat-solid {
+		background-color: color-mix(in oklch, var(--cat) 70%, var(--ctp-text));
+		color: var(--ctp-mantle);
+	}
+
+	.cat-bar {
+		background-color: color-mix(in oklch, var(--cat) 62%, var(--ctp-subtext1));
+	}
+
+	/* Money and counts: serif, tabular — the one place type gets loud. */
+	.numeral {
+		font-family: var(--font-serif);
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.01em;
+	}
+}
+
+.dark .cat-chip {
+	background-color: color-mix(in oklch, var(--cat) 22%, var(--ctp-base));
+	color: color-mix(in oklch, var(--cat) 66%, var(--ctp-text));
+}
+
+/* On ink, mixing toward the near-white text would only make the hue glow, so
+   the dark side mixes toward the warm grey secondary ink instead. */
+.dark .cat-solid {
+	background-color: color-mix(in oklch, var(--cat) 58%, var(--ctp-subtext0));
+	color: var(--ctp-mantle);
+}
+
+.dark .cat-bar {
+	background-color: color-mix(in oklch, var(--cat) 55%, var(--ctp-subtext0));
+}
+
+.dark .field-select {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236f6e69' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }

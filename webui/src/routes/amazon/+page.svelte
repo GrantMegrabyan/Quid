@@ -486,7 +486,7 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Amazon orders</h1>
+			<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Amazon orders</h1>
 			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
 				Import Amazon orders — from a CSV export or straight from your browser — and
 				link them to matching transactions.
@@ -979,8 +979,8 @@
 							>
 								<span
 									aria-hidden="true"
-									class="h-2 w-2 shrink-0 rounded-full"
-									style="background-color: {category.color || '#9ca3af'};"
+									class="cat-bar h-2 w-2 shrink-0 rounded-full"
+									style="--cat: {category.color || '#9ca3af'};"
 								></span>
 								<span class="truncate">{category.name}</span>
 								<Pencil

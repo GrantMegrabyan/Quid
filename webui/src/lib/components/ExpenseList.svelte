@@ -288,8 +288,8 @@
 {#snippet categoryPill(category: Category | undefined)}
 	{@const color = category?.color ?? '#9ca3af'}
 	<span
-		class="inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2 py-0.5 text-xs font-medium"
-		style="background-color: {color}26; color: {color};"
+		class="cat-chip inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-medium"
+		style="--cat: {color};"
 	>
 		<CategoryIcon name={category?.icon ?? '•'} size={11} />
 		<span class="truncate">{category?.name ?? 'Uncategorized'}</span>
@@ -387,8 +387,8 @@
 								<div
 									data-testid="expense-category-icon"
 									data-icon={categoryIcon}
-									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm"
-									style="background-color: {color};"
+									class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+									style="--cat: {color};"
 									aria-label={categoryName}
 								>
 									<CategoryIcon name={categoryIcon} size={15} />
@@ -479,8 +479,8 @@
 
 							<div
 								data-testid="expense-category-icon"
-								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm"
-								style="background-color: {color};"
+								class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+								style="--cat: {color};"
 								aria-label={group.name}
 							>
 								<CategoryIcon name={categoryIcon} size={15} />
@@ -503,8 +503,8 @@
 								aria-hidden="true"
 							>
 								<div
-									class="h-full rounded-full transition-[width] duration-300 ease-out"
-									style="width: {maxGroupAmount > 0 ? (group.amount / maxGroupAmount) * 100 : 0}%; background-color: {color};"
+									class="cat-bar h-full rounded-full transition-[width] duration-300 ease-out"
+									style="--cat: {color}; width: {maxGroupAmount > 0 ? (group.amount / maxGroupAmount) * 100 : 0}%;"
 								></div>
 							</div>
 							<span class="hidden text-right text-xs tabular-nums text-ctp-overlay1 lg:block">

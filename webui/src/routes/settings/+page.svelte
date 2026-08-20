@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { refreshSettings, settings, updateSettings } from '$lib/stores/settings';
+	import { THEMES, theme } from '$lib/stores/theme';
 
 	const SUPPORTED_CURRENCIES = ['GBP', 'USD', 'EUR', 'CAD', 'AUD', 'JPY'] as const;
 	const CATEGORISATION_MODELS = [
@@ -58,19 +59,48 @@
 
 <section class="mx-auto flex max-w-2xl flex-col gap-6">
 	<header>
-		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Settings</h1>
+		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Settings</h1>
 		<p class="mt-1 text-sm text-ctp-overlay1">
 			Choose how amounts and transaction details appear across Quid.
 		</p>
 	</header>
 
 	<form
-		class="flex flex-col gap-5 rounded-xl border border-ctp-surface1 bg-ctp-base p-6 shadow-lg shadow-black/20"
+		class="flex flex-col gap-5 card rounded-lg border border-ctp-surface1 bg-ctp-base p-6"
 		onsubmit={(event) => {
 			event.preventDefault();
 			void save();
 		}}
 	>
+		<!-- Appearance is a device preference, not an app setting: it applies
+		     immediately and is stored locally, so it sits outside the save flow. -->
+		<div class="flex flex-col gap-1.5">
+			<span class="text-sm font-medium text-ctp-subtext0">Appearance</span>
+			<div
+				role="radiogroup"
+				aria-label="Appearance"
+				class="inline-flex w-fit items-center gap-1 rounded-md border border-ctp-surface2 bg-ctp-mantle p-1"
+			>
+				{#each THEMES as option (option.id)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={$theme === option.id}
+						data-testid="settings-theme-{option.id}"
+						onclick={() => theme.setTheme(option.id)}
+						class="rounded px-3 py-1.5 text-sm font-medium transition-colors {$theme === option.id
+							? 'bg-ctp-accent text-ctp-on-accent'
+							: 'text-ctp-subtext0 hover:bg-ctp-surface0 hover:text-ctp-text'}"
+					>
+						{option.label}
+					</button>
+				{/each}
+			</div>
+			<span class="text-xs text-ctp-overlay1">
+				Applies to this browser only — it is not part of your saved settings.
+			</span>
+		</div>
+
 		<label class="flex flex-col gap-1.5">
 			<span class="text-sm font-medium text-ctp-subtext0">Currency</span>
 			<select

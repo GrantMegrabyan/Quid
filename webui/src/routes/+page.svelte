@@ -6,7 +6,7 @@
 	import CumulativeChart from '$components/CumulativeChart.svelte';
 	import CategoryBreakdown from '$components/CategoryBreakdown.svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
-	import TweenedAmount from '$components/TweenedAmount.svelte';
+	import HeroAmount from '$components/HeroAmount.svelte';
 	import { expenses } from '$lib/stores/expenses';
 	import { refreshExpenses } from '$lib/stores/expenses';
 	import { categories, refreshCategories } from '$lib/stores/categories';
@@ -25,14 +25,7 @@
 	} from '$utils/dates';
 	import { amountToNumber, formatAmount } from '$utils/money';
 	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
-	import {
-		Wallet,
-		Receipt,
-		TrendingUp,
-		TrendingDown,
-		CalendarDays,
-		Search
-	} from '@lucide/svelte';
+	import { TrendingUp, TrendingDown, Search } from '@lucide/svelte';
 	import type { Expense } from '$types';
 
 	let modalOpen = $state(false);
@@ -184,169 +177,129 @@
 	<title>Expenses</title>
 </svelte:head>
 
-<section class="flex flex-col gap-6">
-	<!-- Page header: month context first -->
-	<div class="flex flex-wrap items-center justify-between gap-3">
-		<div>
-			<h1
-				data-testid="selected-month-heading"
-				class="text-2xl font-bold tracking-tight text-ctp-text"
-			>
-				{selectedMonthLabel}
-			</h1>
-			<p class="mt-0.5 text-sm text-ctp-overlay1">
-				{isCurrentMonth ? 'Spending so far this month' : 'Spending overview'}
-			</p>
-		</div>
-		<MonthSelector />
-	</div>
-
-	<!-- Stat cards -->
-	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-		<!-- Total spent -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
-			<div class="flex items-center gap-3">
-				<span
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-accent/15 text-ctp-accent"
-				>
-					<Wallet class="h-[18px] w-[18px]" />
-				</span>
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-medium text-ctp-subtext0">Total spent</p>
-					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-						<TweenedAmount
-							value={selectedMonthTotal}
-							currency={$settings.currency}
-							testid="selected-month-total"
-						/>
-					</p>
-				</div>
-			</div>
-			{#if monthDelta}
-				<p
-					data-testid="month-delta"
-					class="mt-2 flex items-center gap-1 text-xs {monthDelta.up
-						? 'text-ctp-red'
-						: 'text-ctp-green'}"
-				>
-					{#if monthDelta.up}
-						<TrendingUp class="h-3.5 w-3.5" />
-					{:else}
-						<TrendingDown class="h-3.5 w-3.5" />
-					{/if}
-					<span class="font-semibold">{monthDelta.percent}%</span>
-					<span class="text-ctp-overlay1">vs {monthDelta.label}</span>
+<section class="flex flex-col gap-8">
+	<!-- Hero: the month's total is the page's headline; everything else is
+	     support type underneath it (Wealthfolio's balance-first header). -->
+	<header class="flex flex-col gap-5 border-b border-ctp-surface1 pb-6">
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<div class="min-w-0">
+				<p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-ctp-overlay1">
+					<span data-testid="selected-month-heading">{selectedMonthLabel}</span>
+					<span aria-hidden="true"> · </span>{isCurrentMonth ? 'so far' : 'total'}
 				</p>
-			{/if}
-		</div>
-
-		<!-- Transactions -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
-			<div class="flex items-center gap-3">
-				<span
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-blue/15 text-ctp-blue"
-				>
-					<Receipt class="h-[18px] w-[18px]" />
-				</span>
-				<div class="min-w-0">
-					<p class="text-xs font-medium text-ctp-subtext0">Transactions</p>
-					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-						{transactionCount}
-					</p>
-				</div>
-			</div>
-			{#if transactionCount > 0}
-				<p class="mt-2 text-xs text-ctp-overlay1">
-					{formatAmount(avgPerTransaction, $settings.currency)} avg per transaction
-				</p>
-			{/if}
-		</div>
-
-		<!-- Top category -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
-			<div class="flex items-center gap-3">
-				<span
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-					style={topCategory
-						? `background-color: ${topCategory.color}26; color: ${topCategory.color};`
-						: undefined}
-					class:bg-ctp-peach={!topCategory}
-					class:text-ctp-peach={!topCategory}
-				>
-					{#if topCategory}
-						<CategoryIcon name={topCategory.icon} size={18} />
+				<h1 class="mt-1.5 text-4xl font-black leading-none text-ctp-text sm:text-5xl">
+					<HeroAmount
+						value={selectedMonthTotal}
+						currency={$settings.currency}
+						testid="selected-month-total"
+					/>
+				</h1>
+				<div class="mt-2 flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+					{#if monthDelta}
+						<span
+							data-testid="month-delta"
+							class="inline-flex items-center gap-1.5 font-medium {monthDelta.up
+								? 'text-ctp-red'
+								: 'text-ctp-green'}"
+						>
+							{#if monthDelta.up}
+								<TrendingUp class="h-4 w-4" />
+							{:else}
+								<TrendingDown class="h-4 w-4" />
+							{/if}
+							<span class="tabular-nums">{monthDelta.up ? '+' : '−'}{monthDelta.percent}%</span>
+							<span class="font-normal text-ctp-overlay1">vs {monthDelta.label}</span>
+						</span>
 					{:else}
-						<TrendingUp class="h-[18px] w-[18px]" />
-					{/if}
-				</span>
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-medium text-ctp-subtext0">Top category</p>
-					{#if topCategory}
-						<p class="truncate text-xl font-bold leading-tight tracking-tight text-ctp-text">
-							<span data-testid="top-category-name" title={topCategory.name}>
-								{topCategory.name}
-							</span>
-						</p>
-					{:else}
-						<p class="text-xl font-bold leading-tight tracking-tight text-ctp-overlay0">—</p>
+						<span class="text-ctp-overlay1">
+							{isCurrentMonth ? 'Spending so far this month' : 'Spending overview'}
+						</span>
 					{/if}
 				</div>
 			</div>
-			{#if topCategory}
-				<p class="mt-2 text-xs text-ctp-overlay1">
-					{formatAmount(topCategory.total, $settings.currency)} · {Math.round(
-						topCategory.share * 100
-					)}% of total
-				</p>
-			{/if}
+			<MonthSelector />
 		</div>
 
-		<!-- Daily average -->
-		<div class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20">
-			<div class="flex items-center gap-3">
-				<span
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ctp-mauve/15 text-ctp-mauve"
-				>
-					<CalendarDays class="h-[18px] w-[18px]" />
-				</span>
-				<div class="min-w-0">
-					<p class="text-xs font-medium text-ctp-subtext0">Daily average</p>
-					<p class="text-xl font-bold leading-tight tracking-tight text-ctp-text">
-						{formatAmount(dailyAverage, $settings.currency)}
-					</p>
-				</div>
+		<!-- Support stats: a quiet ruled strip, not four competing cards. -->
+		<dl class="grid grid-cols-2 gap-x-6 gap-y-4 sm:gap-x-8 lg:grid-cols-3">
+			<div class="border-l border-ctp-surface1 pl-4">
+				<dt class="text-[11px] font-semibold uppercase tracking-wider text-ctp-overlay1">
+					Transactions
+				</dt>
+				<dd class="numeral mt-1 text-xl font-bold text-ctp-text">{transactionCount}</dd>
+				{#if transactionCount > 0}
+					<dd class="mt-0.5 text-xs text-ctp-subtext0">
+						{formatAmount(avgPerTransaction, $settings.currency)} avg
+					</dd>
+				{/if}
 			</div>
-			{#if showProjection}
-				<p data-testid="projected-total" class="mt-2 text-xs text-ctp-overlay1">
-					On pace for {formatAmount(projectedTotal, $settings.currency)} this month
-				</p>
-			{/if}
-		</div>
-	</div>
+
+			<div class="border-l border-ctp-surface1 pl-4">
+				<dt class="text-[11px] font-semibold uppercase tracking-wider text-ctp-overlay1">
+					Daily average
+				</dt>
+				<dd class="numeral mt-1 text-xl font-bold text-ctp-text">
+					{formatAmount(dailyAverage, $settings.currency)}
+				</dd>
+				{#if showProjection}
+					<dd data-testid="projected-total" class="mt-0.5 text-xs text-ctp-subtext0">
+						On pace for {formatAmount(projectedTotal, $settings.currency)}
+					</dd>
+				{/if}
+			</div>
+
+			<div class="border-l border-ctp-surface1 pl-4">
+				<dt class="text-[11px] font-semibold uppercase tracking-wider text-ctp-overlay1">
+					Top category
+				</dt>
+				{#if topCategory}
+					<dd class="mt-1 flex items-center gap-2">
+						<span
+							class="cat-chip flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+							style="--cat: {topCategory.color};"
+						>
+							<CategoryIcon name={topCategory.icon} size={14} />
+						</span>
+						<span
+							data-testid="top-category-name"
+							title={topCategory.name}
+							class="truncate text-base font-semibold text-ctp-text"
+						>
+							{topCategory.name}
+						</span>
+					</dd>
+					<dd class="mt-0.5 text-xs text-ctp-subtext0">
+						{formatAmount(topCategory.total, $settings.currency)} · {Math.round(
+							topCategory.share * 100
+						)}% of total
+					</dd>
+				{:else}
+					<dd class="numeral mt-1 text-xl font-bold text-ctp-overlay0">—</dd>
+				{/if}
+			</div>
+
+		</dl>
+	</header>
 
 	<!-- Charts: trend + category breakdown side by side on wide screens -->
 	<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
-		<div
-			class="rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6 xl:col-span-2"
-		>
-			<h2 class="mb-4 text-base font-semibold text-ctp-text">Spending this month</h2>
+		<div class="card p-5 sm:p-6 xl:col-span-2">
+			<h2 class="mb-4 text-sm font-semibold text-ctp-subtext1">Spending this month</h2>
 			<CumulativeChart />
 		</div>
 
 		<!-- Only shown when it fits beside the chart: stacked under it on
 		     narrower screens it eats vertical space, and the same view is
 		     available via Group by → Category. -->
-		<div
-			class="hidden rounded-xl border border-ctp-surface1 bg-ctp-base p-5 shadow-lg shadow-black/20 sm:p-6 xl:block"
-		>
-			<h2 class="mb-4 text-base font-semibold text-ctp-text">By category</h2>
+		<div class="card hidden p-5 sm:p-6 xl:block">
+			<h2 class="mb-4 text-sm font-semibold text-ctp-subtext1">By category</h2>
 			<CategoryBreakdown />
 		</div>
 	</div>
 
 	<!-- Transactions -->
 	<div class="flex flex-wrap items-center gap-3">
-		<h2 class="text-base font-semibold text-ctp-text">Transactions</h2>
+		<h2 class="text-sm font-semibold uppercase tracking-wider text-ctp-subtext0">Transactions</h2>
 		<div class="relative ml-auto w-full sm:w-64">
 			<Search
 				class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ctp-overlay0"

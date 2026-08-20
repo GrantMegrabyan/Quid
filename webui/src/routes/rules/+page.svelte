@@ -636,7 +636,7 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-3">
 		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
+			<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">
 				Import rules
 			</h1>
 			<p class="text-sm text-ctp-overlay1">

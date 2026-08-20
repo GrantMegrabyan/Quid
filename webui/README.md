@@ -226,8 +226,9 @@ and `docker-compose.yml` for the full stack (API + UI).
       JSON; it's sourced from `SCRAPER_VERSION` in `scraper.ts` so it can't drift.
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
-  on). (Theme switching was removed; the UI uses a single Dasher-style dark
-  design on this branch.)
+  on), plus **Appearance** (Paper / Ink / System). Appearance is a *device*
+  preference: it applies immediately, is stored in `localStorage`, and is not
+  part of the saved app settings (so it never round-trips to the API).
 - **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
   (`/ai-rules`).
   - The **Rules** page can **Preview matches** (dry-run): the add/edit form has a
@@ -235,6 +236,43 @@ and `docker-compose.yml` for the full stack (API + UI).
     conditions would match (no save required), and each saved rule card has an
     eye icon that previews that rule's matches. Both call
     `POST /api/v1/import-rules/preview` and never modify data.
+
+## Theme (Paper)
+
+The UI ships one theme in two tones, inspired by Wealthfolio's ink-on-paper
+look: **Paper** (light, warm `#FFFCF0` ground) and **Ink** (dark, `#100F0F`).
+Both are built from the [Flexoki](https://stephango.com/flexoki) palette.
+
+- **Tokens** live in `src/app.css`. `:root` defines the light tone and `.dark`
+  overrides the same names for the dark tone, so components never branch on
+  theme. The token names are historical (`--ctp-*`) but their meaning is:
+  `mantle` = page, `base` = card, `crust` = sidebar, `surface0` = hover,
+  `surface1` = hairline border, `surface2` = field edge, `text`/`subtext*`/
+  `overlay*` = ink from strongest to faintest, `accent` = forest green.
+- **Switching** is `src/lib/stores/theme.ts` (`light` | `dark` | `system`). It
+  toggles the `dark` class on `<html>` and mirrors the choice to
+  `localStorage['quid:theme:v2']`. `src/app.html` reads the same key in an
+  inline script before first paint, so a reload never flashes the wrong tone —
+  **keep those two in sync**. `system` keeps following the OS while the app is
+  open. The sidebar footer has a two-way toggle; Settings has the full
+  three-way control.
+- **Charts** read their colours from the CSS custom properties at render time
+  and re-render on theme change via a `MutationObserver` on `<html>`'s
+  `class`/`data-theme` (`CumulativeChart.svelte`,
+  `analytics/MonthlyTrendChart.svelte`). Use `--ctp-chart-1..6` (forest / sage /
+  sand / clay / plum / stone) for series colour, not the raw named colours.
+- **Category colour** is user-chosen hex and is often far more saturated than
+  the palette. Never paint it raw: set `--cat: <hex>` on the element and use one
+  of the role classes from `app.css` — `.cat-chip` (icon tile / pill),
+  `.cat-solid` (filled swatch), `.cat-bar` (progress bar). Each `color-mix()`es
+  the hue toward the page's ink or ground, and the mix flips with the theme
+  automatically.
+- **Type**: Inter for UI, Merriweather (`font-serif`) for page headings and for
+  money set with the `.numeral` class (serif + `tabular-nums`). `HeroAmount.svelte`
+  is the page-headline number: it tweens the value and renders the decimal
+  fraction in a muted tone.
+- **Elevation**: use the `.card` class (hairline border + `--ctp-shadow`).
+  Dark-theme drop shadows (`shadow-lg shadow-black/20`) do not belong on paper.
 
 ## Action feedback & undo
 

@@ -750,7 +750,7 @@
 
 <section class="flex flex-col gap-6">
 	<header class="flex flex-col gap-1">
-		<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Import transactions</h1>
+		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Import transactions</h1>
 		<p class="max-w-2xl text-sm text-ctp-overlay1">
 			Add transactions from a CSV, one at a time, or by pasting free-form text for AI to parse.
 		</p>

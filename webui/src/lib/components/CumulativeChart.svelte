@@ -151,15 +151,17 @@
 	const data: ChartData<'line'> = $derived.by(() => {
 		void themeVersion;
 		const s = getComputedStyle(document.documentElement);
-		const blue = s.getPropertyValue('--ctp-blue').trim() || '#89b4fa';
+		// Forest, the primary series colour of the Paper palette; the fill is a
+		// wash rather than a block so the grid stays readable through it.
+		const line = s.getPropertyValue('--ctp-chart-1').trim() || '#355c4c';
 		return {
 			labels,
 			datasets: [
 				{
 					label: 'Cumulative expenses',
 					data: cumulativeTotals,
-					borderColor: blue,
-					backgroundColor: blue + '26',
+					borderColor: line,
+					backgroundColor: line + '1f',
 					fill: true,
 					tension: 0.28,
 					pointRadius: 0,

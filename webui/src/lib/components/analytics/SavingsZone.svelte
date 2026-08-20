@@ -11,7 +11,7 @@
 </script>
 
 <section
-	class="rounded-xl border border-ctp-green/30 bg-ctp-base p-4 shadow-lg shadow-black/20"
+	class="rounded-xl border border-ctp-green/30 bg-ctp-base p-4"
 	data-testid="analytics-savings"
 >
 	<h2 class="text-xs font-bold uppercase tracking-wider text-ctp-subtext0">Where you can save</h2>

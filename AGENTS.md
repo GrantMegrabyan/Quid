@@ -241,6 +241,14 @@ When NOT to commit:
   trend chart. NOTE: persisting a value the e2e
   suite relies on resetting between tests can cause cross-test bleed — keep
   persisted keys to genuinely user-facing view state.
+- The UI is themed (`Paper` light / `Ink` dark) from Flexoki tokens in
+  `webui/src/app.css`; see the **Theme (Paper)** section of `webui/README.md`
+  before touching colour. Two rules bite in practice: (1) the pre-paint inline
+  script in `src/app.html` must stay in sync with `src/lib/stores/theme.ts`
+  (same `quid:theme:v2` key, same resolution) or a reload flashes the wrong
+  tone; (2) user-chosen category hex must never be painted raw — set
+  `--cat: <hex>` and use `.cat-chip` / `.cat-solid` / `.cat-bar`, which mix the
+  hue toward the current ground so it works in both tones.
 - Run frontend commands from `webui/`.
 - Common verification:
   - `npm run check`

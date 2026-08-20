@@ -202,7 +202,7 @@
 <section class="flex flex-col gap-6">
 	<header class="flex flex-wrap items-start justify-between gap-3">
 		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
+			<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">
 				Categories
 			</h1>
 			<p class="text-sm text-ctp-overlay1">
@@ -361,8 +361,8 @@
 							aria-hidden="true"
 							data-testid="category-icon"
 							data-icon={normalizeCategoryIcon(category.icon)}
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/5"
-							style="background-color: {category.color || FALLBACK_COLOR};"
+							class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+							style="--cat: {category.color || FALLBACK_COLOR};"
 						><CategoryIcon name={category.icon} size={16} /></span>
 						<div class="min-w-0 flex-1">
 							<p
