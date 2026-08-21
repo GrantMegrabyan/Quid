@@ -130,6 +130,12 @@
 	--color-ctp-mauve: var(--ctp-mauve);
 	--color-ctp-pink: var(--ctp-pink);
 	--color-ctp-lavender: var(--ctp-lavender);
+	--color-ctp-chart-1: var(--ctp-chart-1);
+	--color-ctp-chart-2: var(--ctp-chart-2);
+	--color-ctp-chart-3: var(--ctp-chart-3);
+	--color-ctp-chart-4: var(--ctp-chart-4);
+	--color-ctp-chart-5: var(--ctp-chart-5);
+	--color-ctp-chart-6: var(--ctp-chart-6);
 	--color-ctp-accent: var(--ctp-accent);
 	--color-ctp-on-accent: var(--ctp-on-accent);
 	--color-ctp-accent-hover: var(--ctp-accent-hover);

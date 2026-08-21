@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
+	import { Check } from '@lucide/svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import ImportanceBadge from '$components/ImportanceBadge.svelte';
 	import TweenedAmount from '$components/TweenedAmount.svelte';
@@ -10,8 +12,7 @@
 	import { pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
 	import { categories } from '$lib/stores/categories';
 	import { settings } from '$lib/stores/settings';
-	import { selectedMonth } from '$lib/stores/ui';
-	import { formatMonthLabel, monthKey } from '$lib/utils/dates';
+	import { resolvedPeriod } from '$lib/stores/ui';
 	import { amountToNumber, formatAmount } from '$lib/utils/money';
 	import type { Category, Expense, ExpenseImportance } from '$lib/types';
 
@@ -28,9 +29,36 @@
 
 	let {
 		groupBy = 'transaction',
+		items = null,
 		searchQuery = '',
+		filterActive = false,
+		selectedIds = new SvelteSet<string>(),
+		onselectionchange,
 		onedit
-	}: { groupBy?: ExpenseGroupBy; searchQuery?: string; onedit?: EditCallback } = $props();
+	}: {
+		groupBy?: ExpenseGroupBy;
+		/** Rows to render. `null` means "the whole loaded window" (the store). */
+		items?: Expense[] | null;
+		/** Only used to word the empty state; filtering itself happens upstream. */
+		searchQuery?: string;
+		filterActive?: boolean;
+		selectedIds?: Set<string>;
+		onselectionchange?: (next: Set<string>) => void;
+		onedit?: EditCallback;
+	} = $props();
+
+	const selectionEnabled = $derived(onselectionchange !== undefined && groupBy === 'transaction');
+
+	function toggleSelected(id: string): void {
+		if (!onselectionchange) return;
+		const next = new SvelteSet(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		onselectionchange(next);
+	}
 
 	const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 		year: 'numeric',
@@ -88,19 +116,11 @@
 
 	const normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 
-	function matchesQuery(expense: Expense): boolean {
-		if (!normalizedQuery) return true;
-		const haystack =
-			`${expense.displayName ?? ''} ${expense.name} ${noteFor(expense)}`.toLowerCase();
-		return haystack.includes(normalizedQuery);
-	}
-
+	// Rows arrive already filtered (the toolbar owns that); the list only has to
+	// hide rows whose delete is pending its undo window.
 	const visibleExpenses = $derived(
-		$expenses.filter(
-			(expense) =>
-				monthKey(expense.date) === $selectedMonth &&
-				!$pendingDeletes.has(pendingKey('expense', expense.id)) &&
-				matchesQuery(expense)
+		(items ?? $expenses).filter(
+			(expense) => !$pendingDeletes.has(pendingKey('expense', expense.id))
 		)
 	);
 
@@ -217,7 +237,9 @@
 	const emptyMessage = $derived(
 		normalizedQuery
 			? `No transactions match “${searchQuery.trim()}”.`
-			: `No expenses for ${formatMonthLabel($selectedMonth)}.`
+			: filterActive
+				? 'No transactions match these filters.'
+				: `No transactions in ${$resolvedPeriod.label}.`
 	);
 	const isGrouped = $derived(groupBy !== 'transaction');
 	const hasRows = $derived(
@@ -333,8 +355,8 @@
 		class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-ctp-surface2 px-6 py-16 text-center"
 	>
 		<p class="text-base font-medium text-ctp-text">{emptyMessage}</p>
-		{#if normalizedQuery}
-			<p class="text-sm text-ctp-overlay1">Try a different search.</p>
+		{#if normalizedQuery || filterActive}
+			<p class="text-sm text-ctp-overlay1">Try widening the filters.</p>
 		{:else}
 			<p class="text-sm text-ctp-overlay1">
 				Add transactions from the <a
@@ -345,8 +367,8 @@
 		{/if}
 	</div>
 {:else}
-	{#if normalizedQuery}
-		<p data-testid="search-summary" class="-mt-3 text-sm text-ctp-overlay1">
+	{#if normalizedQuery || filterActive}
+		<p data-testid="search-summary" class="-mt-1 text-sm text-ctp-overlay1">
 			{visibleExpenses.length}
 			{visibleExpenses.length === 1 ? 'transaction' : 'transactions'} matching · {formatAmount(
 				visibleTotal,
@@ -384,15 +406,52 @@
 								animate:flip={{ duration: FLIP_DURATION }}
 								transition:slide={{ duration: SLIDE_DURATION, easing: cubicOut }}
 							>
-								<div
-									data-testid="expense-category-icon"
-									data-icon={categoryIcon}
-									class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
-									style="--cat: {color};"
-									aria-label={categoryName}
-								>
-									<CategoryIcon name={categoryIcon} size={15} />
-								</div>
+								{#if selectionEnabled}
+									{@const isSelected = selectedIds.has(expense.id)}
+									<!-- The category tile doubles as the row's checkbox: it flips on
+									     hover and stays flipped while anything is selected, so bulk
+									     editing needs no extra column. -->
+									<button
+										type="button"
+										data-testid="expense-select"
+										data-selected={isSelected ? 'true' : 'false'}
+										aria-pressed={isSelected}
+										aria-label={isSelected ? `Deselect ${categoryName}` : `Select ${categoryName}`}
+										onclick={() => toggleSelected(expense.id)}
+										class="group/select relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+									>
+										<span
+											data-testid="expense-category-icon"
+											data-icon={categoryIcon}
+											class="cat-chip flex h-8 w-8 items-center justify-center rounded-md text-sm font-semibold transition-opacity {isSelected ||
+											selectedIds.size > 0
+												? 'opacity-0'
+												: 'group-hover/select:opacity-0'}"
+											style="--cat: {color};"
+										>
+											<CategoryIcon name={categoryIcon} size={15} />
+										</span>
+										<span
+											class="absolute inset-0 flex items-center justify-center rounded-md border transition-opacity {isSelected
+												? 'border-ctp-accent bg-ctp-accent text-ctp-on-accent opacity-100'
+												: selectedIds.size > 0
+													? 'border-ctp-surface2 opacity-100'
+													: 'border-ctp-surface2 opacity-0 group-hover/select:opacity-100'}"
+										>
+											{#if isSelected}<Check class="h-4 w-4" />{/if}
+										</span>
+									</button>
+								{:else}
+									<div
+										data-testid="expense-category-icon"
+										data-icon={categoryIcon}
+										class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+										style="--cat: {color};"
+										aria-label={categoryName}
+									>
+										<CategoryIcon name={categoryIcon} size={15} />
+									</div>
+								{/if}
 
 								<div class="min-w-0">
 									<p class="truncate text-sm font-medium leading-tight text-ctp-text">

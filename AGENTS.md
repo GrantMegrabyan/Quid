@@ -226,6 +226,36 @@ When NOT to commit:
   checkboxes, file/color inputs, the Amazon in-card pill `<select>` /
   short-name `<input>`, and the import preview amount editor (conditional error
   border).
+- The dashboard's window is a **selection** (a month, or a rolling period), not
+  a month: `PeriodSelection` + `resolvePeriod` in `webui/src/lib/utils/period.ts`,
+  state in `webui/src/lib/stores/ui.ts` (`selection` persisted as
+  `quid:period:v2`; `selectedMonth` is now DERIVED and read-only — write through
+  `setMonth`/`stepMonth`/`setPeriod`/`goCurrentMonth`). Three consequences bite:
+  (1) `refreshExpenses()` fetches exactly the resolved range, so `$expenses` IS
+  the window — components must not re-filter by date (that contract changed;
+  `ExpenseList`, `CategoryBreakdown` and the dashboard used to filter by
+  `monthKey`); (2) month-only analytics (the cumulative chart, the month-end
+  projection) must stay gated on `isMonthMode`, since a rolling window has no
+  month end; (3) the comparison total comes from ONE aggregate call
+  (`analytics/summary` over `resolved.prior`), never a second page of rows.
+  The window is in the URL (`?month=` / `?period=`), and the URL wins on load.
+  See the **The window** section of `webui/README.md`.
+- Pages use the shell primitives in `webui/src/lib/components/shell/`
+  (`PageHeader` / `PageContent` / `SectionCard`) — don't hand-roll a page header;
+  the sticky-on-scroll behaviour and the heading rhythm come from there.
+- The dashboard register supports **bulk actions**: the flat row's category tile
+  doubles as a checkbox, and the selection drives `BulkActionBar` (recategorise
+  = one PATCH per row, which the backend records as `category_source='manual'`;
+  delete = the usual `softDelete`). A `$effect` drops any selected id that
+  leaves the current filter, so bulk actions can never touch an invisible row —
+  keep that guard if you touch the filter pipeline.
+- Filtering lives in the page, not the list: `TransactionsToolbar` owns search /
+  category facet / amount band / review status, and `ExpenseList` renders the
+  `items` it is handed (it only still hides rows with a pending delete). The
+  toolbar has several `<select>`s, so target the group-by one by
+  `data-testid="filter-groupby"` (a bare `page.locator('select')` is ambiguous),
+  and scope transaction assertions to `data-testid="transactions-section"` —
+  merchant names also appear in the Top merchants rail card.
 - Persisted view state (the month being viewed, the active Import tab) uses the
   reusable `persisted<T>(key, initial, validate?)` store in
   `webui/src/lib/stores/persisted.ts` — a `localStorage`-mirrored `writable`
@@ -237,8 +267,8 @@ When NOT to commit:
   (the old raw-string `expense-tracker:expense-group-by:v1` key is orphaned, not
   read); the chart-toggle pref is gone — the category breakdown panel
   (`CategoryBreakdown.svelte`, a ranked bar list that replaced the doughnut
-  chart) has no toggle and renders only at `xl+`, where it sits beside the
-  trend chart. NOTE: persisting a value the e2e
+  chart) has no toggle and now renders at every width, stacked into the main
+  column under the trend chart. NOTE: persisting a value the e2e
   suite relies on resetting between tests can cause cross-test bleed — keep
   persisted keys to genuinely user-facing view state.
 - The UI is themed (`Paper` light / `Ink` dark) from Flexoki tokens in

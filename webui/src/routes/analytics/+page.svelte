@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import { analyticsRepository } from '$lib/repos';
 	import { refreshSettings } from '$lib/stores/settings';
@@ -90,11 +92,9 @@
 	<title>Analytics</title>
 </svelte:head>
 
-<section class="flex flex-col gap-6">
-	<div>
-		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Analytics</h1>
-		<p class="text-sm text-ctp-subtext0">What went up, and where you can claw it back.</p>
-	</div>
+<PageHeader heading="Analytics" text="What went up, and where you can claw it back."></PageHeader>
+
+<PageContent>
 
 	{#if loadError}
 		<div
@@ -180,4 +180,4 @@
 			</div>
 		{/if}
 	{/if}
-</section>
+</PageContent>

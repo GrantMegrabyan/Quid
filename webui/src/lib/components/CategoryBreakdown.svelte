@@ -3,9 +3,8 @@
 	import { expenses } from '$lib/stores/expenses';
 	import { categories } from '$lib/stores/categories';
 	import { settings } from '$lib/stores/settings';
-	import { selectedMonth } from '$lib/stores/ui';
-	import { UNCATEGORIZED_COLOR } from '$utils/categoryColor';
-	import { monthKey } from '$utils/dates';
+	import { resolvedPeriod } from '$lib/stores/ui';
+	import { UNCATEGORIZED_COLOR, seriesVar } from '$utils/categoryColor';
 	import { amountToNumber, formatAmount } from '$utils/money';
 
 	const FALLBACK_LABEL = 'Uncategorized';
@@ -27,7 +26,6 @@
 		const totals = new Map<string, { total: number; count: number }>();
 		let monthTotal = 0;
 		for (const expense of $expenses) {
-			if (monthKey(expense.date) !== $selectedMonth) continue;
 			const amount = amountToNumber(expense.amount);
 			monthTotal += amount;
 			const entry = totals.get(expense.categoryId);
@@ -64,7 +62,7 @@
 	// Collapse again when the month changes so a long-tail month doesn't leak
 	// its expanded state into the next one.
 	$effect(() => {
-		void $selectedMonth;
+		void $resolvedPeriod;
 		showAll = false;
 	});
 
@@ -81,7 +79,7 @@
 		</div>
 	{:else}
 		<ul class="flex flex-col gap-3">
-			{#each visibleRows as row (row.id)}
+			{#each visibleRows as row, index (row.id)}
 				<li data-testid="category-breakdown-row" class="flex items-center gap-3">
 					<div
 						class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
@@ -100,8 +98,10 @@
 						<div class="mt-1 flex items-center gap-2">
 							<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-ctp-surface1">
 								<div
-									class="cat-bar h-full rounded-full transition-[width] duration-300 ease-out"
-									style="--cat: {row.color}; width: {maxTotal > 0 ? (row.total / maxTotal) * 100 : 0}%;"
+									class="h-full rounded-full transition-[width] duration-300 ease-out"
+									style="background-color: {seriesVar(index)}; width: {maxTotal > 0
+										? (row.total / maxTotal) * 100
+										: 0}%;"
 								></div>
 							</div>
 							<span class="w-9 shrink-0 text-right text-xs tabular-nums text-ctp-overlay1">

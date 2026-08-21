@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import { refreshSettings, settings, updateSettings } from '$lib/stores/settings';
 	import { THEMES, theme } from '$lib/stores/theme';
@@ -57,13 +59,9 @@
 	<title>Settings</title>
 </svelte:head>
 
-<section class="mx-auto flex max-w-2xl flex-col gap-6">
-	<header>
-		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Settings</h1>
-		<p class="mt-1 text-sm text-ctp-overlay1">
-			Choose how amounts and transaction details appear across Quid.
-		</p>
-	</header>
+<PageHeader heading="Settings" text="Choose how amounts and transaction details appear across Quid."></PageHeader>
+
+<PageContent class="mx-auto w-full max-w-2xl">
 
 	<form
 		class="flex flex-col gap-5 card rounded-lg border border-ctp-surface1 bg-ctp-base p-6"
@@ -208,4 +206,4 @@
 			</button>
 		</div>
 	</form>
-</section>
+</PageContent>

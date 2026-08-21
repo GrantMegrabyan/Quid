@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import { RepositoryError, expenseRepository } from '$lib/repos';
 	import { categories, refreshCategories } from '$lib/stores/categories';
@@ -748,13 +750,9 @@
 	<title>Import transactions</title>
 </svelte:head>
 
-<section class="flex flex-col gap-6">
-	<header class="flex flex-col gap-1">
-		<h1 class="font-serif text-2xl font-bold tracking-tight text-ctp-text">Import transactions</h1>
-		<p class="max-w-2xl text-sm text-ctp-overlay1">
-			Add transactions from a CSV, one at a time, or by pasting free-form text for AI to parse.
-		</p>
-	</header>
+<PageHeader heading="Import transactions" text="Add transactions from a CSV, one at a time, or by pasting free-form text for AI to parse."></PageHeader>
+
+<PageContent>
 
 	<div
 		role="tablist"
@@ -1115,7 +1113,7 @@
 			{/each}
 		</div>
 	{/if}
-</section>
+</PageContent>
 
 <style>
 	.import-summary {
