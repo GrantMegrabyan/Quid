@@ -2,7 +2,12 @@ name: Build and Push WebUI Image
 
 on:
   push:
-    branches: ["main"]
+    # `main` publishes the deployable image. Design-experiment branches are built
+    # too so a branch can be deployed without merging it: the metadata step tags
+    # those by branch name only — `latest` stays gated on the default branch
+    # (`enable={{is_default_branch}}`), so a branch build can never become what a
+    # `pull_policy: always` deployment picks up by default.
+    branches: ["main", "feat/paper-theme"]
     paths:
       - "webui/**"
       - ".github/workflows/build-webui.yml"
