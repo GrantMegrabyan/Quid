@@ -24,6 +24,7 @@ from quid_api.routers import (
     health,
     import_log,
     import_rules,
+    importance,
     testing,
 )
 from quid_api.settings import Settings, get_settings
@@ -194,6 +195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(amazon_orders.router)
     app.include_router(app_settings.router)
     app.include_router(analytics.router)
+    app.include_router(importance.router)
 
     if cfg.testing:
         app.include_router(testing.router)

@@ -774,12 +774,13 @@ and nothing writes it yet.
 
 | Write path | Source |
 | --- | --- |
-| `POST /expenses` with an `importance` | `manual` |
-| `POST /expenses` without one | `import` |
+| `POST /expenses` with an explicit `importance` | `manual` |
+| `POST /expenses` omitting it (defaults to `important`) | `import` |
 | `PATCH /expenses/{id}` **changing** the value | `manual` |
 | `PATCH /expenses/{id}` resubmitting the same value | unchanged |
 | Import preview override (see below) | `manual` |
 | Import-rule `setImportance` (on import or apply) | `rule` |
+| Triage queue | `manual` |
 | CSV/free-form import with AI categorisation on | `ai` |
 | Any other bulk insert | `import` |
 
@@ -804,6 +805,36 @@ which cannot say whether suggestions are *improving* — that needs the pair. Th
 table carries no foreign keys on purpose: the (merchant, category, amount,
 chosen) tuple must outlive the deletion of the expense or category it came
 from. Duplicate import rows are never logged (nothing was inserted).
+
+**Triage queue.** With nothing hand-labelled, the entire history is
+unattributed. Rather than wait for one-at-a-time corrections, the triage queue
+ranks the merchants that have NO labelled transaction yet by total spend, so a
+handful of decisions covers the majority of the money.
+
+- `GET /api/v1/importance/triage?limit=20` (1–200, default 20) — returns
+  `{ merchants: [{ merchantKey, merchantName, transactionCount, totalAmount,
+  currentImportance, categoryId, lastDate }], coverage }`, biggest spend first.
+  A merchant is "unlabelled" when none of its transactions carries
+  `importanceSource = manual`. `merchantKey` is `lower(trim(name))`, the same
+  grouping analytics uses; `currentImportance` is the **spend-weighted**
+  majority of what those rows currently hold (a guess, by definition).
+- `POST /api/v1/importance/triage` with `{ merchantKey, importance }` — labels
+  every transaction of that merchant, returning `{ updated, coverage }`.
+  Matching is case-insensitive. It applies **retroactively** (the only way
+  existing history gets labelled) but never touches a row already marked
+  `manual`: a per-transaction decision is more specific than a merchant-wide
+  one. A merchant with no matching rows is a no-op `updated: 0`, not an error.
+
+Each affected row is written to the correction log with `context: "triage"`.
+Rows whose importance already matched are still relabelled and logged — the
+queue's job is to turn an unattributed default into a confirmed label, and a
+confirmation is as much a signal as a flip. Those show up in `coverage` as
+`corrections` but not as `overrides`.
+
+`coverage` (on both endpoints) is
+`{ labelledMerchants, unlabelledMerchants, labelledAmount, totalAmount,
+corrections, overrides }` — how much of the history is hand-labelled and how
+often a proposal was actually wrong.
 
 Migration `0023` backfills nothing. Importance has always defaulted to
 `important` with no provenance, so a stored value cannot be attributed to the

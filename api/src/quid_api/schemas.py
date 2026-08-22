@@ -136,7 +136,10 @@ class ExpenseCreate(_Camel):
     date: str
     category_id: Annotated[str, Field(min_length=1)]
     note: str = ""
-    importance: Importance = "important"
+    # Optional so the API can tell "the caller chose this" from "nobody said".
+    # An explicit value is a real decision and is stored as `manual`; omitting
+    # it falls back to the `important` default, which is not a decision.
+    importance: Importance | None = None
 
     _validate_date = field_validator("date")(_validate_required_datetime)
 
@@ -977,3 +980,56 @@ class NarrativeGenerateRequest(_Camel):
 
 def dump_camel(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(by_alias=True, exclude_unset=True)
+
+
+# --- Importance triage -----------------------------------------------------
+
+
+class TriageMerchantOut(_Camel):
+    """One unlabelled merchant in the triage queue."""
+
+    merchant_key: str
+    merchant_name: str
+    transaction_count: int
+    total_amount: Decimal
+    # The importance these transactions currently carry (spend-weighted
+    # majority) — a guess, since nothing in the group is hand-set yet.
+    current_importance: Importance
+    category_id: str | None = None
+    last_date: str
+
+    @field_serializer("total_amount")
+    def _ser_total(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceCoverageOut(_Camel):
+    """How much of the history is hand-labelled, and how often we were wrong."""
+
+    labelled_merchants: int
+    unlabelled_merchants: int
+    labelled_amount: Decimal
+    total_amount: Decimal
+    corrections: int
+    # Corrections that actually FLIPPED the value; the remainder are
+    # confirmations (triage decisions that matched what was already stored).
+    overrides: int
+
+    @field_serializer("labelled_amount", "total_amount")
+    def _ser_money(self, value: Decimal) -> str:
+        return _money_str(value)
+
+
+class ImportanceTriageResponse(_Camel):
+    merchants: list[TriageMerchantOut]
+    coverage: ImportanceCoverageOut
+
+
+class ImportanceTriageRequest(_Camel):
+    merchant_key: Annotated[str, Field(min_length=1, max_length=200)]
+    importance: Importance
+
+
+class ImportanceTriageResult(_Camel):
+    updated: int
+    coverage: ImportanceCoverageOut

@@ -203,6 +203,15 @@ When NOT to commit:
   triage, `from_importance == to_importance` means a confirmation, not a flip.
   The repository's `log*` methods deliberately do NOT flush — the log must
   commit or roll back with the write it describes.
+- `ExpenseCreate.importance` is `Importance | None` (NOT defaulted to
+  `"important"` at the schema layer) precisely so the API can distinguish "the
+  caller chose this" from "nobody said" — the repository applies the default.
+  Re-adding a Pydantic default silently marks every created expense `manual`
+  and empties the triage queue.
+- The triage queue (`GET/POST /api/v1/importance/triage`,
+  `ImportanceRepository.triage_queue` / `apply_triage`) is the bootstrap for
+  importance labels: merchants with NO `manual` transaction, ranked by total
+  spend. Applying is retroactive but skips rows already `manual`.
 - Import rules have THREE setters — `set_display_name`, `set_note` and
   `set_importance` — all only meaningful for `categorize` rules (an `exclude`
   rule deletes the matched expense), and the rules UI hides all three for
