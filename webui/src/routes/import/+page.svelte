@@ -259,7 +259,11 @@
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,
-					importance: row.selectedImportance
+					importance: row.selectedImportance,
+					// Report what was proposed so the server can tell a deliberate
+					// override (which it stores as a hand-set label) from an
+					// untouched suggestion.
+					suggestedImportance: row.suggestedImportance
 				})),
 				categoryUpdates: csvUpdateRows.map((row) => ({
 					previewRowId: row.previewRowId,
@@ -267,6 +271,7 @@
 					existingExpenseId: row.existingExpenseId ?? '',
 					categoryName: row.selectedCategoryName,
 					importance: row.selectedImportance,
+					suggestedImportance: row.suggestedImportance,
 					accept: row.acceptUpdate
 				}))
 			});
@@ -408,7 +413,11 @@
 					date: row.date,
 					note: row.note,
 					categoryName: row.selectedCategoryName,
-					importance: row.selectedImportance
+					importance: row.selectedImportance,
+					// Report what was proposed so the server can tell a deliberate
+					// override (which it stores as a hand-set label) from an
+					// untouched suggestion.
+					suggestedImportance: row.suggestedImportance
 				})),
 				categoryUpdates: freeformUpdateRows.map((row) => ({
 					previewRowId: row.previewRowId,
@@ -416,6 +425,7 @@
 					existingExpenseId: row.existingExpenseId ?? '',
 					categoryName: row.selectedCategoryName,
 					importance: row.selectedImportance,
+					suggestedImportance: row.suggestedImportance,
 					accept: row.acceptUpdate
 				}))
 			});

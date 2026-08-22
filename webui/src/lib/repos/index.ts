@@ -24,4 +24,8 @@ export {
 	httpAnalyticsRepository as analyticsRepository,
 	HttpAnalyticsRepository
 } from './httpAnalyticsRepository.js';
+export {
+	httpImportanceRepository as importanceRepository,
+	HttpImportanceRepository
+} from './httpImportanceRepository.js';
 export { httpClient, HttpClient } from './httpClient.js';

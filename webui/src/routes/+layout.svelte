@@ -10,6 +10,7 @@
 		Upload,
 		Tags,
 		ListFilter,
+		Scale,
 		Sparkles,
 		ShoppingCart,
 		Settings,
@@ -71,6 +72,7 @@
 			items: [
 				{ href: '/categories', label: 'Categories', icon: Tags },
 				{ href: '/rules', label: 'Rules', icon: ListFilter },
+				{ href: '/importance', label: 'Importance', icon: Scale },
 				{ href: '/ai-rules', label: 'AI Rules', icon: Sparkles }
 			]
 		}

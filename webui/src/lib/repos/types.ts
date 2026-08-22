@@ -14,6 +14,9 @@ import type {
 	Category,
 	DiagnosisResult,
 	Expense,
+	ExpenseImportance,
+	ImportanceTriageApplied,
+	ImportanceTriageResult,
 	MonthlyTotalsResult,
 	NarrativeResult,
 	SavingsResult,
@@ -131,6 +134,16 @@ export interface AnalyticsRepository {
 	savings(asOf: string): Promise<SavingsResult>;
 	narrative(): Promise<NarrativeResult>;
 	generateNarrative(input: { asOf: string }): Promise<NarrativeResult>;
+}
+
+export interface ImportanceRepository {
+	/** Merchants with no hand-set importance yet, biggest spend first. */
+	triage(limit?: number): Promise<ImportanceTriageResult>;
+	/** Label every transaction of one merchant (rows already `manual` are left alone). */
+	applyTriage(input: {
+		merchantKey: string;
+		importance: ExpenseImportance;
+	}): Promise<ImportanceTriageApplied>;
 }
 
 export type RepositoryErrorCode = 'NOT_FOUND' | 'IMMUTABLE' | 'VALIDATION';

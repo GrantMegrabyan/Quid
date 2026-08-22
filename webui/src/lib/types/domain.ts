@@ -25,6 +25,10 @@ export interface Expense {
 	 *  category may override it. Read-only (set server-side). Optional in mocks
 	 *  and creation payloads. */
 	categorySource?: ExpenseCategorySource;
+	/** Provenance of `importance` — who chose it. Only `manual` (and `rule`)
+	 *  reflect a real decision; the rest are guesses. Read-only (set
+	 *  server-side). Optional in mocks and creation payloads. */
+	importanceSource?: ExpenseImportanceSource;
 	/** Amazon orders this expense is linked to. Multiple when Amazon bills
 	 *  several orders together as a single bank charge. Optional in mocks
 	 *  and creation payloads; the API always returns at least []. */
@@ -38,6 +42,9 @@ export interface Expense {
 export type ExpenseImportance = 'essential' | 'important' | 'discretionary';
 
 export type ExpenseCategorySource = 'manual' | 'rule' | 'amazon' | 'ai' | 'import';
+
+/** `learned` is reserved for a future automatic pass; nothing writes it yet. */
+export type ExpenseImportanceSource = 'manual' | 'rule' | 'learned' | 'ai' | 'import';
 
 export interface Category {
 	id: string;
@@ -158,6 +165,9 @@ export interface ImportCsvConfirmCreateRow {
  	note: string;
  	categoryName: string;
 	importance: ExpenseImportance;
+	/** What the preview proposed. Sent back unchanged so the server can tell a
+	 *  deliberate override (a training label) from an untouched suggestion. */
+	suggestedImportance?: ExpenseImportance;
 }
 
 export interface ImportCsvConfirmCategoryUpdateRow {
@@ -166,6 +176,7 @@ export interface ImportCsvConfirmCategoryUpdateRow {
   	existingExpenseId: string;
   	categoryName: string;
 	importance: ExpenseImportance;
+	suggestedImportance?: ExpenseImportance;
   	accept: boolean;
 }
 
@@ -625,4 +636,42 @@ export interface AnalyticsNarrative {
 
 export interface NarrativeResult {
 	narrative: AnalyticsNarrative | null;
+}
+
+/**
+ * Importance triage: merchants with no hand-set importance yet, ranked by
+ * total spend so a handful of decisions covers most of the money.
+ */
+export interface TriageMerchant {
+	/** `lower(trim(name))` — the grouping key, and what POST /triage takes. */
+	merchantKey: string;
+	merchantName: string;
+	transactionCount: number;
+	/** Canonical decimal string ("19.99"). */
+	totalAmount: string;
+	/** Spend-weighted majority of what these rows currently hold — a guess. */
+	currentImportance: ExpenseImportance;
+	categoryId: string | null;
+	lastDate: string;
+}
+
+export interface ImportanceCoverage {
+	labelledMerchants: number;
+	unlabelledMerchants: number;
+	/** Canonical decimal string ("19.99"). */
+	labelledAmount: string;
+	totalAmount: string;
+	corrections: number;
+	/** Corrections that flipped the value; the rest are confirmations. */
+	overrides: number;
+}
+
+export interface ImportanceTriageResult {
+	merchants: TriageMerchant[];
+	coverage: ImportanceCoverage;
+}
+
+export interface ImportanceTriageApplied {
+	updated: number;
+	coverage: ImportanceCoverage;
 }

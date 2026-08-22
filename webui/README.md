@@ -234,6 +234,24 @@ and `docker-compose.yml` for the full stack (API + UI).
       `src/lib/amazon/bookmarklet.ts`).
     - The bookmarklet's version is shown as `scraperVersion` in the exported
       JSON; it's sourced from `SCRAPER_VERSION` in `scraper.ts` so it can't drift.
+- **Importance** (`/importance`) — the triage queue. Every transaction carries
+  an importance (Essential / Important / Discretionary), but until you set one
+  by hand it is only a guess, and the stored value cannot be told apart from the
+  untouched default. This page lists the merchants that have **no** hand-set
+  importance yet, ranked by total spend, so the biggest decisions come first:
+  labelling the top handful usually covers most of the money.
+  - Each row shows the merchant, its category, total spend, transaction count,
+    and what those rows currently hold; the three buttons label the whole
+    merchant in one click.
+  - Labelling applies **retroactively** to that merchant's existing
+    transactions, but never overwrites a transaction whose importance you set
+    individually — a per-transaction decision is more specific.
+  - Merchants are matched case-insensitively (`Tesco` and `TESCO` are one row).
+  - The header strip tracks how much spend is labelled, how many merchants are
+    done, and how often your decisions changed what quid proposed.
+  - Every decision here (and every importance you change on a transaction or in
+    an import preview) is recorded server-side as a correction, which is the
+    training data a future automatic pass will learn from.
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
   on), plus **Appearance** (Paper / Ink / System). Appearance is a *device*
