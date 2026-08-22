@@ -183,6 +183,26 @@ When NOT to commit:
     and a keep-income settings toggle. Don't implement these as part of routine
     import work.
 - Use `uv run quid-api clear-transactions` for the built-in transaction wipe, but only after explicit confirmation.
+- `expenses.importance_source` (migration `0023`) is importance's provenance
+  column, the sibling of `category_source`: `manual > rule > learned > ai >
+  import`. `learned` is in the CHECK but nothing writes it yet — it is there so
+  a future learning pass doesn't need another SQLite table rebuild. EVERY write
+  path must set it; an unattributed importance is indistinguishable from the
+  `'important'` default and is therefore useless as a training label. A `PATCH`
+  that resubmits the SAME importance deliberately does NOT mark `manual` (the
+  edit modal posts the whole form, so that would relabel untouched defaults on
+  every note edit). `BulkItem.importance_manual` carries a preview override
+  through `bulk_import`, and it outranks a rule's `set_importance` — the
+  preview had already applied the rule when the user moved it away.
+- `importance_corrections` is an append-only log of (proposed → chosen) pairs,
+  written by `ImportanceRepository.log*`. It has NO foreign keys on purpose:
+  the (merchant, category, amount, chosen) tuple must outlive the expense or
+  category being deleted. `context` is `edit` | `import_preview` | `triage`;
+  a `triage` row is one decision applied to a whole merchant, so it is weaker
+  per-row evidence than the other two and a learner should weight it lower. In
+  triage, `from_importance == to_importance` means a confirmation, not a flip.
+  The repository's `log*` methods deliberately do NOT flush — the log must
+  commit or roll back with the write it describes.
 - Import rules have THREE setters — `set_display_name`, `set_note` and
   `set_importance` — all only meaningful for `categorize` rules (an `exclude`
   rule deletes the matched expense), and the rules UI hides all three for

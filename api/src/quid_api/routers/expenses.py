@@ -31,6 +31,7 @@ from quid_api.repositories.expenses import (
 )
 from quid_api.repositories.import_log import ImportLogRepository
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
+from quid_api.repositories.importance import ImportanceRepository
 from quid_api.schemas import (
     BulkExpenseRequest,
     BulkExpenseResponse,
@@ -659,6 +660,12 @@ async def _confirm_import(
             date=row.date,
             note=row.note,
             importance=row.importance,
+            # The preview reported what it proposed; a value that came back
+            # different is the user's own decision, not the AI's or a rule's.
+            importance_manual=(
+                row.suggested_importance is not None and row.importance != row.suggested_importance
+            ),
+            suggested_importance=row.suggested_importance,
         )
         for row in creates
     ]
@@ -696,7 +703,13 @@ async def _confirm_import(
             expense.category_source = "manual"
             changed = True
         if row.importance != old_importance:
+            # Accepting an update to an EXISTING row means the user looked at
+            # this importance and moved it, whatever proposed the new value.
+            ImportanceRepository(session).log_for_expense(
+                expense, to_importance=row.importance, context="import_preview"
+            )
             expense.importance = row.importance
+            expense.importance_source = "manual"
             changed = True
         if changed:
             updated += 1

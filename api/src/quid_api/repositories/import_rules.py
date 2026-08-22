@@ -305,6 +305,7 @@ class ImportRuleRepository:
             values["note"] = rule.set_note
         if rule.set_importance is not None:
             values["importance"] = rule.set_importance
+            values["importance_source"] = "rule"
         await self.session.execute(
             update(Expense)
             .where(Expense.id.in_([expense.id for expense in matched]))
@@ -377,7 +378,9 @@ class ImportRuleRepository:
 
         for importance, expense_ids in importance_updates.items():
             await self.session.execute(
-                update(Expense).where(Expense.id.in_(expense_ids)).values(importance=importance)
+                update(Expense)
+                .where(Expense.id.in_(expense_ids))
+                .values(importance=importance, importance_source="rule")
             )
             updated_ids.update(expense_ids)
 

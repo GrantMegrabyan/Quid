@@ -73,6 +73,18 @@ class Expense(Base):
         server_default=text("'import'"),
         default="import",
     )
+    # Provenance of ``importance``, the same idea one field over. Priority
+    # high->low: manual > rule > learned > ai > import. Only 'manual' (and, once
+    # it exists, 'rule') is a real signal about what the user believes; the rest
+    # are guesses an automatic pass may overwrite. Every write path must set
+    # this — an unattributed value is indistinguishable from the default and is
+    # therefore useless as a training label.
+    importance_source: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        server_default=text("'import'"),
+        default="import",
+    )
 
     category: Mapped[Category] = relationship(
         back_populates="expenses",
@@ -143,6 +155,10 @@ class Expense(Base):
         CheckConstraint(
             "category_source IN ('manual', 'rule', 'amazon', 'ai', 'import')",
             name="ck_expenses_category_source",
+        ),
+        CheckConstraint(
+            "importance_source IN ('manual', 'rule', 'learned', 'ai', 'import')",
+            name="ck_expenses_importance_source",
         ),
         Index("ix_expenses_date", "date"),
         Index("ix_expenses_category", "category_id"),
@@ -438,3 +454,56 @@ class AnalyticsNarrative(Base):
     model: Mapped[str] = mapped_column(String, nullable=False)
 
     __table_args__ = (UniqueConstraint("month", name="uq_analytics_narratives_month"),)
+
+
+class ImportanceCorrection(Base):
+    """Append-only log of a human overriding a proposed importance.
+
+    ``expenses`` only ever holds the final answer, so it cannot say whether the
+    system's suggestions are getting BETTER — that needs the (proposed, chosen)
+    pair at the moment of the correction, which is what this records.
+
+    Deliberately foreign-key free. What makes a row valuable is the
+    (merchant, category, amount, chosen) tuple, and that has to survive the
+    deletion of the expense or category it was observed on; a cascade would
+    quietly delete the evidence instead.
+    """
+
+    __tablename__ = "importance_corrections"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    expense_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # ``lower(trim(name))`` — the same merchant grouping key analytics uses.
+    merchant_key: Mapped[str] = mapped_column(String, nullable=False)
+    merchant_name: Mapped[str] = mapped_column(String, nullable=False)
+    category_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    expense_date: Mapped[str] = mapped_column(String, nullable=False)
+    # NULL when the previous value is genuinely unknown.
+    from_importance: Mapped[str | None] = mapped_column(String, nullable=True)
+    from_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_importance: Mapped[str] = mapped_column(String, nullable=False)
+    # 'edit' (one transaction, in the register) | 'import_preview' (overridden
+    # before confirming an import) | 'triage' (one decision applied to a whole
+    # merchant). Triage rows are weaker per-row evidence than the other two and
+    # a learner should weight them accordingly, hence the distinction.
+    context: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "from_importance IS NULL OR from_importance IN "
+            "('essential', 'important', 'discretionary')",
+            name="ck_importance_corrections_from",
+        ),
+        CheckConstraint(
+            "to_importance IN ('essential', 'important', 'discretionary')",
+            name="ck_importance_corrections_to",
+        ),
+        CheckConstraint(
+            "context IN ('edit', 'import_preview', 'triage')",
+            name="ck_importance_corrections_context",
+        ),
+        Index("ix_importance_corrections_merchant", "merchant_key"),
+        Index("ix_importance_corrections_created", "created_at"),
+    )

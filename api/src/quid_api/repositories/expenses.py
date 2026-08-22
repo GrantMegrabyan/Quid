@@ -24,6 +24,7 @@ from quid_api.datelib import validate_iso_date, validate_iso_datetime
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense, ExpenseAmazonOrderLink
 from quid_api.repositories.import_rules import ImportRuleRepository, RuleMatchItem
+from quid_api.repositories.importance import ImportanceRepository
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -124,6 +125,32 @@ class BulkItem:
     date: str
     note: str = ""
     importance: str = DEFAULT_IMPORTANCE
+    # Set when ``importance`` is the user's own choice rather than a
+    # CSV/AI/rule guess — i.e. they changed it in the import preview. It makes
+    # the stored value a training label ('manual') and outranks a rule's
+    # ``set_importance``, which the preview had already applied and which they
+    # then deliberately moved away from.
+    importance_manual: bool = False
+    # What the preview proposed, recorded as the "from" side of the correction
+    # log. ``None`` when unknown (nothing to compare against).
+    suggested_importance: str | None = None
+
+
+@dataclass(frozen=True)
+class _PreparedRow:
+    """One import row after rules/validation, ready for the dedupe pass."""
+
+    index: int
+    category: Category
+    amount: Decimal
+    date: str
+    name: str
+    note: str
+    display_name: str | None
+    importance: str
+    importance_source: str
+    suggested_importance: str | None
+    category_source: str
 
 
 @dataclass(frozen=True)
@@ -268,6 +295,10 @@ class ExpenseRepository:
             # A real chosen category is protected ('manual'); an expense left
             # uncategorized stays overridable so it can inherit an order's.
             category_source="import" if category_id == UNCATEGORIZED_ID else "manual",
+            # Adding a transaction by hand means picking an importance in the
+            # form, so an explicitly passed value is a real choice. Omitting it
+            # falls back to the default, which is not.
+            importance_source="manual" if importance else "import",
         )
         self.session.add(row)
         await self.session.flush()
@@ -304,7 +335,17 @@ class ExpenseRepository:
         if display_name is not _UNSET:
             row.display_name = display_name  # type: ignore[assignment]
         if importance is not None:
-            row.importance = _validate_importance(importance)
+            clean = _validate_importance(importance)
+            # Only an actual CHANGE counts. The edit modal submits the whole
+            # form, so treating any submitted value as a decision would relabel
+            # untouched defaults as 'manual' every time a note or name is
+            # edited, quietly poisoning the training set.
+            if clean != row.importance:
+                ImportanceRepository(self.session).log_for_expense(
+                    row, to_importance=clean, context="edit"
+                )
+                row.importance = clean
+                row.importance_source = "manual"
 
         await self.session.flush()
         return row
@@ -388,6 +429,7 @@ class ExpenseRepository:
                 note=item.note or "",
                 importance=clean_importance,
                 category_source="import",
+                importance_source="import",
             )
             self.session.add(expense)
             created_expenses.append(expense)
@@ -444,7 +486,7 @@ class ExpenseRepository:
         logger.info("import.bulk.start items=%d", len(items))
         created_categories: dict[str, Category] = {}
         rule_repo = ImportRuleRepository(self.session)
-        prepared: list[tuple[int, Category, Decimal, str, str, str, str | None, str, str]] = []
+        prepared: list[_PreparedRow] = []
         decisions = ["pending" for _ in items]
         rule_excluded = 0
         rule_categorised = 0
@@ -503,27 +545,38 @@ class ExpenseRepository:
             # precedence it already has over their category. Keep this in step
             # with the preview path in ``routers/expenses.py`` — the preview
             # promises the user exactly what confirming will write.
+            #
+            # ...unless the user moved it themselves in the preview. Their
+            # explicit choice is the one thing that outranks the rule, because
+            # the preview had ALREADY applied the rule when they overrode it.
             item_importance = clean_importance
+            importance_source = "ai" if used_ai else "import"
             if rule is not None and rule.set_importance is not None:
                 item_importance = rule.set_importance
+                importance_source = "rule"
+            if item.importance_manual:
+                item_importance = clean_importance
+                importance_source = "manual"
             prepared.append(
-                (
-                    idx,
-                    category,
-                    clean_amount,
-                    clean_date,
-                    clean_name,
-                    item_note,
-                    item_display_name,
-                    item_importance,
-                    category_source,
+                _PreparedRow(
+                    index=idx,
+                    category=category,
+                    amount=clean_amount,
+                    date=clean_date,
+                    name=clean_name,
+                    note=item_note,
+                    display_name=item_display_name,
+                    importance=item_importance,
+                    importance_source=importance_source,
+                    suggested_importance=item.suggested_importance,
+                    category_source=category_source,
                 )
             )
 
         DedupKey = tuple[str, str, Decimal]
         in_file_counts: Counter[DedupKey] = Counter()
-        for _, _cat, amount, date, name, _note, _dn, _imp, _src in prepared:
-            in_file_counts[(date, _normalize_text(name), amount)] += 1
+        for row_ in prepared:
+            in_file_counts[(row_.date, _normalize_text(row_.name), row_.amount)] += 1
 
         quotas: dict[DedupKey, int] = {}
         for key, in_file in in_file_counts.items():
@@ -554,28 +607,43 @@ class ExpenseRepository:
             )
 
         created_expenses: list[Expense] = []
+        importance_repo = ImportanceRepository(self.session)
         skipped = 0
-        for item_idx, cat, amount, date, name, note, display_name, importance, source in prepared:
-            key = (date, _normalize_text(name), amount)
+        for prep in prepared:
+            key = (prep.date, _normalize_text(prep.name), prep.amount)
             if quotas[key] > 0:
                 quotas[key] -= 1
                 row = Expense(
                     id=str(uuid4()),
-                    name=name,
-                    amount=amount,
-                    date=date,
-                    category_id=cat.id,
-                    note=note,
-                    display_name=display_name,
-                    importance=importance,
-                    category_source=source,
+                    name=prep.name,
+                    amount=prep.amount,
+                    date=prep.date,
+                    category_id=prep.category.id,
+                    note=prep.note,
+                    display_name=prep.display_name,
+                    importance=prep.importance,
+                    category_source=prep.category_source,
+                    importance_source=prep.importance_source,
                 )
                 self.session.add(row)
                 created_expenses.append(row)
-                decisions[item_idx] = "created"
+                decisions[prep.index] = "created"
+                # Only rows that were actually inserted are logged — a
+                # duplicate the user re-reviewed teaches nothing new.
+                if prep.importance_source == "manual":
+                    importance_repo.log(
+                        expense_id=row.id,
+                        merchant_name=prep.name,
+                        category_id=prep.category.id,
+                        amount=prep.amount,
+                        expense_date=prep.date,
+                        from_importance=prep.suggested_importance,
+                        to_importance=prep.importance,
+                        context="import_preview",
+                    )
             else:
                 skipped += 1
-                decisions[item_idx] = "duplicate"
+                decisions[prep.index] = "duplicate"
 
         await self.session.flush()
         logger.info(

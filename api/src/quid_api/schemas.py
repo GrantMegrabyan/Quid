@@ -103,6 +103,9 @@ class CategoryUpdate(_Camel):
 
 
 CategorySource = Literal["manual", "rule", "amazon", "ai", "import"]
+# Where an expense's importance came from. "learned" is reserved for a future
+# automatic pass; nothing writes it yet.
+ImportanceSource = Literal["manual", "rule", "learned", "ai", "import"]
 
 
 class ExpenseOut(_Camel):
@@ -115,6 +118,7 @@ class ExpenseOut(_Camel):
     display_name: str | None = None
     importance: Importance
     category_source: CategorySource = "import"
+    importance_source: ImportanceSource = "import"
     amazon_order_ids: list[str] = Field(default_factory=list)
     # Effective note: the expense's own note, else a linked Amazon order's
     # short name (computed server-side via ``Expense.resolved_note`` so the
@@ -299,6 +303,10 @@ class ImportCsvConfirmCreateRow(_Camel):
     note: str = ""
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
     importance: Importance = "important"
+    # What the preview proposed for this row. Sent back unchanged so the server
+    # can tell a deliberate override from an untouched suggestion — the former
+    # is a training label, the latter is not. ``None`` means "not reported".
+    suggested_importance: Importance | None = None
 
     _validate_date = field_validator("date")(_validate_required_datetime)
 
@@ -309,6 +317,7 @@ class ImportCsvConfirmCategoryUpdateRow(_Camel):
     existing_expense_id: str
     category_name: Annotated[str, Field(min_length=1, max_length=120)]
     importance: Importance = "important"
+    suggested_importance: Importance | None = None
     accept: bool = True
 
 

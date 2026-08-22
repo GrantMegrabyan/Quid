@@ -761,6 +761,55 @@ existed.
 charge (matches `amazon` / `amzn` / `amz`). Manual `/link` is unrestricted, so
 you can still link any expense by id.
 
+## Importance
+
+Every expense carries an `importance` (`essential` | `important` |
+`discretionary`, default `important`) and, alongside it, a read-only
+`importanceSource` recording **who chose it**: `manual` > `rule` > `learned` >
+`ai` > `import`. Only `manual` (and `rule`) reflect a real decision; the rest
+are guesses that a future automatic pass may overwrite. `learned` is reserved
+and nothing writes it yet.
+
+`importanceSource` per write path:
+
+| Write path | Source |
+| --- | --- |
+| `POST /expenses` with an `importance` | `manual` |
+| `POST /expenses` without one | `import` |
+| `PATCH /expenses/{id}` **changing** the value | `manual` |
+| `PATCH /expenses/{id}` resubmitting the same value | unchanged |
+| Import preview override (see below) | `manual` |
+| Import-rule `setImportance` (on import or apply) | `rule` |
+| CSV/free-form import with AI categorisation on | `ai` |
+| Any other bulk insert | `import` |
+
+A `PATCH` that resubmits the *same* importance is deliberately not treated as a
+decision: the edit modal submits the whole form, so counting it would relabel
+untouched defaults as `manual` every time a note is edited.
+
+**Import preview overrides.** `ImportCsvConfirmCreateRow` and
+`ImportCsvConfirmCategoryUpdateRow` accept an optional `suggestedImportance` —
+what the preview proposed for that row. When it is present and differs from the
+submitted `importance`, the server treats the value as the user's own choice:
+it stores `manual` and, for create rows, outranks any import rule's
+`setImportance` (the preview had already applied that rule when the user moved
+it). Omitting `suggestedImportance` means "not reported" and changes nothing.
+
+**Correction log.** Every time a human moves an importance away from what was
+proposed, the before/after pair is appended to `importance_corrections`
+(migration `0023`): merchant key (`lower(trim(name))`), category, amount, date,
+`fromImportance`/`fromSource`, `toImportance`, and a `context` of `edit`,
+`import_preview`, or `triage`. The expenses table only holds the final answer,
+which cannot say whether suggestions are *improving* — that needs the pair. The
+table carries no foreign keys on purpose: the (merchant, category, amount,
+chosen) tuple must outlive the deletion of the expense or category it came
+from. Duplicate import rows are never logged (nothing was inserted).
+
+Migration `0023` backfills nothing. Importance has always defaulted to
+`important` with no provenance, so a stored value cannot be attributed to the
+user, the AI, or the default — all existing rows are left at `import`, i.e.
+unlabelled.
+
 ## Settings
 
 `GET /api/v1/settings` returns the app-settings singleton; `PATCH /api/v1/settings`
