@@ -18,6 +18,7 @@
 	import { formatAmount } from '$lib/utils/money';
 	import type {
 		AmountMatchOp,
+		ExpenseImportance,
 		ImportRule,
 		ImportRuleCreate,
 		ImportRulePreviewRequest,
@@ -43,6 +44,8 @@
 		matchDayOfMonth: string;
 		setDisplayName: string;
 		setNote: string;
+		/** '' means "leave the imported/AI importance alone". */
+		setImportance: ExpenseImportance | '';
 	};
 
 	type RuleResult = { kind: 'message' | 'error'; text: string };
@@ -62,7 +65,8 @@
 		matchDateTo: '',
 		matchDayOfMonth: '',
 		setDisplayName: '',
-		setNote: ''
+		setNote: '',
+		setImportance: ''
 	});
 
 	let form = $state<FormState>(emptyForm());
@@ -129,7 +133,8 @@
 			matchDateTo: rule.matchDateTo ?? '',
 			matchDayOfMonth: rule.matchDayOfMonth === null ? '' : String(rule.matchDayOfMonth),
 			setDisplayName: rule.setDisplayName ?? '',
-			setNote: rule.setNote ?? ''
+			setNote: rule.setNote ?? '',
+			setImportance: rule.setImportance ?? ''
 		};
 		error = '';
 		message = '';
@@ -223,7 +228,8 @@
 			matchDateTo: form.matchDateTo || null,
 			matchDayOfMonth: dayOfMonth,
 			setDisplayName: form.setDisplayName.trim() || null,
-			setNote: form.setNote.trim() || null
+			setNote: form.setNote.trim() || null,
+			setImportance: form.setImportance || null
 		};
 	}
 
@@ -558,6 +564,15 @@
 						<span>Set note <span class="text-ctp-overlay0">(optional)</span></span>
 						<input bind:value={form.setNote} data-testid="rule-set-note" type="text" maxlength="500" placeholder="Leave blank to keep imported note" class="field" />
 					</label>
+					<label class="flex flex-col gap-1 text-sm text-ctp-subtext0">
+						<span>Set importance <span class="text-ctp-overlay0">(optional)</span></span>
+						<select bind:value={form.setImportance} data-testid="rule-set-importance" class="field field-select">
+							<option value="">Leave as imported</option>
+							<option value="essential">Essential</option>
+							<option value="important">Important</option>
+							<option value="discretionary">Discretionary</option>
+						</select>
+					</label>
 				</div>
 			{/if}
 		</fieldset>
@@ -700,7 +715,10 @@
 						</div>
 						<p class="mt-2 text-sm text-ctp-overlay1">If {summary(rule) || 'no conditions'}.</p>
 						<p class="mt-1 text-sm font-medium text-ctp-text">
-							Then {rule.action === 'exclude' ? 'exclude from import' : `categorize as ${categoryName(rule.targetCategoryId)}`}.
+							Then {rule.action === 'exclude' ? 'exclude from import' : `categorize as ${categoryName(rule.targetCategoryId)}`}{rule.action ===
+								'categorize' && rule.setImportance
+								? `, mark ${rule.setImportance}`
+								: ''}.
 						</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-1">

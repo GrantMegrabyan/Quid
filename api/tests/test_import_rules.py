@@ -990,3 +990,234 @@ async def test_import_csv_preview_display_name_none_without_rule(app_client):
     # No rule matched ⇒ category is NOT flagged as rule-driven, no override hint.
     assert row["categoryFromRule"] is False
     assert row["overriddenCategoryName"] is None
+
+
+# ── set_importance ────────────────────────────────────────────────────────
+# The third rule setter. It must behave identically across the three paths a
+# rule can reach an expense through: CSV import, single-rule re-apply, and
+# apply-all. A rule outranks the AI's / CSV's importance guess, the same way it
+# already outranks their category guess.
+
+
+async def test_set_importance_round_trips_through_create_and_list(app_client):
+    groceries = (
+        await app_client.post(
+            "/api/v1/categories", json={"name": "Groceries", "icon": "shopping-cart"}
+        )
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Rent is essential",
+                "action": "categorize",
+                "targetCategoryId": groceries["id"],
+                "matchNameOp": "contains",
+                "matchNameValue": "rent",
+                "setImportance": "essential",
+            },
+        )
+    ).json()
+    assert created["setImportance"] == "essential"
+
+    defaulted = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "No importance",
+                "action": "exclude",
+                "matchNameOp": "contains",
+                "matchNameValue": "tea",
+            },
+        )
+    ).json()
+    assert defaulted["setImportance"] is None
+
+    rules = (await app_client.get("/api/v1/import-rules")).json()
+    by_name = {rule["name"]: rule for rule in rules}
+    assert by_name["Rent is essential"]["setImportance"] == "essential"
+
+
+async def test_set_importance_rejects_an_unknown_value(app_client):
+    response = await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Bad importance",
+            "action": "exclude",
+            "matchNameOp": "contains",
+            "matchNameValue": "x",
+            "setImportance": "critical",
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_import_csv_applies_set_importance_over_the_csv_column(app_client):
+    housing = (
+        await app_client.post("/api/v1/categories", json={"name": "Housing", "icon": "house"})
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Rent",
+            "action": "categorize",
+            "targetCategoryId": housing["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "rent",
+            "setImportance": "essential",
+        },
+    )
+
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+    # The CSV explicitly says "discretionary"; the rule must win.
+    csv = (
+        "name,category,amount,date,importance\n"
+        "MONTHLY RENT,other,-950.00,2026-01-02,discretionary\n"
+    )
+    imported = await app_client.post(
+        "/api/v1/expenses/import-csv", files=[_upload("rent.csv", csv)]
+    )
+    assert imported.status_code == 201, imported.text
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    assert len(rows) == 1
+    assert rows[0]["importance"] == "essential"
+    assert rows[0]["categoryId"] == housing["id"]
+
+
+async def test_preview_import_shows_the_rule_importance(app_client):
+    housing = (
+        await app_client.post("/api/v1/categories", json={"name": "Housing", "icon": "house"})
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Rent",
+            "action": "categorize",
+            "targetCategoryId": housing["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "rent",
+            "setImportance": "essential",
+        },
+    )
+    await app_client.patch("/api/v1/settings", json={"aiCategorizeEnabled": False})
+
+    csv = "name,category,amount,date,importance\nMONTHLY RENT,other,-950.00,2026-01-02,important\n"
+    preview = await app_client.post(
+        "/api/v1/expenses/import-csv/preview", files=[_upload("rent.csv", csv)]
+    )
+    assert preview.status_code == 200, preview.text
+    rows = preview.json()["rows"]
+    assert len(rows) == 1
+    # Preview must show the FINAL importance, not the raw CSV value.
+    assert rows[0]["suggestedImportance"] == "essential"
+
+
+async def test_apply_to_existing_sets_importance(app_client):
+    housing = (
+        await app_client.post("/api/v1/categories", json={"name": "Housing", "icon": "house"})
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={
+                "name": "Monthly Rent",
+                "amount": "950.00",
+                "date": "2026-01-02",
+                "categoryId": housing["id"],
+                "importance": "discretionary",
+            },
+        )
+    ).json()
+    rule = (
+        await app_client.post(
+            "/api/v1/import-rules",
+            json={
+                "name": "Rent",
+                "action": "categorize",
+                "targetCategoryId": housing["id"],
+                "matchNameOp": "contains",
+                "matchNameValue": "rent",
+                "setImportance": "essential",
+            },
+        )
+    ).json()
+
+    applied = await app_client.post(f"/api/v1/import-rules/{rule['id']}/apply")
+    assert applied.status_code == 200
+    assert applied.json()["updated"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    row = next(e for e in rows if e["id"] == created["id"])
+    assert row["importance"] == "essential"
+
+
+async def test_apply_all_sets_importance(app_client):
+    housing = (
+        await app_client.post("/api/v1/categories", json={"name": "Housing", "icon": "house"})
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={
+                "name": "Monthly Rent",
+                "amount": "950.00",
+                "date": "2026-01-02",
+                "categoryId": housing["id"],
+                "importance": "important",
+            },
+        )
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Rent",
+            "action": "categorize",
+            "targetCategoryId": housing["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "rent",
+            "setImportance": "essential",
+        },
+    )
+
+    applied = await app_client.post("/api/v1/import-rules/apply-all")
+    assert applied.status_code == 200
+    assert applied.json()["updated"] == 1
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    row = next(e for e in rows if e["id"] == created["id"])
+    assert row["importance"] == "essential"
+
+
+async def test_apply_all_leaves_importance_alone_when_the_rule_does_not_set_it(app_client):
+    housing = (
+        await app_client.post("/api/v1/categories", json={"name": "Housing", "icon": "house"})
+    ).json()
+    created = (
+        await app_client.post(
+            "/api/v1/expenses",
+            json={
+                "name": "Monthly Rent",
+                "amount": "950.00",
+                "date": "2026-01-02",
+                "categoryId": housing["id"],
+                "importance": "discretionary",
+            },
+        )
+    ).json()
+    await app_client.post(
+        "/api/v1/import-rules",
+        json={
+            "name": "Rent",
+            "action": "categorize",
+            "targetCategoryId": housing["id"],
+            "matchNameOp": "contains",
+            "matchNameValue": "rent",
+        },
+    )
+
+    await app_client.post("/api/v1/import-rules/apply-all")
+
+    rows = (await app_client.get("/api/v1/expenses")).json()
+    row = next(e for e in rows if e["id"] == created["id"])
+    assert row["importance"] == "discretionary"

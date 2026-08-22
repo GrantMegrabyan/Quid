@@ -351,6 +351,7 @@ class ImportRuleOut(_Camel):
     match_day_of_month: int | None = None
     set_display_name: str | None = None
     set_note: str | None = None
+    set_importance: Importance | None = None
     created_at: str
 
     @field_serializer("match_amount_value", "match_amount_value2")
@@ -374,6 +375,7 @@ class ImportRuleCreate(_Camel):
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
     set_note: str | None = None
+    set_importance: Importance | None = None
 
     _validate_dates = field_validator("match_date_from", "match_date_to")(_validate_optional_date)
 
@@ -394,6 +396,7 @@ class ImportRuleUpdate(_Camel):
     match_day_of_month: Annotated[int | None, Field(ge=1, le=31)] = None
     set_display_name: str | None = None
     set_note: str | None = None
+    set_importance: Importance | None = None
 
     _validate_dates = field_validator("match_date_from", "match_date_to")(_validate_optional_date)
 

@@ -443,8 +443,10 @@ are hidden as `duplicate_same_category` and never sent to confirm.
 (it shows the rule's target category, not the raw AI/CSV guess), and rows a
 matching rule would `exclude` come back as `kind = "excluded"`. A matching
 `categorize` rule that sets a display name / note also surfaces in preview: the
-row carries a `displayName` field (the rule's `set_display_name`, else `null`)
-and its `note` is the rule's `set_note` when the rule overrides it. When the
+row carries a `displayName` field (the rule's `set_display_name`, else `null`),
+its `note` is the rule's `set_note` when the rule overrides it, and its
+`suggestedImportance` is the rule's `set_importance` when the rule sets one — so
+the preview shows the FINAL importance, not the raw CSV/AI value. When the
 category itself came from a matching `categorize` rule (rather than the AI/CSV
 guess), the row carries `categoryFromRule = true` (else `false`); when the rule
 replaced a *different* AI/CSV guess, the row also carries
@@ -552,7 +554,8 @@ A bad date param returns 422 with `{ "code": "VALIDATION" }`.
 
 Import rules (`/api/v1/import-rules`, web UI **Rules** page) match transactions
 by name / amount / date / day-of-month and either `exclude` them or
-`categorize` them (optionally also setting `display_name` / `note`). Endpoints:
+`categorize` them (optionally also setting `display_name` / `note` /
+`importance`). Endpoints:
 
 - `GET /api/v1/import-rules` — list rules (priority order).
 - `GET /api/v1/import-rules/{id}` — single rule.
@@ -563,6 +566,16 @@ by name / amount / date / day-of-month and either `exclude` them or
   expenses. Returns `{ matched, updated, deleted }`.
 - `POST /api/v1/import-rules/apply-all` — re-apply all enabled rules
   (first match wins per expense). Returns `{ matched, updated, deleted }`.
+**The three setters.** A `categorize` rule can also rewrite three fields on
+every row it matches: `setDisplayName`, `setNote` and `setImportance`
+(`essential` | `important` | `discretionary`; an unknown value is a 422). Each is
+`null` by default, meaning "leave the imported value alone". They are meaningful
+only for `categorize` rules — an `exclude` rule deletes the row — and the web UI
+hides them for `exclude`. `setImportance` **outranks the AI's and the CSV's
+importance**, mirroring the precedence a rule already has over their category
+guess, and it applies identically on all three paths a rule reaches an expense
+through: CSV import, `/{id}/apply`, and `/apply-all`.
+
 - `POST /api/v1/import-rules/preview` — **dry-run** a rule's match conditions
   against existing transactions. Read-only: it never writes. The body
   (`ImportRulePreviewRequest`, camelCase) is the match-condition fields ONLY

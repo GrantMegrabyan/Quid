@@ -177,6 +177,7 @@ class ImportRule(Base):
 
     set_display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     set_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    set_importance: Mapped[str | None] = mapped_column(String, nullable=True)
 
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 

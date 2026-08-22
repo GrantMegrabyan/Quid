@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy import select, update
 
+from quid_api.ai_categorization import VALID_IMPORTANCE
 from quid_api.errors import RepositoryError, RepositoryErrorCode
 from quid_api.models import Category, Expense, ImportRule
 
@@ -202,6 +203,7 @@ class ImportRuleRepository:
         match_day_of_month: int | None = None,
         set_display_name: str | None = None,
         set_note: str | None = None,
+        set_importance: str | None = None,
     ) -> ImportRule:
         row = ImportRule(
             id=f"rule-{uuid4()}",
@@ -220,6 +222,7 @@ class ImportRuleRepository:
             match_day_of_month=match_day_of_month,
             set_display_name=set_display_name,
             set_note=set_note,
+            set_importance=set_importance,
             created_at=_now_iso(),
         )
         await self._validate(row)
@@ -300,6 +303,8 @@ class ImportRuleRepository:
             values["display_name"] = rule.set_display_name
         if rule.set_note is not None:
             values["note"] = rule.set_note
+        if rule.set_importance is not None:
+            values["importance"] = rule.set_importance
         await self.session.execute(
             update(Expense)
             .where(Expense.id.in_([expense.id for expense in matched]))
@@ -317,6 +322,7 @@ class ImportRuleRepository:
         category_updates: dict[str, list[str]] = {}
         display_name_updates: dict[str, list[str]] = {}
         note_updates: dict[str, list[str]] = {}
+        importance_updates: dict[str, list[str]] = {}
         to_delete: list[Expense] = []
         matched_total = 0
 
@@ -341,6 +347,11 @@ class ImportRuleRepository:
                         )
                     if rule.set_note is not None and expense.note != rule.set_note:
                         note_updates.setdefault(rule.set_note, []).append(expense.id)
+                    if (
+                        rule.set_importance is not None
+                        and expense.importance != rule.set_importance
+                    ):
+                        importance_updates.setdefault(rule.set_importance, []).append(expense.id)
                 break
 
         updated_ids: set[str] = set()
@@ -361,6 +372,12 @@ class ImportRuleRepository:
         for note, expense_ids in note_updates.items():
             await self.session.execute(
                 update(Expense).where(Expense.id.in_(expense_ids)).values(note=note)
+            )
+            updated_ids.update(expense_ids)
+
+        for importance, expense_ids in importance_updates.items():
+            await self.session.execute(
+                update(Expense).where(Expense.id.in_(expense_ids)).values(importance=importance)
             )
             updated_ids.update(expense_ids)
 
@@ -395,4 +412,9 @@ class ImportRuleRepository:
                     RepositoryErrorCode.VALIDATION,
                     f'Category "{row.target_category_id}" does not exist.',
                 )
+        if row.set_importance is not None and row.set_importance not in VALID_IMPORTANCE:
+            raise RepositoryError(
+                RepositoryErrorCode.VALIDATION,
+                "Rule importance is invalid.",
+            )
         _validate_match_conditions(row)

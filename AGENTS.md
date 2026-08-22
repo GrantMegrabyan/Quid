@@ -183,15 +183,26 @@ When NOT to commit:
     and a keep-income settings toggle. Don't implement these as part of routine
     import work.
 - Use `uv run quid-api clear-transactions` for the built-in transaction wipe, but only after explicit confirmation.
-- Import rules: a rule's `set_display_name` and `set_note` are only meaningful
-  for `categorize` rules (an `exclude` rule deletes the matched expense), and the
-  rules UI hides both fields for `exclude`. Both import-time (`expenses.py`) AND
-  re-apply (`import_rules.py` `apply_to_existing` / `apply_all_to_existing`) set
-  `expenses.display_name` / `expenses.note` when the matched rule has
-  `set_display_name` / `set_note`. `set_note` OVERRIDES any note from the import
-  row (CSV/freeform) or the existing expense's note on re-apply (same semantics
-  as `set_display_name`). When changing rule application, keep all three paths in
-  sync for both fields.
+- Import rules have THREE setters — `set_display_name`, `set_note` and
+  `set_importance` — all only meaningful for `categorize` rules (an `exclude`
+  rule deletes the matched expense), and the rules UI hides all three for
+  `exclude`. Each overrides the value from the import row (CSV/freeform/AI) or
+  the existing expense on re-apply; `None` means "leave it alone".
+  `set_importance` deliberately outranks the AI's and the CSV's importance,
+  mirroring the precedence a rule already has over their category guess.
+  There are FOUR write paths and they must stay in sync — a change to one
+  without the others is the classic bug here:
+  1. preview (`routers/expenses.py`, `_prepare_import_items`) — must promise
+     exactly what confirm will write;
+  2. confirm / CSV import (`repositories/expenses.py`, `bulk_import`);
+  3. `repositories/import_rules.py` `apply_to_existing`;
+  4. `repositories/import_rules.py` `apply_all_to_existing` (note this one
+     batches per distinct value, so a new setter needs its own dict + update
+     pass, not just a line in `values`).
+  `set_importance` has no DB CHECK (adding one to SQLite means rebuilding a
+  table carrying a dozen constraints — see migration 0022); it is validated by
+  the Pydantic `Importance` literal at the boundary and by
+  `ImportRuleRepository._validate` before any write.
 
 ## Frontend notes
 

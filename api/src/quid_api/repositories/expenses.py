@@ -499,6 +499,13 @@ class ExpenseRepository:
             item_note = item.note or ""
             if rule is not None and rule.set_note is not None:
                 item_note = rule.set_note
+            # A rule's importance outranks the AI's / CSV's guess, mirroring the
+            # precedence it already has over their category. Keep this in step
+            # with the preview path in ``routers/expenses.py`` — the preview
+            # promises the user exactly what confirming will write.
+            item_importance = clean_importance
+            if rule is not None and rule.set_importance is not None:
+                item_importance = rule.set_importance
             prepared.append(
                 (
                     idx,
@@ -508,7 +515,7 @@ class ExpenseRepository:
                     clean_name,
                     item_note,
                     item_display_name,
-                    clean_importance,
+                    item_importance,
                     category_source,
                 )
             )

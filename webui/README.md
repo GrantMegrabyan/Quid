@@ -241,6 +241,12 @@ and `docker-compose.yml` for the full stack (API + UI).
   part of the saved app settings (so it never round-trips to the API).
 - **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
   (`/ai-rules`).
+  - A `categorize` rule can rewrite three things on every row it matches:
+    **Set display name**, **Set note** and **Set importance**
+    (Essential / Important / Discretionary, defaulting to "Leave as imported").
+    All three are hidden for `exclude` rules, since those delete the row. A
+    rule's importance beats the AI's and the CSV's guess, and each rule card
+    spells its effects out ("Then categorize as Housing, mark essential").
   - The **Rules** page can **Preview matches** (dry-run): the add/edit form has a
     Preview button that lists the existing transactions the current draft's
     conditions would match (no save required), and each saved rule card has an

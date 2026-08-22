@@ -285,6 +285,7 @@ async def _prepare_preview_items(
         # otherwise "fix" by hand even though the rule will fix it on confirm.
         display_name: str | None = None
         note = item.note or ""
+        importance = clean_importance
         category_from_rule = False
         overridden_category_name: str | None = None
         if rule is not None and rule.action == "categorize":
@@ -298,6 +299,11 @@ async def _prepare_preview_items(
             display_name = rule.set_display_name
             if rule.set_note is not None:
                 note = rule.set_note
+            # A rule is an explicit standing instruction, so it outranks the
+            # AI's or the CSV's guess at importance — same precedence the rule
+            # already has over their category guess.
+            if rule.set_importance is not None:
+                importance = rule.set_importance
             # Surface the AI/CSV guess the rule replaced, but only when it
             # actually differs — no value in "AI suggested X → X".
             ai_suggested = _suggested_category(item.category, categories)
@@ -320,7 +326,7 @@ async def _prepare_preview_items(
                 category_id=category_id,
                 category_name=category_name,
                 category_exists=category_exists,
-                importance=clean_importance,
+                importance=importance,
                 display_name=display_name,
                 category_from_rule=category_from_rule,
                 overridden_category_name=overridden_category_name,

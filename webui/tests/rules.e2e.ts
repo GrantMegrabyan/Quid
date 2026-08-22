@@ -63,6 +63,26 @@ test.describe('import rules page', () => {
 		await expect(card.getByTestId('rule-set-note')).toHaveValue('Coffee run');
 	});
 
+	test('a rule can set importance, and the card says so', async ({ page }) => {
+		await page.goto('/rules');
+
+		await page.getByTestId('show-new-rule-form').click();
+		await page.getByLabel('Name', { exact: true }).fill('Rent');
+		await page.getByLabel('Target category').selectOption({ label: 'Food & Drink' });
+		await page.getByLabel('Name value').fill('rent');
+		await page.getByTestId('rule-set-importance').selectOption('essential');
+
+		await page.getByRole('button', { name: 'Add rule' }).click();
+
+		const card = page.locator('[data-testid="rule-card"]').filter({ hasText: 'Rent' });
+		await expect(card).toBeVisible();
+		// The effect is legible without opening the editor.
+		await expect(card).toContainText('mark essential');
+
+		await card.getByRole('button', { name: 'Edit rule' }).click();
+		await expect(card.getByTestId('rule-set-importance')).toHaveValue('essential');
+	});
+
 	test('preview matches a draft rule before saving without mutating data', async ({ page }) => {
 		await page.goto('/rules');
 

@@ -220,6 +220,8 @@ export interface ImportRule {
 	matchDayOfMonth: number | null;
 	setDisplayName: string | null;
 	setNote: string | null;
+	/** Overrides the imported/AI importance on match. `null` leaves it alone. */
+	setImportance: ExpenseImportance | null;
 	createdAt: string;
 }
 
