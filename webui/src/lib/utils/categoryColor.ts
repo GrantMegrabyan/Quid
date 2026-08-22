@@ -65,3 +65,20 @@ export function colorForCategoryId(id: string): string {
 	const hue = hashString(id) % 360;
 	return hslToHex(hue, SATURATION, LIGHTNESS).toLowerCase();
 }
+
+/**
+ * Chart-series colour by RANK, not by category.
+ *
+ * Categories carry a user-chosen hex, which is right for identity (the icon
+ * tile, the pill) but wrong for a chart: six arbitrary hues next to each other
+ * read as noise, and the eye can't order them. Ranked series colours — the
+ * forest → sage → sand → clay → plum ramp from the theme — keep a breakdown
+ * legible and let position carry the meaning. Anything past the ramp falls to
+ * stone, which is the point: the tail is "everything else".
+ */
+const SERIES_LENGTH = 5;
+
+export function seriesVar(rank: number): string {
+	if (rank < 0 || rank >= SERIES_LENGTH) return 'var(--ctp-chart-6)';
+	return `var(--ctp-chart-${rank + 1})`;
+}

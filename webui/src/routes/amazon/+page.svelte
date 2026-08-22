@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import {
 		AMAZON_ORDERS_PAGE_SIZE,
@@ -483,16 +485,9 @@
 	<title>Amazon orders</title>
 </svelte:head>
 
-<section class="flex flex-col gap-6">
-	<header class="flex flex-wrap items-start justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">Amazon orders</h1>
-			<p class="mt-1 max-w-2xl text-sm text-ctp-overlay1">
-				Import Amazon orders — from a CSV export or straight from your browser — and
-				link them to matching transactions.
-			</p>
-		</div>
-		<div class="flex flex-wrap items-center gap-2">
+<PageHeader heading="Amazon orders" text="Import Amazon orders — from a CSV export or straight from your browser — and link them to matching transactions.">
+	{#snippet actions()}
+<div class="flex flex-wrap items-center gap-2">
 			<input
 				bind:this={fileInputEl}
 				type="file"
@@ -549,7 +544,10 @@
 				{recategorizing ? 'Thinking…' : 'Re-categorise (AI)'}
 			</button>
 		</div>
-	</header>
+	{/snippet}
+</PageHeader>
+
+<PageContent>
 
 	{#if exportPanelOpen}
 		<div
@@ -979,8 +977,8 @@
 							>
 								<span
 									aria-hidden="true"
-									class="h-2 w-2 shrink-0 rounded-full"
-									style="background-color: {category.color || '#9ca3af'};"
+									class="cat-bar h-2 w-2 shrink-0 rounded-full"
+									style="--cat: {category.color || '#9ca3af'};"
 								></span>
 								<span class="truncate">{category.name}</span>
 								<Pencil
@@ -1143,4 +1141,4 @@
 			</div>
 		</div>
 	{/if}
-</section>
+</PageContent>

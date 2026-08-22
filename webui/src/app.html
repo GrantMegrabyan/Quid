@@ -6,8 +6,23 @@
 		<meta name="text-scale" content="scale" />
 		<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E%24%3C/text%3E%3C/svg%3E" />
 		<script>
-			document.documentElement.setAttribute('data-theme', 'dasher');
-			document.documentElement.classList.add('dark');
+			// Resolve the stored appearance before first paint so a reload never
+			// flashes the wrong tone. Mirrors `src/lib/stores/theme.ts`.
+			(() => {
+				let stored = 'light';
+				try {
+					const raw = localStorage.getItem('quid:theme:v2');
+					if (raw === 'light' || raw === 'dark' || raw === 'system') stored = raw;
+				} catch {}
+				const tone =
+					stored === 'system'
+						? window.matchMedia('(prefers-color-scheme: dark)').matches
+							? 'dark'
+							: 'light'
+						: stored;
+				document.documentElement.setAttribute('data-theme', tone);
+				document.documentElement.classList.toggle('dark', tone === 'dark');
+			})();
 		</script>
 		%sveltekit.head%
 	</head>

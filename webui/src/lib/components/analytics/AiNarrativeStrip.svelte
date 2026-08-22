@@ -34,7 +34,7 @@
 </script>
 
 <div
-	class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20"
+	class="card rounded-lg border border-ctp-surface1 bg-ctp-base p-4"
 	data-testid="analytics-narrative"
 >
 	<div class="flex flex-wrap items-center justify-between gap-2">

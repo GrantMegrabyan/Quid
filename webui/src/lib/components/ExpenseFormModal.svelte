@@ -173,7 +173,7 @@
 		data-testid="modal-backdrop"
 		role="presentation"
 		onclick={handleBackdropClick}
-		class="fixed inset-0 z-50 flex bg-black/50 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+		class="fixed inset-0 z-50 flex bg-ctp-text/25 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
 	>
 		<div
 			role="dialog"

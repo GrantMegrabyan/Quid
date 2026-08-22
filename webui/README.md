@@ -40,31 +40,41 @@ and `docker-compose.yml` for the full stack (API + UI).
 
 ## Pages
 
-- **Dashboard** (`/`) — a single-month spending view headed by the selected
-  month and a month selector (with a **Today** button to jump back to the
-  current month). Four stat cards: total spent (with a % change vs the previous
-  month, fetched from the analytics monthly-totals endpoint), transaction count
-  (with the average per transaction), top category (with its share of the
-  month), and daily average (for the current month, with a projected month-end
-  total once at least 3 days have elapsed). Below them, the cumulative
-  spending-trend chart sits beside a **By category** breakdown — a ranked bar
-  list with per-category totals and % shares (top 6, expandable). The breakdown
-  only renders on wide screens (`xl+`, where it fits beside the chart); on
-  smaller screens use Group by → Category for the same view.
-  The transaction list is a **register**: on desktop, flat view buckets rows
-  under per-day headers with a daily subtotal, and each row spreads into aligned
-  columns (icon, merchant, category pill, note, amount, hover-revealed
-  edit/delete). Grouped views (merchant/category/importance) render each group
-  header with a proportional share bar + % of the month, and expand into child
-  rows using the same columns (a date column replaces the icon; the category
-  pill is omitted when grouping by category). On mobile, rows fall back to a
-  compact stacked layout (day headers included). A **search box** filters by
-  merchant name/display name/note (with a match count + total) next to the
-  Group-by selector. A transaction's note is the expense's own note or, for a
-  linked Amazon order without one, the order's short name. The
-  **selected month** and Group-by choice are remembered across reloads/updates
-  in `localStorage`, so the view doesn't snap back to the current month after a
-  refresh; it defaults to the current month on first visit.
+- **Dashboard** (`/`) — the spending view for a **window** (see "The window"
+  below): a single month, or a rolling period. It is headed by the window's
+  total, the % change against the comparable previous window, and the window
+  control (month stepper + `3M / 6M / YTD / 1Y / ALL`). A ruled strip carries
+  the transaction count (with the average per transaction), the daily average
+  (with a projected month-end total when a month is still in progress and at
+  least 3 days have elapsed), and the top category with its share.
+  Below that, a two-column layout: the main column holds the **Spending** chart
+  (cumulative by day for a month, a bar per month for a period — the in-progress
+  month is drawn hollow) and **Where it went**, a ranked category bar list (top
+  6, expandable) coloured by RANK from the theme's series palette rather than by
+  each category's own hex. The right rail holds three read-only cards —
+  **Needs review** (uncategorised count + how many rows were categorised
+  automatically, each of which applies the matching filter below),
+  **Top merchants**, and **Essential vs discretionary**.
+  The transaction list is a **register** under a **filter bar**: search
+  (merchant/display name/note), a **Category** faceted multi-select showing each
+  category's row count, an amount band (min/max), a review-status filter
+  (All / Uncategorised / Auto-categorised), and the Group-by selector, with a
+  running "Showing N of M" count and **Clear filters**. On desktop, flat view
+  buckets rows under per-day headers with a daily subtotal, and each row spreads
+  into aligned columns (icon, merchant, category pill, note, amount,
+  hover-revealed edit/delete). Grouped views (merchant/category/importance)
+  render each group header with a proportional share bar + % of the window, and
+  expand into child rows using the same columns. On mobile, rows fall back to a
+  compact stacked layout.
+  In flat view each row's category tile doubles as its **checkbox** (it flips on
+  hover, and stays flipped while anything is selected); selecting rows raises a
+  **bulk bar** that can recategorise the selection in one go (PATCHing each row,
+  which marks its category source `manual`) or delete it through the usual
+  undo-able soft delete. The selection is dropped automatically when a row
+  leaves the current filter, so a bulk action can never hit an invisible row.
+  A transaction's note is the expense's own note or, for a linked Amazon order
+  without one, the order's short name. The window and the Group-by choice are
+  remembered across reloads in `localStorage`.
 - **Analytics** (`/analytics`) — insight-first review of your spending, anchored
   on the latest **complete** month (the in-progress month is never the
   headline). Top to bottom:
@@ -226,8 +236,9 @@ and `docker-compose.yml` for the full stack (API + UI).
       JSON; it's sourced from `SCRAPER_VERSION` in `scraper.ts` so it can't drift.
 - **Settings** (`/settings`) — currency, importance badges, and two AI toggles:
   **AI categorisation** and **AI Amazon short names** (both persisted, default
-  on). (Theme switching was removed; the UI uses a single Dasher-style dark
-  design on this branch.)
+  on), plus **Appearance** (Paper / Ink / System). Appearance is a *device*
+  preference: it applies immediately, is stored in `localStorage`, and is not
+  part of the saved app settings (so it never round-trips to the API).
 - **Categories** (`/categories`), **Rules** (`/rules`), **AI rules**
   (`/ai-rules`).
   - The **Rules** page can **Preview matches** (dry-run): the add/edit form has a
@@ -235,6 +246,101 @@ and `docker-compose.yml` for the full stack (API + UI).
     conditions would match (no save required), and each saved rule card has an
     eye icon that previews that rule's matches. Both call
     `POST /api/v1/import-rules/preview` and never modify data.
+
+## The window
+
+Every number on the dashboard describes one **window**, and the window is a
+selection, not a date:
+
+```ts
+type PeriodSelection =
+  | { kind: 'month';  monthKey: string; restoreCode: PeriodCode }  // steppable
+  | { kind: 'period'; code: '3M' | '6M' | 'YTD' | '1Y' | 'ALL' };  // ends today
+```
+
+- **Resolution** lives in `src/lib/utils/period.ts` (`resolvePeriod`): it turns a
+  selection into `{ from, to, prior, label, priorLabel, granularity, inProgress }`.
+  The **comparison window** follows what a person would draw by hand — a month
+  compares with the previous calendar month; a rolling period compares with the
+  equally long window ending the day before it starts; `ALL` has no comparison.
+  The prior window's total is fetched as ONE aggregate
+  (`/api/v1/analytics/summary?date_from&date_to`), never as a second page of rows.
+- **State** lives in `src/lib/stores/ui.ts`: `selection` (persisted under
+  `quid:period:v2`; the old `quid:selected-month:v1` key is no longer read),
+  plus the derived `resolvedPeriod`, `selectedMonth` and `isMonthMode`, and the
+  writers `setPeriod` / `setMonth` / `stepMonth` / `goCurrentMonth`. Write through
+  those — `selectedMonth` is read-only now.
+- **Month mode is first-class**, and is the default. Stepping the month leaves
+  period mode (remembering the code to restore), and picking a code leaves month
+  mode. Analytics that only make sense for a calendar month (the cumulative
+  chart, the month-end projection) are gated on `isMonthMode`.
+- **The URL is the shareable form**: `?month=2026-07` or `?period=6M`. On load the
+  URL wins over the persisted selection; afterwards the selection writes back
+  with `replaceState`.
+- **The store is the window.** `refreshExpenses()` fetches exactly the resolved
+  range in one request, so `$expenses` holds the window and nothing else.
+  Components must NOT re-filter by date — that was the old month-scoped contract
+  and it is gone. Anything needing a row from outside the window (e.g. an Amazon
+  order's linked charge of any date) must still fetch it directly.
+
+## App shell
+
+All pages share three primitives in `src/lib/components/shell/`, and new pages
+should use them rather than hand-rolling a header:
+
+- `PageHeader` — sticky title bar (`heading` + `text`, plus an `actions` snippet
+  for page controls). Its border and frosted background appear only once the
+  page has scrolled, so a page at rest reads as one sheet. Pass `children` to
+  replace the heading block entirely (the dashboard does this for its hero).
+- `PageContent` — the body's stacking rhythm; takes an optional `class` for
+  pages that constrain their own width (Settings).
+- `SectionCard` — a captioned section: a small title (+ optional subtitle and
+  right-side `action`) above a `.card` body. Set `padded={false}` for full-bleed
+  bodies.
+
+The sidebar groups navigation by purpose (**Overview** / **Data** / **Setup**)
+with Settings, the theme toggle and the rail toggle pinned to the footer. The
+rail collapses to icons; that choice is per-device (`quid:sidebar-collapsed:v1`).
+
+## Theme (Paper)
+
+The UI ships one theme in two tones, inspired by Wealthfolio's ink-on-paper
+look: **Paper** (light, warm `#FFFCF0` ground) and **Ink** (dark, `#100F0F`).
+Both are built from the [Flexoki](https://stephango.com/flexoki) palette.
+
+- **Tokens** live in `src/app.css`. `:root` defines the light tone and `.dark`
+  overrides the same names for the dark tone, so components never branch on
+  theme. The token names are historical (`--ctp-*`) but their meaning is:
+  `mantle` = page, `base` = card, `crust` = sidebar, `surface0` = hover,
+  `surface1` = hairline border, `surface2` = field edge, `text`/`subtext*`/
+  `overlay*` = ink from strongest to faintest, `accent` = forest green.
+- **Switching** is `src/lib/stores/theme.ts` (`light` | `dark` | `system`). It
+  toggles the `dark` class on `<html>` and mirrors the choice to
+  `localStorage['quid:theme:v2']`. `src/app.html` reads the same key in an
+  inline script before first paint, so a reload never flashes the wrong tone —
+  **keep those two in sync**. `system` keeps following the OS while the app is
+  open. The sidebar footer has a two-way toggle; Settings has the full
+  three-way control.
+- **Charts** read their colours from the CSS custom properties at render time
+  and re-render on theme change via a `MutationObserver` on `<html>`'s
+  `class`/`data-theme` (`CumulativeChart.svelte`,
+  `analytics/MonthlyTrendChart.svelte`). Use `--ctp-chart-1..6` (forest / sage /
+  sand / clay / plum / stone) for series colour, not the raw named colours.
+- **Category colour** is user-chosen hex and is often far more saturated than
+  the palette. Never paint it raw: set `--cat: <hex>` on the element and use one
+  of the role classes from `app.css` — `.cat-chip` (icon tile / pill),
+  `.cat-solid` (filled swatch), `.cat-bar` (progress bar). Each `color-mix()`es
+  the hue toward the page's ink or ground, and the mix flips with the theme
+  automatically. In **charts and ranked lists**, don't use category colour at
+  all: call `seriesVar(rank)` (`src/lib/utils/categoryColor.ts`) so a breakdown
+  is coloured by position along the theme ramp — arbitrary hues side by side
+  read as noise and can't be ordered by eye.
+- **Type**: Inter for UI, Merriweather (`font-serif`) for page headings and for
+  money set with the `.numeral` class (serif + `tabular-nums`). `HeroAmount.svelte`
+  is the page-headline number: it tweens the value and renders the decimal
+  fraction in a muted tone.
+- **Elevation**: use the `.card` class (hairline border + `--ctp-shadow`).
+  Dark-theme drop shadows (`shadow-lg shadow-black/20`) do not belong on paper.
 
 ## Action feedback & undo
 

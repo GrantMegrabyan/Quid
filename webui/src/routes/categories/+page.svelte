@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import CategoryIcon from '$components/CategoryIcon.svelte';
 	import IconPicker from '$components/IconPicker.svelte';
@@ -199,17 +201,9 @@
 	<title>Categories</title>
 </svelte:head>
 
-<section class="flex flex-col gap-6">
-	<header class="flex flex-wrap items-start justify-between gap-3">
-		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">
-				Categories
-			</h1>
-			<p class="text-sm text-ctp-overlay1">
-				Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.
-			</p>
-		</div>
-		{#if !showAddForm}
+<PageHeader heading="Categories" text="Add, rename, recolor, choose an icon. Deleting a category moves its expenses to Uncategorized.">
+	{#snippet actions()}
+{#if !showAddForm}
 			<button
 				type="button"
 				data-testid="show-new-category-form"
@@ -219,7 +213,10 @@
 				+ Add category
 			</button>
 		{/if}
-	</header>
+	{/snippet}
+</PageHeader>
+
+<PageContent>
 
 	{#if showAddForm}
 	<form
@@ -361,8 +358,8 @@
 							aria-hidden="true"
 							data-testid="category-icon"
 							data-icon={normalizeCategoryIcon(category.icon)}
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/5"
-							style="background-color: {category.color || FALLBACK_COLOR};"
+							class="cat-chip flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+							style="--cat: {category.color || FALLBACK_COLOR};"
 						><CategoryIcon name={category.icon} size={16} /></span>
 						<div class="min-w-0 flex-1">
 							<p
@@ -518,4 +515,4 @@
 			</li>
 		{/each}
 	</ul>
-</section>
+</PageContent>

@@ -42,7 +42,7 @@ test.describe('dashboard', () => {
 	test('grouped view shows share bars and expandable child rows', async ({ page }) => {
 		await page.goto('/');
 
-		await page.locator('select').selectOption('category');
+		await page.getByTestId('filter-groupby').selectOption('category');
 
 		// Groups sorted by amount desc: Groceries (£42.50) before Public Transport.
 		const groups = page.getByTestId('expense-group-toggle');
@@ -87,8 +87,9 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(0));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£10.00');
-		await expect(page.getByText('Current Coffee')).toBeVisible();
-		await expect(page.getByText('Previous Train')).toHaveCount(0);
+		const register = page.getByTestId('transactions-section');
+		await expect(register.getByText('Current Coffee')).toBeVisible();
+		await expect(register.getByText('Previous Train')).toHaveCount(0);
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
 
 		await page.getByTestId('month-prev').click();
@@ -96,8 +97,8 @@ test.describe('dashboard', () => {
 		await expect(page.getByTestId('month-label')).toHaveText(monthLabelOffset(-1));
 		await expect(page.getByTestId('selected-month-heading')).toHaveText(monthLabelOffset(-1));
 		await expect(page.getByTestId('selected-month-total')).toHaveText('£20.00');
-		await expect(page.getByText('Previous Train')).toBeVisible();
-		await expect(page.getByText('Current Coffee')).toHaveCount(0);
+		await expect(register.getByText('Previous Train')).toBeVisible();
+		await expect(register.getByText('Current Coffee')).toHaveCount(0);
 	});
 
 	test('dashboard requests only the selected month, not other months', async ({ page }) => {
@@ -135,10 +136,12 @@ test.describe('dashboard', () => {
 		});
 
 		await page.goto('/');
-		await expect(page.getByText('Current Coffee')).toBeVisible();
+		const register = page.getByTestId('transactions-section');
+		await expect(register.getByText('Current Coffee')).toBeVisible();
 
-		// Every expense-list request must carry a single-month date range, and the
-		// previous month's row must never appear on the current-month dashboard.
+		// The default selection is a single month, and in month mode every
+		// expense-list request must carry that month's range — the previous
+		// month's row must never appear.
 		expect(listRequests.length).toBeGreaterThan(0);
 		for (const url of listRequests) {
 			expect(url.searchParams.get('date_from')).toMatch(/^\d{4}-\d{2}-01$/);
@@ -148,7 +151,7 @@ test.describe('dashboard', () => {
 			const to = url.searchParams.get('date_to')!.slice(0, 7);
 			expect(from).toBe(to);
 		}
-		await expect(page.getByText('Previous Train')).toHaveCount(0);
+		await expect(register.getByText('Previous Train')).toHaveCount(0);
 	});
 
 	test('remembers the selected month after reload', async ({ page }) => {
@@ -361,9 +364,9 @@ test.describe('mobile layout', () => {
 	test('dashboard has no horizontal overflow on a 375px viewport', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByTestId('cumulative-chart')).toBeVisible();
-		// The category breakdown is desktop-only (xl+): stacked on mobile it eats
-		// vertical space, and Group by → Category covers the same need.
-		await expect(page.getByTestId('category-breakdown')).toBeHidden();
+		// "Where it went" is a primary answer, so it stacks into the single
+		// column on mobile rather than being hidden.
+		await expect(page.getByTestId('category-breakdown')).toBeVisible();
 		await page.waitForFunction(
 			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth
 		);

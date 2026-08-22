@@ -37,7 +37,7 @@
 </script>
 
 <section
-	class="rounded-xl border border-ctp-surface1 bg-ctp-base p-4 shadow-lg shadow-black/20"
+	class="card rounded-lg border border-ctp-surface1 bg-ctp-base p-4"
 	data-testid="analytics-wentup"
 >
 	<h2 class="text-xs font-bold uppercase tracking-wider text-ctp-subtext0">What went up</h2>
@@ -63,8 +63,8 @@
 					>
 						<span class="inline-flex items-center gap-2 text-sm font-semibold text-ctp-text">
 							<span
-								class="h-2.5 w-2.5 shrink-0 rounded-full"
-								style="background-color: {inc.color}"
+								class="cat-bar h-2.5 w-2.5 shrink-0 rounded-full"
+								style="--cat: {inc.color}"
 							></span>
 							<TrendingUp class="h-4 w-4 text-ctp-red" />
 							{inc.categoryName}

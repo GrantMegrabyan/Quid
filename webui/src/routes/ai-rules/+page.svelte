@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHeader from '$components/shell/PageHeader.svelte';
+	import PageContent from '$components/shell/PageContent.svelte';
 	import { onMount } from 'svelte';
 	import { addAiRule, aiRules, deleteAiRule, editAiRule, refreshAiRules } from '$lib/stores/aiRules';
 	import { pendingDeletes, pendingKey, softDelete } from '$lib/stores/toasts';
@@ -97,15 +99,9 @@
 
 <svelte:head><title>AI Rules</title></svelte:head>
 
-<section class="flex flex-col gap-6">
-	<header class="flex flex-wrap items-start justify-between gap-3">
-		<div class="flex flex-col gap-1">
-			<h1 class="text-2xl font-semibold tracking-tight text-ctp-text">AI Rules</h1>
-			<p class="text-sm text-ctp-overlay1">
-				Plain-language instructions that are sent to AI categorisation during CSV import.
-			</p>
-		</div>
-		{#if !editingId && !showAddForm}
+<PageHeader heading="AI Rules" text="Plain-language instructions that are sent to AI categorisation during CSV import.">
+	{#snippet actions()}
+{#if !editingId && !showAddForm}
 			<button
 				type="button"
 				data-testid="show-new-ai-rule-form"
@@ -115,7 +111,10 @@
 				+ Add AI rule
 			</button>
 		{/if}
-	</header>
+	{/snippet}
+</PageHeader>
+
+<PageContent>
 
 	{#if message}
 		<div class="rounded-md border border-ctp-accent/40 bg-ctp-accent/10 px-4 py-3 text-sm text-ctp-accent">
@@ -234,4 +233,4 @@
 			{/each}
 		</div>
 	{/if}
-</section>
+</PageContent>
