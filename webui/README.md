@@ -301,6 +301,17 @@ type PeriodSelection =
 - **The URL is the shareable form**: `?month=2026-07` or `?period=6M`. On load the
   URL wins over the persisted selection; afterwards the selection writes back
   with `replaceState`.
+- **`ALL` fetches from an epoch sentinel** (`1970-01-01`), which is a *fetch*
+  bound and not a real window start. Anything DISPLAYING the window must read
+  `viewWindow` (`src/lib/stores/window.ts`) instead of `resolvedPeriod`: it
+  narrows an all-time window to the earliest transaction actually loaded, via
+  `clampToData` in `period.ts`. Charting the raw bound drew a bar for every
+  month since 1970 and divided the daily average by ~20,000 days. Only `ALL` is
+  clamped — a chosen window keeps its empty months, since a gap inside "last 6
+  months" is a real finding. `viewWindow` lives in its own store because
+  `resolvedPeriod` must NOT depend on the loaded rows (the fetch is keyed off
+  it and would chase its own tail), and because `expenses.ts` already imports
+  `ui.ts`.
 - **The store is the window.** `refreshExpenses()` fetches exactly the resolved
   range in one request, so `$expenses` holds the window and nothing else.
   Components must NOT re-filter by date — that was the old month-scoped contract

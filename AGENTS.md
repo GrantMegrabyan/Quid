@@ -280,6 +280,14 @@ When NOT to commit:
   (`analytics/summary` over `resolved.prior`), never a second page of rows.
   The window is in the URL (`?month=` / `?period=`), and the URL wins on load.
   See the **The window** section of `webui/README.md`.
+- The dashboard's `ALL` period resolves `from` to a `1970-01-01` EPOCH
+  sentinel — a FETCH bound, not a window start. Anything that displays the
+  window (chart axis, per-day average) must use `viewWindow`
+  (`webui/src/lib/stores/window.ts`), which clamps all-time to the earliest
+  loaded transaction via `clampToData`; `resolvedPeriod` stays raw because
+  `refreshExpenses` is keyed off it and must keep fetching everything. Only
+  `ALL` is clamped — a chosen window keeps its empty months on purpose.
+  `viewWindow` cannot live in `stores/ui.ts` (cycle: `expenses.ts` imports it).
 - Pages use the shell primitives in `webui/src/lib/components/shell/`
   (`PageHeader` / `PageContent` / `SectionCard`) — don't hand-roll a page header;
   the sticky-on-scroll behaviour and the heading rhythm come from there.

@@ -5,7 +5,7 @@
 	import { ensureChartJsRegistered, chartThemeColors } from '$lib/chart/chartSetup';
 	import { expenses } from '$lib/stores/expenses';
 	import { settings } from '$lib/stores/settings';
-	import { resolvedPeriod } from '$lib/stores/ui';
+	import { viewWindow } from '$lib/stores/window';
 	import { currentMonthKey, formatMonthLabel, monthKey } from '$utils/dates';
 	import { monthsInRange } from '$utils/period';
 	import { amountToNumber, formatAmount } from '$utils/money';
@@ -37,7 +37,9 @@
 		themeObserver = null;
 	});
 
-	const months = $derived(monthsInRange($resolvedPeriod.from, $resolvedPeriod.to));
+	// The window narrowed to the data: "all time" fetches from an epoch
+	// sentinel, which would draw a bar for every month since 1970.
+	const months = $derived(monthsInRange($viewWindow.from, $viewWindow.to));
 
 	const totals = $derived.by(() => {
 		const byMonth = new Map(months.map((month) => [month, 0]));
@@ -50,6 +52,11 @@
 	});
 
 	const labels = $derived(months.map((month) => formatMonthLabel(month)));
+	const axisLabel = $derived(
+		labels.length > 1
+			? `Spend per month, ${labels[0]} to ${labels[labels.length - 1]}`
+			: `Spend per month, ${labels[0] ?? 'no data'}`
+	);
 	const inProgressIndex = $derived(months.indexOf(currentMonthKey()));
 
 	const data: ChartData<'bar'> = $derived.by(() => {
@@ -112,5 +119,7 @@
 </script>
 
 <div data-testid="monthly-bar-chart" class="relative h-72 w-full">
-	<canvas bind:this={canvas} aria-label="Spend per month"></canvas>
+	<!-- The canvas has no readable content, so the label carries the span the
+	     bars cover — the only description a screen reader (or a test) gets. -->
+	<canvas bind:this={canvas} aria-label={axisLabel}></canvas>
 </div>

@@ -54,6 +54,35 @@ test.describe('period selection', () => {
 		await expect(register.getByText('Previous Train')).toBeVisible();
 	});
 
+	test('all time starts at the earliest transaction, not the epoch', async ({ page }) => {
+		await page.goto('/');
+		await page.getByTestId('period-ALL').click();
+
+		await expect(page.getByTestId('selected-month-heading')).toHaveText('All time');
+		await expect(page.getByTestId('selected-month-total')).toHaveText('£30.00');
+		// "All time" is FETCHED from a 1970 sentinel; charting that bound drew a
+		// bar for every month since, squeezing the real data into a sliver.
+		await expect(page.getByTestId('monthly-bar-chart').locator('canvas')).toHaveAttribute(
+			'aria-label',
+			`Spend per month, ${monthLabelOffset(-1)} to ${monthLabelOffset(0)}`
+		);
+		// Same sentinel, same bug: dividing by every day since 1970 rounded the
+		// daily average to nothing.
+		await expect(page.getByTestId('daily-average')).not.toHaveText('£0.00');
+	});
+
+	test('a chosen window keeps its empty months', async ({ page }) => {
+		await page.goto('/');
+		await page.getByTestId('period-6M').click();
+
+		// Only the last two months have data, but the user asked for six: the
+		// gap is a real finding, so it is NOT clamped away.
+		await expect(page.getByTestId('monthly-bar-chart').locator('canvas')).toHaveAttribute(
+			'aria-label',
+			`Spend per month, ${monthLabelOffset(-5)} to ${monthLabelOffset(0)}`
+		);
+	});
+
 	test('the window is in the URL and survives a reload', async ({ page }) => {
 		await page.goto('/');
 		await page.getByTestId('period-6M').click();

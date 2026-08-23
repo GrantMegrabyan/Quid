@@ -61,7 +61,14 @@ export const PERIOD_LABELS: Record<PeriodCode, string> = {
 	ALL: 'All time'
 };
 
-/** The earliest date Quid will ask the API for when the window is "all time". */
+/**
+ * The earliest date Quid will ask the API for when the window is "all time".
+ *
+ * This is a FETCH bound, not a real window start — nothing happened in 1970.
+ * Anything that shows the window to the user (a chart axis, a per-day average)
+ * must run it through `clampToData` first, or it stretches the axis over five
+ * empty decades and divides the average by ~20,000 days.
+ */
 const EPOCH = '1970-01-01';
 
 export const DEFAULT_PERIOD_CODE: PeriodCode = '6M';
@@ -164,6 +171,28 @@ export function resolvePeriod(
 		granularity: 'month',
 		inProgress: true
 	};
+}
+
+/** True when the window is the open-ended "all time" one. */
+export function isAllTime(resolved: ResolvedPeriod): boolean {
+	return resolved.from === EPOCH;
+}
+
+/**
+ * Narrow an open-ended window to the data it actually contains.
+ *
+ * Only "all time" is clamped. A chosen window keeps its empty months on
+ * purpose — a gap inside "last 6 months" is a real finding ("you spent nothing
+ * in March"), whereas the decades before your first transaction are an artefact
+ * of the epoch sentinel. With no data at all there is nothing to anchor to, so
+ * the window collapses to its final day rather than spanning from 1970.
+ */
+export function clampToData(resolved: ResolvedPeriod, earliest: string | null): ResolvedPeriod {
+	if (!isAllTime(resolved)) return resolved;
+	if (earliest === null) return { ...resolved, from: resolved.to };
+	// `earliest` may carry a time component; the window's bounds are dates.
+	const from = earliest.slice(0, 10);
+	return from > resolved.to ? resolved : { ...resolved, from };
 }
 
 /**

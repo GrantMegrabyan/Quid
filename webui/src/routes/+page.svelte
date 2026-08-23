@@ -26,6 +26,7 @@
 	import { categories, refreshCategories } from '$lib/stores/categories';
 	import { refreshSettings, settings } from '$lib/stores/settings';
 	import { isMonthMode, resolvedPeriod, selection, setMonth, setPeriod } from '$lib/stores/ui';
+	import { viewWindow } from '$lib/stores/window';
 	import { softDelete } from '$lib/stores/toasts';
 	import { persisted } from '$lib/stores/persisted';
 	import { analyticsRepository, expenseRepository } from '$lib/repos';
@@ -59,9 +60,12 @@
 		transactionCount > 0 ? windowTotal / transactionCount : 0
 	);
 
-	const elapsed = $derived(elapsedDays($resolvedPeriod));
+	// $viewWindow, not $resolvedPeriod: "all time" is fetched from an epoch
+	// sentinel, and dividing by the ~20,000 days since 1970 makes the daily
+	// average meaningless.
+	const elapsed = $derived(elapsedDays($viewWindow));
 	const dailyAverage = $derived(elapsed > 0 ? windowTotal / elapsed : 0);
-	const projectedTotal = $derived(dailyAverage * totalDays($resolvedPeriod));
+	const projectedTotal = $derived(dailyAverage * totalDays($viewWindow));
 	// A one-or-two-day sample extrapolates to nonsense (one big shop reads as a
 	// five-figure month); hold the projection back until there's some signal,
 	// and only project a month — a rolling window has no "end" to project to.
@@ -373,7 +377,7 @@
 			<dt class="text-[11px] font-semibold uppercase tracking-wider text-ctp-overlay1">
 				Daily average
 			</dt>
-			<dd class="numeral mt-1 text-xl font-bold text-ctp-text">
+			<dd data-testid="daily-average" class="numeral mt-1 text-xl font-bold text-ctp-text">
 				{formatAmount(dailyAverage, $settings.currency)}
 			</dd>
 			{#if showProjection}
